@@ -1,0 +1,22 @@
+services:
+  edge:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      PELADEX_DOMAIN: ${PELADEX_DOMAIN:?defina no .env}
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - edge_data:/data
+      - edge_config:/config
+    networks:
+      - web
+
+networks:
+  web:
+    external: true
+
+volumes:
+  edge_data:
+  edge_config:

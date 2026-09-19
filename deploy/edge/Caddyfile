@@ -1,0 +1,13 @@
+{
+	auto_https off
+}
+
+http://{$PELADEX_DOMAIN} {
+	encode gzip
+	handle /api/* {
+		reverse_proxy peladex-backend:8000
+	}
+	handle {
+		reverse_proxy peladex-frontend:3000
+	}
+}

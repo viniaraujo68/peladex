@@ -1,0 +1,103 @@
+@import '@viniaraujo68/plinth/theme.css';
+
+@source "../../node_modules/@viniaraujo68/plinth/dist";
+
+@import 'tailwindcss';
+
+@plugin "daisyui" {
+	exclude: rootscrollgutter;
+}
+
+:root {
+	--color-primary: light-dark(#176b3f, #2ab36a);
+	--color-primary-content: light-dark(#ffffff, #08130c);
+	--ink-primary: color-mix(in oklab, var(--color-primary) 70%, var(--color-base-content));
+	--ink-warning: color-mix(in oklab, var(--color-warning) 78%, var(--color-base-content));
+	--ink-muted: color-mix(in oklab, var(--color-base-content) 70%, transparent);
+}
+
+:where(.badge-soft, .badge-outline, .badge-ghost):where(.badge-primary) {
+	--badge-ink: var(--ink-primary);
+}
+:where(.badge-soft, .badge-outline, .badge-ghost):where(.badge-warning) {
+	--badge-ink: var(--ink-warning);
+}
+:where(.badge-soft, .badge-outline, .badge-ghost):where(
+	.badge-neutral,
+	:not(
+		.badge-primary,
+		.badge-secondary,
+		.badge-accent,
+		.badge-neutral,
+		.badge-info,
+		.badge-success,
+		.badge-warning,
+		.badge-error
+	)
+) {
+	--badge-ink: var(--ink-muted);
+}
+
+.btn-soft.btn-primary {
+	--btn-rest-fg: var(--ink-primary);
+}
+.btn-soft.btn-warning {
+	--btn-rest-fg: var(--ink-warning);
+}
+.link-primary {
+	color: var(--ink-primary);
+}
+
+@layer base {
+	body {
+		display: flex;
+		min-height: 100dvh;
+		flex-direction: column;
+		background-color: var(--color-base-100);
+		color: var(--color-base-content);
+		line-height: 1.5;
+		-webkit-font-smoothing: antialiased;
+	}
+}
+
+@layer components {
+	.hit-44 {
+		position: relative;
+	}
+
+	.hit-44::after {
+		content: '';
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		transform: translate(-50%, -50%);
+		width: max(100%, 44px);
+		height: max(100%, 44px);
+		border-radius: inherit;
+	}
+}
+
+:where(button, a, summary, [role='button'], [role='tab'], [role='radio'], [tabindex]):focus-visible {
+	outline: 2px solid var(--color-primary);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+
+	.loading {
+		animation-duration: 2s !important;
+		animation-iteration-count: infinite !important;
+	}
+
+	.plinth-skeleton {
+		animation: none !important;
+	}
+}

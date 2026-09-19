@@ -1,0 +1,39 @@
+{
+  "name": "peladex-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node build",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json",
+    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./jsconfig.json --watch",
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.39.5",
+    "@sveltejs/adapter-node": "^5.5.7",
+    "@sveltejs/kit": "^2.70.2",
+    "@sveltejs/vite-plugin-svelte": "^4.0.4",
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/node": "^26.2.0",
+    "daisyui": "^5.7.22",
+    "eslint": "^9.39.5",
+    "eslint-plugin-svelte": "^3.22.0",
+    "globals": "^17.10.0",
+    "svelte": "^5.57.0",
+    "svelte-check": "^4.7.5",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^6.0.3",
+    "vite": "^5.4.21"
+  },
+  "dependencies": {
+    "@viniaraujo68/plinth": "github:viniaraujo68/plinth#0ecfef02b180d260fb4e8eb9c6dc5f7b07974a18",
+    "chart.js": "^4.5.1"
+  },
+  "overrides": {
+    "cookie": "^0.7.2"
+  }
+}

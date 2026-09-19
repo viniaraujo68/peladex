@@ -1,0 +1,250 @@
+/**
+ * @typedef {object} User
+ * @property {number} id
+ * @property {string} username
+ */
+
+/**
+ * @typedef {object} Group
+ * @property {number} id
+ * @property {string} name
+ * @property {string} slug
+ * @property {string} description
+ * @property {'public'|'private'} visibility
+ * @property {string|null} share_token
+ * @property {number} win_points
+ * @property {number} draw_points
+ * @property {number} loss_points
+ * @property {number} matchday_count
+ * @property {number} player_count
+ */
+
+/**
+ * @typedef {object} Named
+ * @property {number} id
+ * @property {string} name
+ */
+
+/**
+ * @typedef {object} Player
+ * @property {number} id
+ * @property {string} name
+ * @property {boolean} active
+ */
+
+/**
+ * @typedef {object} TeamMember
+ * @property {number} player_id
+ * @property {string} name
+ */
+
+/**
+ * @typedef {object} Standing
+ * @property {number} team_id
+ * @property {string} name
+ * @property {string} color
+ * @property {number} played
+ * @property {number} wins
+ * @property {number} draws
+ * @property {number} losses
+ * @property {number} goals_for
+ * @property {number} goals_against
+ * @property {number} goal_diff
+ * @property {number} points
+ * @property {number} win_rate
+ * @property {TeamMember[]} members
+ */
+
+/**
+ * @typedef {object} Goal
+ * @property {number} id
+ * @property {number} player_id
+ * @property {string} player_name
+ * @property {number} team_id
+ * @property {boolean} own_goal
+ */
+
+/**
+ * @typedef {object} Match
+ * @property {number} id
+ * @property {number} sort_index
+ * @property {number} home_team_id
+ * @property {string} home_team_name
+ * @property {number} away_team_id
+ * @property {string} away_team_name
+ * @property {number} home_score
+ * @property {number} away_score
+ * @property {Goal[]} goals
+ */
+
+/**
+ * @typedef {object} Scorer
+ * @property {number} player_id
+ * @property {string} name
+ * @property {number} goals
+ */
+
+/**
+ * @typedef {object} Matchday
+ * @property {number} id
+ * @property {string} date
+ * @property {number|null} venue_id
+ * @property {string|null} venue_name
+ * @property {number|null} mvp_player_id
+ * @property {string|null} mvp_name
+ * @property {string} notes
+ * @property {Standing[]} standings
+ * @property {Match[]} matches
+ * @property {number|null} champion_team_id
+ * @property {Scorer[]} top_scorers
+ * @property {number} total_goals
+ * @property {boolean} goal_mismatch
+ */
+
+/**
+ * @typedef {object} MatchdayPayload
+ * @property {string} date
+ * @property {number|null} venue_id
+ * @property {number|null} mvp_player_id
+ * @property {string} notes
+ * @property {{ name: string, color: string, player_ids: number[] }[]} teams
+ * @property {{ home_team_index: number, away_team_index: number, home_score: number,
+ *   away_score: number, goals: { player_id: number, own_goal: boolean }[] }[]} matches
+ */
+
+/**
+ * @typedef {object} PlayerRow
+ * @property {number} player_id
+ * @property {string} name
+ * @property {number} matchdays
+ * @property {number} matches
+ * @property {number} wins
+ * @property {number} draws
+ * @property {number} losses
+ * @property {number} points
+ * @property {number} win_rate
+ * @property {number} goals
+ * @property {number} own_goals
+ * @property {number} goals_per_matchday
+ * @property {number} mvp_count
+ * @property {number} titles
+ * @property {number} title_rate
+ */
+
+/**
+ * @typedef {object} GroupRecord
+ * @property {string} code
+ * @property {string|null} player_name
+ * @property {number|null} value
+ * @property {string} detail
+ * @property {string|null} matchday_date
+ */
+
+/**
+ * @typedef {object} Stats
+ * @property {PlayerRow[]} ranking
+ * @property {GroupRecord[]} records
+ * @property {number} total_matchdays
+ * @property {number} total_matches
+ * @property {number} total_goals
+ */
+
+/**
+ * @typedef {object} EvolutionPoint
+ * @property {string} date
+ * @property {number|null} win_rate
+ * @property {number|null} points
+ */
+
+/**
+ * @typedef {object} EvolutionSeries
+ * @property {number} player_id
+ * @property {string} name
+ * @property {EvolutionPoint[]} points
+ */
+
+/**
+ * @typedef {object} Evolution
+ * @property {string[]} dates
+ * @property {EvolutionSeries[]} series
+ */
+
+/**
+ * @typedef {object} PairRow
+ * @property {number} player_id
+ * @property {string} name
+ * @property {number} days
+ * @property {number} win_rate
+ * @property {number} delta
+ */
+
+/**
+ * @typedef {object} PlayerMatchdayRow
+ * @property {number} matchday_id
+ * @property {string} date
+ * @property {string} team_name
+ * @property {number} position
+ * @property {number} teams
+ * @property {number} played
+ * @property {number} wins
+ * @property {number} draws
+ * @property {number} losses
+ * @property {number} win_rate
+ * @property {number} goals
+ * @property {boolean} champion
+ * @property {boolean} mvp
+ */
+
+/**
+ * @typedef {object} PlayerDetail
+ * @property {number} player_id
+ * @property {string} name
+ * @property {PlayerRow} summary
+ * @property {PlayerMatchdayRow[]} history
+ * @property {PairRow[]} partners
+ * @property {PairRow[]} opponents
+ * @property {number} min_days
+ */
+
+/**
+ * @typedef {object} ImportIssue
+ * @property {number} line
+ * @property {'error'|'warning'} severity
+ * @property {string} code
+ * @property {string} message
+ * @property {string} text
+ */
+
+/**
+ * @typedef {object} ImportPreview
+ * @property {boolean} ok
+ * @property {ImportIssue[]} issues
+ * @property {string[]} new_players
+ * @property {{ date: string|null, venue: string|null, mvp: string|null, notes: string,
+ *   teams: { name: string, players: string[] }[],
+ *   matches: { home_team: string, away_team: string, home_score: number, away_score: number,
+ *     goals: { player: string, team: string, own_goal: boolean }[] }[],
+ *   already_exists: boolean,
+ *   standings: Record<string, any>[] }[]} matchdays
+ */
+
+/**
+ * @typedef {object} PublicGroupSummary
+ * @property {string} name
+ * @property {string} slug
+ * @property {string} description
+ * @property {number} matchday_count
+ * @property {number} player_count
+ */
+
+/**
+ * @typedef {object} PublicGroup
+ * @property {string} name
+ * @property {string} slug
+ * @property {string} description
+ * @property {Stats} stats
+ * @property {Evolution} evolution
+ * @property {Matchday[]} matchdays
+ */
+
+export {};

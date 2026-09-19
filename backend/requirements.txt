@@ -1,0 +1,8 @@
+fastapi==0.141.1
+uvicorn[standard]==0.52.1
+sqlmodel==0.0.39
+argon2-cffi==25.1.0
+alembic==1.19.1
+pydantic-settings==2.15.0
+python-slugify==8.0.4
+slowapi==0.1.10
