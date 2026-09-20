@@ -522,12 +522,16 @@ def compute_evolution(db: DBSession, group: models.Group, date_from=None,
     names = player_names(db, group.id)
     dates = [m.date for m in matchdays]
 
-    running: dict[int, dict] = defaultdict(lambda: {"points": 0, "matches": 0})
+    running: dict[int, dict] = defaultdict(
+        lambda: {"points": 0, "matches": 0, "goals": 0, "assists": 0}
+    )
     seen: set[int] = set()
     series: dict[int, list[schemas.EvolutionPoint]] = defaultdict(list)
 
     for index, matchday in enumerate(matchdays):
         tallies = tally(matchday, group)
+        goals = matchday_goals(matchday)
+        assists = matchday_assists(matchday)
         present: dict[int, tuple[int, int]] = {}
         for team in matchday.teams:
             row = tallies[team.id]
@@ -537,19 +541,24 @@ def compute_evolution(db: DBSession, group: models.Group, date_from=None,
             if pid not in seen:
                 seen.add(pid)
                 series[pid] = [
-                    schemas.EvolutionPoint(date=d, win_rate=None, points=None)
+                    schemas.EvolutionPoint(date=d, win_rate=None, points=None,
+                                           goals=None, assists=None)
                     for d in dates[:index]
                 ]
         for pid in seen:
             points, played = present.get(pid, (0, 0))
             running[pid]["points"] += points
             running[pid]["matches"] += played
+            running[pid]["goals"] += goals.get(pid, 0)
+            running[pid]["assists"] += assists.get(pid, 0)
             best = running[pid]["matches"] * group.win_points
             series[pid].append(
                 schemas.EvolutionPoint(
                     date=matchday.date,
                     win_rate=(running[pid]["points"] / best) if best else None,
                     points=running[pid]["points"],
+                    goals=running[pid]["goals"],
+                    assists=running[pid]["assists"],
                 )
             )
 
@@ -973,6 +982,58 @@ def compute_combo(db: DBSession, group: models.Group,
         dates=dates,
         together_names=[names.get(pid, "?") for pid in together],
         against_names=[names.get(pid, "?") for pid in against],
+    )
+
+
+def compute_timeline(db: DBSession, group: models.Group, date_from=None,
+                     date_to=None) -> schemas.TimelineOut:
+    matchdays = active_matchdays(db, group.id, date_from, date_to)
+    points: list[schemas.TimelinePoint] = []
+    scorelines: dict[tuple[int, int], int] = defaultdict(int)
+    total_matches = 0
+    total_goals = 0
+    total_assists = 0
+
+    for matchday in matchdays:
+        goals = sum(m.home_score + m.away_score for m in matchday.matches)
+        assists = sum(
+            1 for m in matchday.matches for g in m.goals if g.assist_player_id is not None
+        )
+        matches = len(matchday.matches)
+        players = sum(len(team.members) for team in matchday.teams)
+        for match in matchday.matches:
+            high = max(match.home_score, match.away_score)
+            low = min(match.home_score, match.away_score)
+            scorelines[(high, low)] += 1
+        total_matches += matches
+        total_goals += goals
+        total_assists += assists
+        points.append(schemas.TimelinePoint(
+            date=matchday.date,
+            matches=matches,
+            goals=goals,
+            assists=assists,
+            goals_per_match=(goals / matches) if matches else 0.0,
+            players=players,
+        ))
+
+    rows = [
+        schemas.ScorelineRow(
+            label=f"{high}x{low}",
+            count=count,
+            share=(count / total_matches) if total_matches else 0.0,
+        )
+        for (high, low), count in scorelines.items()
+    ]
+    rows.sort(key=lambda r: r.count, reverse=True)
+
+    days = len(matchdays)
+    return schemas.TimelineOut(
+        points=points,
+        scorelines=rows,
+        goals_per_match=(total_goals / total_matches) if total_matches else 0.0,
+        goals_per_matchday=(total_goals / days) if days else 0.0,
+        assists_per_matchday=(total_assists / days) if days else 0.0,
     )
 
 

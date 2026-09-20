@@ -162,8 +162,10 @@ cor do tema e não mudam de desenho entre sistemas.
 
 Além da tabela do dia, ranking e artilharia:
 
+- **Aba Jogadores** — o índice de todo mundo, com busca e ordenação, levando à página de
+  cada um.
 - **Filtro de período** (tudo / 3 / 6 / 12 meses / intervalo) que vale para o ranking, os
-  recordes e o gráfico.
+  recordes e os gráficos.
 - **Últimos 5** — aproveitamento nos cinco últimos dias jogados, e **presença** sobre os
   dias do período.
 - **Sequência** de dias como campeão, atual e a maior.
@@ -173,6 +175,21 @@ Além da tabela do dia, ranking e artilharia:
 - **Combinações** (`/groups/<id>/analise`) — escolha quem joga junto e, se quiser, contra
   quem; o app acha os dias em que isso aconteceu e compara a campanha com o que se
   esperaria dos jogadores separados.
+
+### Os gráficos
+
+O gráfico de linhas acumuladas troca de **métrica** — aproveitamento, gols ou assistências —
+mantendo a mesma legenda. Ele abre com os cinco primeiros, e a legenda tem **Todos** e
+**Nenhum**: para comparar duas pessoas, é um clique em Nenhum e dois nomes, em vez de
+desligar dezenove.
+
+Do lado do grupo, e não do jogador:
+
+- **Gols por dia** (barras) e **gols por partida** (linha, a média de cada dia).
+- **Placares mais comuns**, contando os dois lados juntos — `1x0` e `0x1` são o mesmo
+  placar. É o gráfico que mostra o caráter da pelada: na temporada de demonstração, 47%
+  das partidas terminam 0x0.
+- Os números redondos em cima: gols por partida, gols por dia e assistências por dia.
 
 ### A tela do jogador
 

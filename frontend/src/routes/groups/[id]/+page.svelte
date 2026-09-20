@@ -16,6 +16,8 @@
 	import EvolutionChart from '$lib/components/EvolutionChart.svelte';
 	import PairLeaderboard from '$lib/components/PairLeaderboard.svelte';
 	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
+	import PlayersGrid from '$lib/components/PlayersGrid.svelte';
+	import TimelineCharts from '$lib/components/TimelineCharts.svelte';
 	import GroupSettings from '$lib/components/GroupSettings.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
@@ -40,6 +42,8 @@
 	let evolution = $state(/** @type {import('$lib/types.js').Evolution|null} */ (null));
 	let pairs = $state(/** @type {import('$lib/types.js').PairLeaderboard|null} */ (null));
 	let network = $state(/** @type {import('$lib/types.js').AssistNetwork|null} */ (null));
+	let timeline = $state(/** @type {import('$lib/types.js').Timeline|null} */ (null));
+	let metric = $state(/** @type {'win_rate'|'goals'|'assists'} */ ('win_rate'));
 	let loading = $state(true);
 	let error = $state('');
 	let period = $state({ from: '', to: '' });
@@ -54,7 +58,7 @@
 			.join('&')
 	);
 
-	const TAB_IDS = ['matchdays', 'ranking', 'stats', 'settings'];
+	const TAB_IDS = ['matchdays', 'ranking', 'players', 'stats', 'settings'];
 	const DEFAULT_TAB = 'matchdays';
 	const tab = $derived.by(() => {
 		const requested = $page.url.searchParams.get('tab');
@@ -64,6 +68,7 @@
 	const tabs = $derived([
 		{ id: 'matchdays', label: t('tab.matchdays') },
 		{ id: 'ranking', label: t('tab.ranking') },
+		{ id: 'players', label: t('tab.players') },
 		{ id: 'stats', label: t('tab.stats') },
 		{ id: 'settings', label: t('tab.settings') }
 	]);
@@ -115,12 +120,13 @@
 			get(`/groups/${groupId}/stats${suffix}`),
 			get(`/groups/${groupId}/evolution${suffix}`),
 			get(`/groups/${groupId}/pairs${pairSuffix}`),
-			get(`/groups/${groupId}/assist-network${suffix}`)
+			get(`/groups/${groupId}/assist-network${suffix}`),
+			get(`/groups/${groupId}/timeline${suffix}`)
 		]);
 	}
 
 	async function loadAnalysis() {
-		[stats, evolution, pairs, network] = await fetchAnalysis(periodQuery, minDays);
+		[stats, evolution, pairs, network, timeline] = await fetchAnalysis(periodQuery, minDays);
 	}
 
 	$effect(() => {
@@ -128,11 +134,12 @@
 		const days = minDays;
 		if (!groupId || !auth.user || untrack(() => stats === null)) return;
 		fetchAnalysis(query, days)
-			.then(([s, e, p, n]) => {
+			.then(([s, e, p, n, tl]) => {
 				stats = s;
 				evolution = e;
 				pairs = p;
 				network = n;
+				timeline = tl;
 			})
 			.catch((e) => toast.error(t('group.refreshFailed', { message: errorMessage(e) })));
 	});
@@ -252,6 +259,8 @@
 			<div class="card bg-base-100 p-5">
 				<RankingTable ranking={stats.ranking} {playerHref} />
 			</div>
+		{:else if tab === 'players'}
+			<PlayersGrid ranking={stats.ranking} {playerHref} />
 		{:else if tab === 'stats'}
 			<div class="flex flex-col gap-4">
 				<div class="card periodbar bg-base-100 p-4">
@@ -270,12 +279,39 @@
 				<Records records={stats.records} {stats} />
 
 				<div class="card flex flex-col gap-4 bg-base-100 p-5">
-					<div>
-						<h3 class="font-semibold">{t('stats.evolution')}</h3>
-						<p class="mt-1 text-xs text-base-content/65">{t('stats.evolutionHint')}</p>
+					<div class="charthead">
+						<div>
+							<h3 class="font-semibold">
+								{metric === 'win_rate'
+									? t('stats.evolution')
+									: `${metric === 'goals' ? t('chart.metricGoals') : t('chart.metricAssists')} · ${t('chart.cumulative')}`}
+							</h3>
+							{#if metric === 'win_rate'}
+								<p class="mt-1 text-xs text-base-content/65">{t('stats.evolutionHint')}</p>
+							{/if}
+						</div>
+						<div class="metrics" role="group" aria-label={t('chart.metric')}>
+							{#each [{ id: 'win_rate', label: t('chart.metricRate'), on: true }, { id: 'goals', label: t('chart.metricGoals'), on: group.track_scorers }, { id: 'assists', label: t('chart.metricAssists'), on: group.track_scorers && group.track_assists }] as option (option.id)}
+								{#if option.on}
+									<button
+										type="button"
+										class="mchip"
+										class:sel={metric === option.id}
+										aria-pressed={metric === option.id}
+										onclick={() => (metric = /** @type {any} */ (option.id))}
+									>
+										{option.label}
+									</button>
+								{/if}
+							{/each}
+						</div>
 					</div>
-					<EvolutionChart {evolution} />
+					<EvolutionChart {evolution} {metric} />
 				</div>
+
+				{#if timeline}
+					<TimelineCharts {timeline} />
+				{/if}
 
 				{#if pairs}
 					<PairLeaderboard
@@ -332,6 +368,34 @@
 	}
 	.tappable:hover {
 		border-color: var(--color-warning);
+	}
+	.charthead {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.metrics {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 5px;
+	}
+	.mchip {
+		min-height: 32px;
+		padding: 4px 11px;
+		border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
+		border-radius: var(--radius-field);
+		background: var(--color-base-100);
+		color: var(--ink-muted);
+		font-size: 0.78rem;
+		cursor: pointer;
+	}
+	.mchip.sel {
+		border-color: var(--color-primary);
+		background: color-mix(in oklch, var(--color-primary) 14%, transparent);
+		color: var(--ink-primary);
+		font-weight: 600;
 	}
 	.periodbar {
 		display: flex;

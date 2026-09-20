@@ -497,4 +497,23 @@ export default {
 	'player.teamLabel': 'Team',
 	'player.myCombos': 'Your combinations',
 	'player.myCombosHint': 'You are always in. Pick who with and who against to see how it went.',
+
+	'chart.showNone': 'None',
+	'chart.metric': 'Metric',
+	'chart.metricRate': 'Win rate',
+	'chart.metricGoals': 'Goals',
+	'chart.metricAssists': 'Assists',
+	'chart.cumulative': 'cumulative',
+
+	'chart.goalsPerMatch': 'Goals per match',
+	'chart.goalsPerMatchday': 'Goals per matchday',
+	'chart.assistsPerMatchday': 'Assists per matchday',
+	'chart.goalsPerMatchHint': 'Per-day average: the day’s goals divided by the day’s matches.',
+	'chart.scorelines': 'Most common scorelines',
+	'chart.scorelinesHint': 'Both sides counted together — 1x0 and 0x1 are the same scoreline.',
+
+	'tab.players': 'Players',
+	'players.search': 'Search player…',
+	'players.sortBy': 'Sort by',
+	'players.meta': '{days} days · {matches} matches · {presence} presence',
 };

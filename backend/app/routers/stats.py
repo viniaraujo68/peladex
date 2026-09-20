@@ -57,6 +57,13 @@ def post_combo(group_id: int, body: schemas.ComboIn,
     return services.compute_combo(db, load_group(db, group_id), body)
 
 
+@router.get("/timeline", response_model=schemas.TimelineOut)
+def get_timeline(group_id: int, date_from: date | None = None, date_to: date | None = None,
+                 _: models.User = Depends(require_owner),
+                 db: DBSession = Depends(get_session)):
+    return services.compute_timeline(db, load_group(db, group_id), date_from, date_to)
+
+
 @router.get("/assist-network", response_model=schemas.AssistNetwork)
 def get_assist_network(group_id: int, limit: int = Query(12, ge=1, le=60),
                        date_from: date | None = None, date_to: date | None = None,

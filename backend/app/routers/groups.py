@@ -100,7 +100,11 @@ def update_group(group_id: int, body: schemas.GroupUpdate,
 @router.delete("/{group_id}", status_code=204)
 def delete_group(group_id: int, user: models.User = Depends(require_owner),
                  db: DBSession = Depends(get_session)):
-    load_group(db, group_id)
+    group = load_group(db, group_id)
+    if group.default_venue_id is not None:
+        group.default_venue_id = None
+        db.add(group)
+        db.flush()
     matchday_ids = select(models.Matchday.id).where(models.Matchday.group_id == group_id)
     team_ids = select(models.Team.id).where(models.Team.matchday_id.in_(matchday_ids))
     match_ids = select(models.Match.id).where(models.Match.matchday_id.in_(matchday_ids))

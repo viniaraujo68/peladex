@@ -187,3 +187,15 @@ def test_a_default_venue_from_another_group_is_rejected(api, other_api, group):
     r = api.patch(f"/api/groups/{group}", json={"default_venue_id": stranger})
     assert r.status_code == 400
     assert r.json()["detail"]["code"] == "venue_in_other_group"
+
+
+def test_deleting_a_group_that_has_a_default_venue(api):
+    group = api.group()
+    venue = api.venue(group, "Campo do Ze")
+    api.patch(f"/api/groups/{group}", json={"default_venue_id": venue})
+    a, b = api.player(group), api.player(group)
+    api.matchday(group, "2026-09-16",
+                 [{"name": "BRANCO", "player_ids": [a]}, {"name": "AZUL", "player_ids": [b]}],
+                 [], venue_id=venue)
+    assert api.delete(f"/api/groups/{group}").status_code == 204
+    assert api.get(f"/api/groups/{group}").status_code in (403, 404)

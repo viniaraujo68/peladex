@@ -239,3 +239,55 @@ def test_a_player_who_never_played_apart_has_no_delta(api):
     bia = next(p for p in detail["partners"] if p["name"] == "bia")
     assert bia["days_without"] == 0
     assert bia["delta"] is None
+
+
+def test_the_timeline_reports_goals_per_matchday_and_per_match(api):
+    group = seeded(api)
+    timeline = api.get(f"/api/groups/{group}/timeline").json()
+    assert len(timeline["points"]) == 4
+    first = timeline["points"][0]
+    assert (first["date"], first["matches"], first["goals"]) == ("2026-09-03", 2, 3)
+    assert round(first["goals_per_match"], 6) == 1.5
+    assert first["players"] == 6
+
+    total_matches = sum(p["matches"] for p in timeline["points"])
+    total_goals = sum(p["goals"] for p in timeline["points"])
+    assert round(timeline["goals_per_match"], 6) == round(total_goals / total_matches, 6)
+    assert round(timeline["goals_per_matchday"], 6) == round(total_goals / 4, 6)
+
+
+def test_the_timeline_distribution_normalises_scorelines(api):
+    group = seeded(api)
+    timeline = api.get(f"/api/groups/{group}/timeline").json()
+    labels = {row["label"]: row for row in timeline["scorelines"]}
+    assert all(int(k.split("x")[0]) >= int(k.split("x")[1]) for k in labels)
+    assert sum(row["count"] for row in timeline["scorelines"]) == sum(
+        p["matches"] for p in timeline["points"]
+    )
+    assert abs(sum(row["share"] for row in timeline["scorelines"]) - 1.0) < 1e-9
+
+
+def test_the_timeline_honours_the_period(api):
+    group = seeded(api)
+    window = api.get(f"/api/groups/{group}/timeline?date_from=2026-09-17").json()
+    assert len(window["points"]) == 2
+
+
+def test_evolution_carries_cumulative_goals_and_assists(api):
+    group = seeded(api)
+    evolution = api.get(f"/api/groups/{group}/evolution").json()
+    ana = next(s for s in evolution["series"] if s["name"] == "ana")
+    goals = [p["goals"] for p in ana["points"]]
+    assert goals == sorted(goals)
+    assert goals[-1] > 0
+    assists = [p["assists"] for p in ana["points"]]
+    assert assists[-1] == 1
+
+
+def test_the_public_timeline_is_reachable(api, client):
+    group = api.group(visibility="public")
+    slug = api.last_group["slug"]
+    api.import_text(group, SEASON)
+    r = client.get(f"/api/public/{slug}/timeline")
+    assert r.status_code == 200
+    assert len(r.json()["points"]) == 4

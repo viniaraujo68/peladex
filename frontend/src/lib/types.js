@@ -232,6 +232,34 @@
  * @property {string} date
  * @property {number|null} win_rate
  * @property {number|null} points
+ * @property {number|null} goals
+ * @property {number|null} assists
+ */
+
+/**
+ * @typedef {object} TimelinePoint
+ * @property {string} date
+ * @property {number} matches
+ * @property {number} goals
+ * @property {number} assists
+ * @property {number} goals_per_match
+ * @property {number} players
+ */
+
+/**
+ * @typedef {object} ScorelineRow
+ * @property {string} label
+ * @property {number} count
+ * @property {number} share
+ */
+
+/**
+ * @typedef {object} Timeline
+ * @property {TimelinePoint[]} points
+ * @property {ScorelineRow[]} scorelines
+ * @property {number} goals_per_match
+ * @property {number} goals_per_matchday
+ * @property {number} assists_per_matchday
  */
 
 /**

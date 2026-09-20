@@ -4,8 +4,21 @@
 	import { formatRate } from '$lib/format.svelte.js';
 	import { i18n, localeTag, t } from '$lib/i18n.svelte.js';
 
-	/** @type {{ evolution: import('$lib/types.js').Evolution }} */
-	let { evolution } = $props();
+	/**
+	 * @type {{
+	 *   evolution: import('$lib/types.js').Evolution,
+	 *   metric?: 'win_rate'|'goals'|'assists'
+	 * }}
+	 */
+	let { evolution, metric = 'win_rate' } = $props();
+
+	const isRate = $derived(metric === 'win_rate');
+
+	/** @param {number|null|undefined} value */
+	function formatValue(value) {
+		if (value === null || value === undefined) return '—';
+		return isRate ? formatRate(value / 100) : String(value);
+	}
 
 	const theme = getThemeContext();
 
@@ -35,7 +48,7 @@
 
 	let hiddenOverride = $state(/** @type {string[]|null} */ (null));
 
-	const series = $derived(buildSeries(evolution));
+	const series = $derived(buildSeries(evolution, metric));
 	const defaultHidden = $derived.by(() => {
 		if (series.length <= MAX_DEFAULT_SERIES) return [];
 		const ranked = [...series].sort((a, b) => (currentValue(b) ?? 0) - (currentValue(a) ?? 0));
@@ -69,10 +82,19 @@
 	/**
 	 * @param {import('$lib/types.js').EvolutionSeries} s
 	 * @param {number} length
+	 * @param {'win_rate'|'goals'|'assists'} kind
 	 * @returns {(number|null)[]}
 	 */
-	function ratesOf(s, length) {
-		return Array.from({ length }, (_, i) => s.points[i]?.win_rate ?? null);
+	function valuesOf(s, length, kind) {
+		return Array.from({ length }, (_, i) => {
+			const point = s.points[i];
+			if (!point) return null;
+			if (kind === 'goals') return point.goals ?? null;
+			if (kind === 'assists') return point.assists ?? null;
+			return point.win_rate === null || point.win_rate === undefined
+				? null
+				: point.win_rate * 100;
+		});
 	}
 
 	/** @param {number[]} dash */
@@ -90,9 +112,10 @@
 
 	/**
 	 * @param {import('$lib/types.js').Evolution|undefined} data
+	 * @param {'win_rate'|'goals'|'assists'} kind
 	 * @returns {Series[]}
 	 */
-	function buildSeries(data) {
+	function buildSeries(data, kind) {
 		const incoming = data?.series ?? [];
 		const length = data?.dates?.length ?? 0;
 		/** @type {Map<number, number>} */
@@ -110,7 +133,7 @@
 				color: `var(--series-${(slot % HUE_COUNT) + 1})`,
 				dash,
 				fill: swatchFill(dash),
-				values: ratesOf(s, length)
+				values: valuesOf(s, length, kind)
 			};
 		});
 	}
@@ -138,6 +161,11 @@
 
 	function showAll() {
 		hiddenOverride = [];
+		syncVisibility();
+	}
+
+	function hideAll() {
+		hiddenOverride = series.map((s) => s.id);
 		syncVisibility();
 	}
 
@@ -189,7 +217,7 @@
 			const color = resolve.read(s.color, '#2a78d6');
 			return {
 				label: s.label,
-				data: s.values.map((v) => (v === null ? null : v * 100)),
+				data: [...s.values],
 				borderColor: color,
 				backgroundColor: color,
 				hidden: hiddenNow.has(s.id),
@@ -323,21 +351,24 @@
 								const color = String(ctx.dataset.borderColor);
 								return { borderColor: color, backgroundColor: color, borderWidth: 2 };
 							},
-							label: (ctx) => `${ctx.dataset.label}: ${formatRate((ctx.parsed.y ?? 0) / 100)}`
+							label: (ctx) => `${ctx.dataset.label}: ${formatValue(ctx.parsed.y)}`
 						}
 					}
 				},
 				scales: {
 					x: { grid: { color: gridColor }, ticks: { color: axisColor } },
-					y: {
-						min: 0,
-						max: 100,
-						grid: { color: gridColor },
-						ticks: {
-							color: axisColor,
-							callback: (v) => formatRate(Number(v) / 100)
-						}
-					}
+					y: isRate
+						? {
+								min: 0,
+								max: 100,
+								grid: { color: gridColor },
+								ticks: { color: axisColor, callback: (v) => formatRate(Number(v) / 100) }
+							}
+						: {
+								beginAtZero: true,
+								grid: { color: gridColor },
+								ticks: { color: axisColor, precision: 0 }
+							}
 				}
 			}
 		});
@@ -350,6 +381,7 @@
 	$effect(() => {
 		const dates = evolution?.dates;
 		const entries = series;
+		metric;
 		i18n.locale;
 		theme.preference;
 		theme.dark;
@@ -381,12 +413,19 @@
 					>
 						<span class="swatch" style="--swatch: {s.color}; --fill: {s.fill}"></span>
 						<span class="name">{s.label}</span>
-						<span class="value">{formatRate(currentValue(s))}</span>
+						<span class="value">{formatValue(currentValue(s))}</span>
 					</button>
 				{/each}
-				{#if hiddenCount > 0}
-					<button type="button" class="reset" onclick={showAll}>{t('chart.showAll')}</button>
-				{/if}
+				<div class="legend-actions">
+					{#if hiddenCount > 0}
+						<button type="button" class="reset" onclick={showAll}>{t('chart.showAll')}</button>
+					{/if}
+					{#if hiddenCount < series.length}
+						<button type="button" class="reset ghost" onclick={hideAll}>
+							{t('chart.showNone')}
+						</button>
+					{/if}
+				</div>
 			</div>
 		{/if}
 	</div>
@@ -495,6 +534,19 @@
 	}
 	.reset:hover {
 		background-color: color-mix(in oklch, var(--color-primary) 20%, transparent);
+	}
+	.reset.ghost {
+		background-color: transparent;
+		border-color: color-mix(in oklch, var(--color-base-content) 16%, transparent);
+		color: var(--ink-muted);
+	}
+	.reset.ghost:hover {
+		background-color: color-mix(in oklch, var(--color-base-content) 7%, transparent);
+		color: var(--color-base-content);
+	}
+	.legend-actions {
+		display: flex;
+		gap: 6px;
 	}
 	@media (max-width: 560px) {
 		.chip,

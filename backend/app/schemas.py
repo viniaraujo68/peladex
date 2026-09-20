@@ -222,6 +222,29 @@ class StatsOut(BaseModel):
     last_date: date | None = None
 
 
+class TimelinePoint(BaseModel):
+    date: date
+    matches: int
+    goals: int
+    assists: int
+    goals_per_match: float
+    players: int
+
+
+class ScorelineRow(BaseModel):
+    label: str
+    count: int
+    share: float
+
+
+class TimelineOut(BaseModel):
+    points: list[TimelinePoint]
+    scorelines: list[ScorelineRow]
+    goals_per_match: float
+    goals_per_matchday: float
+    assists_per_matchday: float
+
+
 class PairLeaderRow(BaseModel):
     player_a_id: int
     player_a: str
@@ -279,6 +302,8 @@ class EvolutionPoint(BaseModel):
     date: date
     win_rate: float | None
     points: int | None
+    goals: int | None = None
+    assists: int | None = None
 
 
 class EvolutionSeries(BaseModel):

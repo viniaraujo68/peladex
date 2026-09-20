@@ -93,6 +93,15 @@ def get_public_pairs(request: Request, slug: str, t: str | None = None,
     return services.compute_pair_leaderboard(db, group, min_days, limit, date_from, date_to)
 
 
+@router.get("/{slug}/timeline", response_model=schemas.TimelineOut)
+@limiter.limit(settings.rate_limit_public)
+def get_public_timeline(request: Request, slug: str, t: str | None = None,
+                        date_from: date | None = None, date_to: date | None = None,
+                        db: DBSession = Depends(get_session)):
+    group = visible_group(db, slug, t)
+    return services.compute_timeline(db, group, date_from, date_to)
+
+
 @router.get("/{slug}/assist-network", response_model=schemas.AssistNetwork)
 @limiter.limit(settings.rate_limit_public)
 def get_public_assist_network(request: Request, slug: str, t: str | None = None,

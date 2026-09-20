@@ -498,4 +498,23 @@ export default {
 	'player.teamLabel': 'Time',
 	'player.myCombos': 'Suas combinações',
 	'player.myCombosHint': 'Você já entra fixo. Escolha com quem e contra quem para ver como foi.',
+
+	'chart.showNone': 'Nenhum',
+	'chart.metric': 'Métrica',
+	'chart.metricRate': 'Aproveitamento',
+	'chart.metricGoals': 'Gols',
+	'chart.metricAssists': 'Assistências',
+	'chart.cumulative': 'acumulado',
+
+	'chart.goalsPerMatch': 'Gols por partida',
+	'chart.goalsPerMatchday': 'Gols por dia',
+	'chart.assistsPerMatchday': 'Assistências por dia',
+	'chart.goalsPerMatchHint': 'Média do dia: total de gols dividido pelas partidas daquele dia.',
+	'chart.scorelines': 'Placares mais comuns',
+	'chart.scorelinesHint': 'Contando os dois lados juntos — 1x0 e 0x1 são o mesmo placar.',
+
+	'tab.players': 'Jogadores',
+	'players.search': 'Buscar jogador…',
+	'players.sortBy': 'Ordenar por',
+	'players.meta': '{days} dias · {matches} jogos · {presence} presença',
 };
