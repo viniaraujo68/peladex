@@ -26,15 +26,23 @@
 	const DIRECT_LABEL_MIN_CANVAS = 520;
 	const DIRECT_LABEL_MAX_WIDTH = 120;
 	const DIRECT_LABEL_GAP = 15;
+	const MAX_DEFAULT_SERIES = 5;
 
 	let canvas = $state(/** @type {HTMLCanvasElement|undefined} */ (undefined));
 	/** @type {import('chart.js').Chart | null} */
 	let chart = null;
 	let renderTicket = 0;
 
-	let hiddenIds = $state(/** @type {string[]} */ ([]));
+	let hiddenOverride = $state(/** @type {string[]|null} */ (null));
 
 	const series = $derived(buildSeries(evolution));
+	const defaultHidden = $derived.by(() => {
+		if (series.length <= MAX_DEFAULT_SERIES) return [];
+		const ranked = [...series].sort((a, b) => (currentValue(b) ?? 0) - (currentValue(a) ?? 0));
+		const keep = new Set(ranked.slice(0, MAX_DEFAULT_SERIES).map((s) => s.id));
+		return series.filter((s) => !keep.has(s.id)).map((s) => s.id);
+	});
+	const hiddenIds = $derived(hiddenOverride ?? defaultHidden);
 	const hiddenCount = $derived(series.filter((s) => hiddenIds.includes(s.id)).length);
 	const allHidden = $derived(series.length > 0 && hiddenCount === series.length);
 
@@ -122,12 +130,14 @@
 
 	/** @param {string} id */
 	function toggle(id) {
-		hiddenIds = isHidden(id) ? hiddenIds.filter((h) => h !== id) : [...hiddenIds, id];
+		hiddenOverride = isHidden(id)
+			? hiddenIds.filter((h) => h !== id)
+			: [...hiddenIds, id];
 		syncVisibility();
 	}
 
 	function showAll() {
-		hiddenIds = [];
+		hiddenOverride = [];
 		syncVisibility();
 	}
 
