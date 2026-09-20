@@ -250,6 +250,28 @@ Cloudflare (HTTPS) → VPS:80 → edge (Caddy http)
     └── (as outras apps por subdomínio)
 ```
 
+### O jeito rápido: `deploy/setup-vps.sh`
+
+O script descobre sozinho como a VPS está montada — acha o container que publica a porta 80,
+de onde vem o Caddyfile dele e qual é a pasta do compose — e mostra o que faria. Sem `APPLY=1`
+ele não escreve nada:
+
+```bash
+git clone https://github.com/viniaraujo68/peladex.git /opt/peladex
+cd /opt/peladex
+echo 'PELADEX_DOMAIN=peladex.seudominio.com' > .env
+
+sh deploy/setup-vps.sh            # só o plano
+APPLY=1 sh deploy/setup-vps.sh    # executa
+```
+
+Ele sobe a stack, acrescenta o bloco do Peladex ao Caddyfile do edge (com backup `.bak-*`),
+**valida a config antes de recarregar** e faz `caddy reload` sem reiniciar o container — as
+outras apps não caem. Se a config ficar inválida, ele aborta e o Caddy segue com a antiga.
+No fim ele testa todos os hosts do edge, não só o do Peladex.
+
+O resto desta seção é o que o script faz na mão.
+
 ### O edge é da máquina, não do app
 
 Só um processo pode escutar a porta 80, então o proxy é infra da **VPS**, compartilhada por

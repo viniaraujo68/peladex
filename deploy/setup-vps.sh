@@ -83,67 +83,67 @@ if [ -z "$CADDYFILE" ]; then
 fi
 
 step "Ensinando o proxy sobre $DOMAIN"
+BLOCK="$(mktemp)"
+sed "s/{\$PELADEX_DOMAIN}/$DOMAIN/" "$APP_DIR/deploy/peladex.caddy" > "$BLOCK"
+
 SITES_DIR=""
 if grep -q 'import .*sites/\*' "$CADDYFILE" 2>/dev/null; then
   SITES_DIR="$(dirname "$CADDYFILE")/sites"
   say "   o edge usa import de sites/"
 fi
 
-if grep -q 'PELADEX_DOMAIN' "$CADDYFILE" 2>/dev/null || \
+if grep -q "$DOMAIN" "$CADDYFILE" 2>/dev/null || \
    { [ -n "$SITES_DIR" ] && [ -f "$SITES_DIR/peladex.caddy" ]; }; then
-  say "   o proxy já conhece o Peladex"
+  say "   o proxy já conhece $DOMAIN"
 else
   if [ -n "$SITES_DIR" ]; then
-    run "copiar deploy/peladex.caddy para $SITES_DIR/" sh -c "mkdir -p '$SITES_DIR' && cp '$APP_DIR/deploy/peladex.caddy' '$SITES_DIR/peladex.caddy'"
+    run "criar $SITES_DIR/peladex.caddy" sh -c "mkdir -p '$SITES_DIR' && cp '$BLOCK' '$SITES_DIR/peladex.caddy'"
   else
     backup "$CADDYFILE"
-    run "acrescentar o bloco do Peladex a $CADDYFILE (backup .bak-*)" sh -c "printf '\n' >> '$CADDYFILE' && cat '$APP_DIR/deploy/peladex.caddy' >> '$CADDYFILE'"
+    run "acrescentar o bloco do Peladex a $CADDYFILE (backup .bak-*)" \
+      sh -c "printf '\n' >> '$CADDYFILE' && cat '$BLOCK' >> '$CADDYFILE'"
   fi
 fi
+rm -f "$BLOCK"
 
-EDGE_ENV="$EDGE_DIR/.env"
-if [ -n "$EDGE_DIR" ] && [ -d "$EDGE_DIR" ]; then
-  if [ -f "$EDGE_ENV" ] && grep -q '^PELADEX_DOMAIN=' "$EDGE_ENV"; then
-    say "   .env do edge já tem PELADEX_DOMAIN"
-  else
-    backup "$EDGE_ENV"
-    run "acrescentar PELADEX_DOMAIN a $EDGE_ENV" sh -c "printf 'PELADEX_DOMAIN=%s\n' '$DOMAIN' >> '$EDGE_ENV'"
+step "Recarregando o proxy"
+if [ "$APPLY" = "1" ]; then
+  if ! docker exec "$EDGE_ID" caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+    docker exec "$EDGE_ID" caddy validate --config /etc/caddy/Caddyfile || true
+    die "a config do Caddy ficou inválida. O proxy continua rodando a config antiga (rastro e pokerdex seguem no ar). Desfaça com o arquivo .bak-* e me mostre o erro acima."
   fi
-
-  EDGE_COMPOSE=""
-  for f in "$EDGE_DIR/docker-compose.yml" "$EDGE_DIR/docker-compose.yaml" "$EDGE_DIR/compose.yml" "$EDGE_DIR/compose.yaml"; do
-    [ -f "$f" ] && EDGE_COMPOSE="$f" && break
-  done
-  if [ -z "$EDGE_COMPOSE" ]; then
-    warn "não achei o compose do edge em $EDGE_DIR; passe PELADEX_DOMAIN para o container na mão."
-  elif grep -q 'env_file' "$EDGE_COMPOSE"; then
-    say "   o compose do edge usa env_file: nada a mudar"
-  elif grep -q 'PELADEX_DOMAIN' "$EDGE_COMPOSE"; then
-    say "   o compose do edge já passa PELADEX_DOMAIN"
-  else
-    backup "$EDGE_COMPOSE"
-    run "trocar 'environment:' por 'env_file: .env' em $EDGE_COMPOSE (backup .bak-*)" \
-      sed -i 's/^\( *\)environment:.*/\1env_file: .env/' "$EDGE_COMPOSE"
-    warn "se o edge tinha outras variáveis no environment:, confira que todas estão no .env dele"
-  fi
-
-  run "recriar o edge e recarregar a config" sh -c "cd '$EDGE_DIR' && docker compose up -d && sleep 2 && docker compose exec -T \$(docker compose config --services | head -1) caddy reload --config /etc/caddy/Caddyfile"
+  done_ "config válida, recarregando (sem reiniciar o container)"
+  docker exec "$EDGE_ID" caddy reload --config /etc/caddy/Caddyfile
 else
-  warn "não descobri a pasta do edge; reinicie-o na mão depois de conferir o Caddyfile."
+  plan "validar a config e dar 'caddy reload' no $EDGE_NAME (sem reiniciar)"
 fi
 
 step "Conferindo"
 if [ "$APPLY" = "1" ]; then
   sleep 3
-  for h in "$DOMAIN"; do
+  HOSTS="$(cat "$CADDYFILE" ${SITES_DIR:+$SITES_DIR/*.caddy} 2>/dev/null \
+    | sed -n 's/^[[:space:]]*http:\/\/\([^ ,]*\).*/\1/p' | sed 's/{$//' | sort -u)"
+  for h in $HOSTS; do
+    case "$h" in
+      '{$'*)
+        var="$(printf '%s' "$h" | sed 's/^{\$//; s/}$//')"
+        h="$(docker exec "$EDGE_ID" printenv "$var" 2>/dev/null || echo '')"
+        [ -n "$h" ] || continue
+        ;;
+    esac
     code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 -H "Host: $h" http://127.0.0.1/ || echo 000)"
-    api="$(curl -s --max-time 8 -H "Host: $h" http://127.0.0.1/api/health || echo falhou)"
-    say "   $h  ->  HTTP $code   /api/health: $api"
+    if [ "$h" = "$DOMAIN" ]; then
+      api="$(curl -s --max-time 8 -H "Host: $h" http://127.0.0.1/api/health || echo falhou)"
+      say "   $h  ->  HTTP $code   /api/health: $api"
+    else
+      say "   $h  ->  HTTP $code"
+    fi
   done
   say ""
-  say "Se deu 200 e {\"status\":\"ok\"}, acesse https://$DOMAIN e crie sua conta."
+  say "Todos os sites acima devem responder 200/3xx."
+  say "Se o $DOMAIN deu 200 e {\"status\":\"ok\"}, acesse https://$DOMAIN e crie sua conta."
 else
   say ""
-  say "Isso foi só o plano. Para executar:"
+  say "Isso foi so o plano. Para executar:"
   say "   APPLY=1 sh deploy/setup-vps.sh"
 fi
