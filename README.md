@@ -250,28 +250,6 @@ Cloudflare (HTTPS) → VPS:80 → edge (Caddy http)
     └── (as outras apps por subdomínio)
 ```
 
-### O jeito rápido: `deploy/setup-vps.sh`
-
-O script descobre sozinho como a VPS está montada — acha o container que publica a porta 80,
-de onde vem o Caddyfile dele e qual é a pasta do compose — e mostra o que faria. Sem `APPLY=1`
-ele não escreve nada:
-
-```bash
-git clone https://github.com/viniaraujo68/peladex.git /opt/peladex
-cd /opt/peladex
-echo 'PELADEX_DOMAIN=peladex.seudominio.com' > .env
-
-sh deploy/setup-vps.sh            # só o plano
-APPLY=1 sh deploy/setup-vps.sh    # executa
-```
-
-Ele sobe a stack, acrescenta o bloco do Peladex ao Caddyfile do edge (com backup `.bak-*`),
-**valida a config antes de recarregar** e faz `caddy reload` sem reiniciar o container — as
-outras apps não caem. Se a config ficar inválida, ele aborta e o Caddy segue com a antiga.
-No fim ele testa todos os hosts do edge, não só o do Peladex.
-
-O resto desta seção é o que o script faz na mão.
-
 ### O edge é da máquina, não do app
 
 Só um processo pode escutar a porta 80, então o proxy é infra da **VPS**, compartilhada por
@@ -306,28 +284,48 @@ docker compose exec edge caddy reload --config /etc/caddy/Caddyfile
 O `reload` é a quente: as outras apps não caem. O bloco `:80 { respond 404 }` faz o
 servidor recusar host desconhecido — sem ele, quem bater no IP cru recebe um 200 vazio.
 
-### Migrando um edge que já existe
+### Numa VPS que já roda outras apps
 
-Se o seu edge ainda tem os blocos escritos direto no Caddyfile (era o formato antigo), a
-conversão é de uma vez só e não derruba nada:
+O edge já está de pé e a rede `web` já existe. São três passos:
 
 ```bash
-cd ~/edge
-mkdir -p sites
-
-# 1. mova cada bloco `http://{$ALGUMA_COISA_DOMAIN} { ... }` para o seu arquivo
-#    sites/pokerdex.caddy, sites/rastro.caddy, ...
-
-# 2. o Caddyfile passa a ser só o de cima (auto_https off + import + fallback 404)
-
-# 3. no docker-compose.yml do edge, troque o bloco `environment:` por `env_file: .env`
-#    e acrescente o volume:  - ./sites:/etc/caddy/sites:ro
-
-docker compose up -d
+git clone https://github.com/viniaraujo68/peladex.git /opt/peladex
+cd /opt/peladex
+echo 'PELADEX_DOMAIN=peladex.seudominio.com' > .env
+docker compose up -d --build
 ```
 
-`env_file` é o detalhe que evita voltar no compose a cada app nova: todas as variáveis do
-`.env` entram no container, então a próxima app precisa só da linha no `.env`.
+Subir os containers **não basta**: o edge ainda não conhece o domínio. Acrescente o bloco
+ao Caddyfile dele (`deploy/peladex.caddy` é o mesmo conteúdo, com o domínio literal no lugar
+da variável):
+
+```bash
+cat >> /caminho/do/edge/Caddyfile <<'EOF'
+
+http://peladex.seudominio.com {
+	encode gzip
+	handle /api/* {
+		reverse_proxy peladex-backend:8000
+	}
+	handle {
+		reverse_proxy peladex-frontend:3000
+	}
+}
+EOF
+```
+
+E recarregue — a quente, sem reiniciar o container, então as outras apps não caem:
+
+```bash
+docker exec <container-do-edge> caddy reload --config /etc/caddy/Caddyfile
+```
+
+Se o Caddyfile tiver erro de sintaxe o `reload` falha e o Caddy segue com a config antiga.
+Para conferir antes: `docker exec <container-do-edge> caddy validate --config /etc/caddy/Caddyfile`.
+
+Não sabe onde o edge mora? `docker ps` mostra quem publica a `:80`, e
+`docker inspect <id> --format '{{range .Mounts}}{{.Source}} {{end}}'` mostra de onde vem o
+Caddyfile dele.
 
 ### Numa VPS zerada
 
