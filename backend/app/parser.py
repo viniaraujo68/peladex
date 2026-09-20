@@ -28,6 +28,10 @@ ISO_DATE_RE = re.compile(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$")
 BR_DATE_RE = re.compile(r"^(\d{1,2})[-/.](\d{1,2})(?:[-/.](\d{2,4}))?$")
 
 
+def display_name(value: str) -> str:
+    return re.sub(r"\s+", " ", value.strip()).lower()
+
+
 def normalize(value: str) -> str:
     decomposed = unicodedata.normalize("NFKD", value.strip().lower())
     stripped = "".join(c for c in decomposed if not unicodedata.combining(c))
@@ -195,10 +199,10 @@ class _MatchdayBuilder:
             return self.roster[key]
         if key in self.known:
             return self.known[key]
-        return raw.strip()
+        return display_name(raw)
 
     def add_team(self, line: int, name: str, body: str, text: str) -> None:
-        name = name.strip()
+        name = display_name(name)
         if any(normalize(t.name) == normalize(name) for t in self.day.teams):
             self.issue(line, SEVERITY_ERROR, "duplicate_team",
                        f"O time “{name}” foi escalado duas vezes no mesmo dia.", text)
@@ -379,6 +383,7 @@ class _MatchdayBuilder:
                            f"{match.away_team}: os artilheiros somam "
                            f"{scored[match.home_team]}x{scored[match.away_team]}.")
         if self.day.mvp:
+            self.day.mvp = self.canonical_player(self.day.mvp)
             key = normalize(self.day.mvp)
             if key not in self.team_of:
                 self.issue(self.day.line, SEVERITY_WARNING, "mvp_not_playing",

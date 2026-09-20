@@ -2,6 +2,7 @@
 	import { formatRate } from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import Icon from './Icon.svelte';
+	import TeamCrest from './TeamCrest.svelte';
 
 	/**
 	 * @type {{
@@ -41,6 +42,7 @@
 								{#if row.team_id === championTeamId}
 									<Icon name="trophy" class="size-4 shrink-0 text-[var(--ink-primary)]" />
 								{/if}
+								<TeamCrest name={row.name} color={row.color} class="size-4 shrink-0" />
 								{row.name}
 							</span>
 						</td>

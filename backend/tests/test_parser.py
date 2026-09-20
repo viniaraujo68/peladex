@@ -11,7 +11,7 @@ def test_parses_the_real_notation():
     assert day.date == date(2026, 9, 16)
     assert day.venue == "Campo do Ze"
     assert day.mvp == "golin"
-    assert [t.name for t in day.teams] == ["BRANCO", "VERMELHO", "AZUL"]
+    assert [t.name for t in day.teams] == ["branco", "vermelho", "azul"]
     assert all(len(t.players) == 7 for t in day.teams)
     assert len(day.matches) == 8
     assert len(result.new_players) == 21
@@ -70,7 +70,7 @@ def test_own_goal_marker_binds_before_or_after_the_name():
         assert len(match.goals) == 1
         goal = match.goals[0]
         assert goal.own_goal is True
-        assert goal.team == "BRANCO"
+        assert goal.team == "branco"
 
 
 def test_multiplier_expands_into_separate_goals():
@@ -114,3 +114,33 @@ def test_comments_and_blank_lines_are_ignored():
 
 def test_empty_text_is_an_error():
     assert not parser.parse("   \n\n").ok
+
+
+def test_case_does_not_matter_and_names_come_out_lowercase():
+    text = (
+        "2026-09-16\n"
+        "Azul: Golin, RICK\n"
+        "BRANCO: Vini, bamma\n"
+        "azul 2x1 Branco: GOLIN, Rick (golin)\n"
+        "MVP: GoLiN\n"
+    )
+    result = parser.parse(text)
+    assert result.ok
+    day = result.matchdays[0]
+    assert [t.name for t in day.teams] == ["azul", "branco"]
+    assert day.teams[0].players == ["golin", "rick"]
+    assert day.mvp == "golin"
+    assert sorted(result.new_players) == ["bamma", "golin", "rick", "vini"]
+    goals = day.matches[0].goals
+    assert [(g.player, g.team, g.assist) for g in goals] == [
+        ("golin", "azul", None),
+        ("rick", "azul", "golin"),
+    ]
+
+
+def test_an_existing_player_matches_regardless_of_case():
+    text = "2026-09-16\nAZUL: GOLIN\nBRANCO: vini\n"
+    result = parser.parse(text, known_players=["golin"])
+    assert result.ok
+    assert result.matchdays[0].teams[0].players == ["golin"]
+    assert result.new_players == ["vini"]

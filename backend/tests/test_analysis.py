@@ -224,9 +224,9 @@ def test_player_detail_splits_by_venue_and_team(api):
     assert venues["Campo do Ze"]["goals"] == 2
 
     teams = {row["label"]: row for row in detail["by_team"]}
-    assert teams["BRANCO"]["days"] == 2
-    assert teams["VERDE"]["days"] == 1
-    assert teams["VERDE"]["win_rate"] == 1 / 3
+    assert teams["branco"]["days"] == 2
+    assert teams["verde"]["days"] == 1
+    assert teams["verde"]["win_rate"] == 1 / 3
 
 
 def test_a_player_who_never_played_apart_has_no_delta(api):

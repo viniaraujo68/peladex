@@ -22,7 +22,7 @@ def list_players(group_id: int, _: models.User = Depends(require_owner),
 
 
 @router.post("/players", response_model=schemas.PlayerOut, status_code=201)
-def create_player(group_id: int, body: schemas.NamedCreate,
+def create_player(group_id: int, body: schemas.PlayerCreate,
                   _: models.User = Depends(require_owner),
                   db: DBSession = Depends(get_session)):
     exists = db.exec(

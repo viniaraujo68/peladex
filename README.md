@@ -117,6 +117,10 @@ que era como a anotação começou. As duas formas convivem.
 
 Três detalhes que valem saber:
 
+- **Maiúscula e minúscula não mudam nada.** `BRANCO`, `Branco` e `branco` são o mesmo time,
+  e `GOLIN` é o mesmo jogador que `golin`. Nomes de jogador e de time são guardados em
+  minúscula; a interface é que desenha o placar em caixa alta. Nome de local mantém o que
+  você escreveu.
 - **O parêntese é assistência**, exceto quando o que está dentro é `gc`, `ct`, `contra`
   ou `og` — aí é gol contra. É o único caso especial do formato.
 - **`2:1` não vale como placar.** Os dois-pontos já separam a partida dos artilheiros, e

@@ -59,7 +59,7 @@ def test_records_name_a_single_holder_and_flag_ties(api, group):
     assert records["top_scorer"]["player_name"] == "golin"
     assert records["top_scorer"]["value"] == 3
     assert records["biggest_rout"]["value"] == 2
-    assert records["biggest_rout"]["detail"] == "BRANCO 2x0 AZUL"
+    assert records["biggest_rout"]["detail"] == "branco 2x0 azul"
     assert records["most_titles"]["detail"] == "empatado com mais 6"
 
 
@@ -113,7 +113,7 @@ def test_player_history_lists_every_day_they_played(api, group):
     detail = api.get(f"/api/groups/{group}/players/{players['ana']}/detail").json()
     assert len(detail["history"]) == 4
     assert [row["date"] for row in detail["history"]][0] == "2026-09-24"
-    assert all(row["team_name"] == "BRANCO" for row in detail["history"])
+    assert all(row["team_name"] == "branco" for row in detail["history"])
     assert detail["summary"]["titles"] == 3
     assert [row["champion"] for row in detail["history"]] == [False, True, True, True]
 

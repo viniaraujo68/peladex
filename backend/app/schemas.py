@@ -1,6 +1,8 @@
 from datetime import date
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from .parser import display_name
 
 MAX_SCORE = 99
 
@@ -60,6 +62,13 @@ class NamedCreate(BaseModel):
     name: str = Field(min_length=1, max_length=80)
 
 
+class PlayerCreate(NamedCreate):
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return display_name(value)
+
+
 class NamedOut(BaseModel):
     id: int
     name: str
@@ -74,6 +83,11 @@ class PlayerOut(BaseModel):
 class PlayerUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=80)
     active: bool | None = None
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        return display_name(value) if value is not None else None
 
 
 class GoalIn(BaseModel):
@@ -94,6 +108,11 @@ class TeamIn(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     color: str = ""
     player_ids: list[int] = []
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return display_name(value)
 
 
 class MatchdayCreate(BaseModel):

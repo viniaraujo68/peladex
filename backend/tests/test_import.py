@@ -9,7 +9,7 @@ def test_preview_reports_the_day_without_writing(api, group):
     assert len(body["new_players"]) == 21
     day = body["matchdays"][0]
     assert day["already_exists"] is False
-    assert [s["name"] for s in day["standings"]] == ["BRANCO", "VERMELHO", "AZUL"]
+    assert [s["name"] for s in day["standings"]] == ["branco", "vermelho", "azul"]
     assert [s["points"] for s in day["standings"]] == [12, 4, 3]
     assert api.get(f"/api/groups/{group}/matchdays").json() == []
 
@@ -30,7 +30,7 @@ def test_commit_creates_players_venue_and_the_matchday(api, group):
     assert day["total_goals"] == 6
     assert day["goal_mismatch"] is False
     champion = next(s for s in day["standings"] if s["team_id"] == day["champion_team_id"])
-    assert champion["name"] == "BRANCO"
+    assert champion["name"] == "branco"
     assert day["top_scorers"][0] == {"player_id": day["top_scorers"][0]["player_id"],
                                      "name": "golin", "goals": 3}
 

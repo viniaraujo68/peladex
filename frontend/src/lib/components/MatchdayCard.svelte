@@ -4,6 +4,7 @@
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import GoalMark from './GoalMark.svelte';
 	import Icon from './Icon.svelte';
+	import TeamCrest from './TeamCrest.svelte';
 	import StandingsTable from './StandingsTable.svelte';
 
 	const tracking = getTracking();
@@ -46,12 +47,16 @@
 			: []
 	);
 
-	/** @param {import('$lib/types.js').Match} match */
-	function scorersOf(match) {
-		return match.goals.map((g) => ({
-			...g,
-			side: g.team_id === match.home_team_id ? 'home' : 'away'
-		}));
+	const teamColors = $derived(
+		new Map(matchday.standings.map((s) => [s.team_id, s.color ?? '']))
+	);
+
+	/**
+	 * @param {import('$lib/types.js').Match} match
+	 * @param {number} teamId
+	 */
+	function goalsOf(match, teamId) {
+		return match.goals.filter((g) => g.team_id === teamId);
 	}
 </script>
 
@@ -168,18 +173,39 @@
 
 			<div class="matches">
 				{#each matchday.matches as match (match.id)}
-					{@const goals = scorersOf(match)}
+					{@const homeGoals = goalsOf(match, match.home_team_id)}
+					{@const awayGoals = goalsOf(match, match.away_team_id)}
 					<div class="match">
 						<span class="side home" class:win={match.home_score > match.away_score}>
-							{match.home_team_name}
+							<TeamCrest
+								name={match.home_team_name}
+								color={teamColors.get(match.home_team_id) ?? ''}
+							/>
+							<span class="tname">{match.home_team_name}</span>
 						</span>
 						<span class="score">{match.home_score}<i>x</i>{match.away_score}</span>
 						<span class="side away" class:win={match.away_score > match.home_score}>
-							{match.away_team_name}
+							<span class="tname">{match.away_team_name}</span>
+							<TeamCrest
+								name={match.away_team_name}
+								color={teamColors.get(match.away_team_id) ?? ''}
+							/>
 						</span>
-						{#if tracking.trackScorers && goals.length}
-							<span class="goals">
-								{#each goals as goal (goal.id)}
+						{#if tracking.trackScorers && homeGoals.length + awayGoals.length > 0}
+							<span class="gcol home">
+								{#each homeGoals as goal (goal.id)}
+									<GoalMark
+										mirror
+										player={goal.player_name}
+										assist={goal.assist_name}
+										ownGoal={goal.own_goal}
+										showAssist={tracking.trackAssists}
+									/>
+								{/each}
+							</span>
+							<span class="gsep"></span>
+							<span class="gcol away">
+								{#each awayGoals as goal (goal.id)}
 									<GoalMark
 										player={goal.player_name}
 										assist={goal.assist_name}
@@ -315,15 +341,25 @@
 		font-size: 0.86rem;
 	}
 	.side {
+		display: flex;
+		align-items: center;
+		gap: 6px;
 		min-width: 0;
 		overflow-wrap: anywhere;
 		color: var(--ink-muted);
+		text-transform: uppercase;
+		letter-spacing: 0.02em;
 	}
 	.side.home {
+		justify-content: flex-end;
 		text-align: right;
 	}
 	.side.away {
+		justify-content: flex-start;
 		text-align: left;
+	}
+	.tname {
+		min-width: 0;
 	}
 	.side.win {
 		color: var(--color-base-content);
@@ -340,14 +376,22 @@
 		opacity: 0.4;
 		font-weight: 400;
 	}
-	.goals {
-		grid-column: 1 / -1;
+	.gcol {
 		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 4px 10px;
+		flex-direction: column;
+		gap: 2px;
+		margin-top: 4px;
+		min-width: 0;
 		font-size: 0.74rem;
 		color: var(--ink-muted);
+	}
+	.gcol.home {
+		align-items: flex-end;
+		text-align: right;
+	}
+	.gcol.away {
+		align-items: flex-start;
+		text-align: left;
 	}
 	.empty {
 		padding: 16px 0;
