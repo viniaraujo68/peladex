@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-COMPOSE_DIR="$HOME/peladex"
+COMPOSE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 SERVICE="backend"
 DB_PATH="/data/peladex.db"
 STAGE_PATH="/data/backup-stage.db"
