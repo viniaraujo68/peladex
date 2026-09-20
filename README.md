@@ -240,16 +240,44 @@ crescer com a quantidade de dias.
 ## Deploy na VPS (Docker Compose + Cloudflare)
 
 HTTPS é provido pelo **Cloudflare** (proxy laranja, SSL "Flexible"); o origin só fala HTTP
-na porta 80. Um **edge proxy** compartilhado (`deploy/edge`) escuta na 80 e roteia por
-subdomínio.
+na porta 80. Um **edge proxy** compartilhado escuta na 80 e roteia por subdomínio.
 
 ```
 Cloudflare (HTTPS) → VPS:80 → edge (Caddy http)
-    └── peladex.seudominio.com → /api/* → backend:8000 · / → frontend:3000
+    ├── peladex.seudominio.com  → /api/* → peladex-backend:8000 · / → peladex-frontend:3000
+    └── (as outras apps por subdomínio)
 ```
 
+### Se a VPS já tem o edge rodando
+
+É o caso de quem já serve outra app por ali. **Não suba `deploy/edge/`** — ele existe só
+para uma VPS zerada, e dois proxies brigam pela porta 80. Em vez disso, acrescente o bloco
+ao Caddyfile que já está no ar:
+
+```caddy
+http://{$PELADEX_DOMAIN} {
+	encode gzip
+	handle /api/* {
+		reverse_proxy peladex-backend:8000
+	}
+	handle {
+		reverse_proxy peladex-frontend:3000
+	}
+}
+```
+
+Depois some `PELADEX_DOMAIN=peladex.seudominio.com` ao `.env` do edge, declare a variável
+no `environment:` do serviço `edge` e recarregue:
+
 ```bash
-docker network create web            # uma vez só
+docker compose up -d           # no diretório do edge, para reler o .env
+docker compose exec edge caddy reload --config /etc/caddy/Caddyfile
+```
+
+### Numa VPS zerada
+
+```bash
+docker network create web
 
 git clone <este-repo> peladex && cd peladex
 cp .env.example .env                 # ajuste PELADEX_DOMAIN
@@ -262,24 +290,49 @@ docker compose up -d
 
 No Cloudflare: registro `peladex` (A/CNAME) **proxied (laranja)**, SSL/TLS = **Flexible**.
 
-O SQLite vive no volume `peladex_data`. O banco roda em **WAL**, então copiar só o
-arquivo `.db` pega um estado incompleto — o backup tem que passar pelo `.backup` do
-próprio SQLite:
+### Primeiro acesso
+
+O banco sobe vazio e as migrations rodam sozinhas no startup. Então, pela interface:
+
+1. `/register` — crie a sua conta.
+2. Crie a pelada e deixe-a **pública** se quiser mandar o link no grupo.
+3. Em **Config**, ligue o que vai anotar (artilheiro, assistência) e escolha o local padrão.
+4. Em **Importar texto**, cole o histórico — vários dias de uma vez, separados por `---`.
+
+### Backup
+
+O SQLite vive no volume `peladex_data`, em **WAL** — copiar só o arquivo `.db` pega um
+estado incompleto. `deploy/backup.sh` faz a cópia pelo `.backup` do próprio SQLite, roda
+`PRAGMA integrity_check` antes de tirar o arquivo do container, comprime e apaga o que
+passou de `KEEP_DAYS`. As constantes ficam no topo do arquivo.
 
 ```bash
-docker compose exec backend python -c \
-  "import sqlite3; s=sqlite3.connect('/data/peladex.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d); d.close()"
-docker compose cp backend:/data/backup.db ./backup.db
+./deploy/backup.sh
+crontab -e
+# 30 5 * * *  /home/SEU_USUARIO/peladex/deploy/backup.sh >> /var/log/peladex-backup.log 2>&1
 ```
+
+Para restaurar: descomprima, pare a stack, substitua o arquivo no volume e suba de novo.
+Vale testar isso uma vez **antes** de precisar.
+
+### Atualizando
+
+```bash
+cd ~/peladex && git pull && docker compose up -d --build
+```
+
+As migrations pendentes rodam no startup. Tire um backup antes de subir uma versão que
+mexa no schema.
 
 ### Variáveis de ambiente (backend)
 
 | Variável | Padrão | Descrição |
 |---|---|---|
 | `PELADEX_DATABASE_URL` | `sqlite:///./peladex.db` | Caminho do banco |
-| `PELADEX_COOKIE_SECURE` | `false` | `true` em produção (HTTPS) |
+| `PELADEX_COOKIE_SECURE` | `false` | **`true` em produção** — o cookie de sessão só viaja por HTTPS |
 | `PELADEX_SESSION_TTL_DAYS` | `30` | Validade da sessão |
 | `PELADEX_CORS_ORIGINS` | `http://localhost:5173` | Vazio em prod (same-origin) |
+| `PELADEX_RATE_LIMIT_*` | ver `.env.example` | Limites por IP de login, registro e páginas públicas |
 
 ### Variáveis de ambiente (frontend)
 
