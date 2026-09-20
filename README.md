@@ -250,43 +250,74 @@ Cloudflare (HTTPS) → VPS:80 → edge (Caddy http)
     └── (as outras apps por subdomínio)
 ```
 
-### Se a VPS já tem o edge rodando
+### O edge é da máquina, não do app
 
-É o caso de quem já serve outra app por ali. **Não suba `deploy/edge/`** — ele existe só
-para uma VPS zerada, e dois proxies brigam pela porta 80. Em vez disso, acrescente o bloco
-ao Caddyfile que já está no ar:
+Só um processo pode escutar a porta 80, então o proxy é infra da **VPS**, compartilhada por
+todas as apps. O Peladex não sobe um proxy próprio: ele entra na rede `web` com os aliases
+`peladex-backend` e `peladex-frontend`, e publica em `deploy/peladex.caddy` o pedaço de
+configuração que o edge precisa.
+
+O edge em `deploy/edge/` monta um diretório `sites/` e importa tudo que estiver lá:
 
 ```caddy
-http://{$PELADEX_DOMAIN} {
-	encode gzip
-	handle /api/* {
-		reverse_proxy peladex-backend:8000
-	}
-	handle {
-		reverse_proxy peladex-frontend:3000
-	}
+{
+	auto_https off
+}
+
+import /etc/caddy/sites/*.caddy
+
+:80 {
+	respond 404
 }
 ```
 
-Depois some `PELADEX_DOMAIN=peladex.seudominio.com` ao `.env` do edge, declare a variável
-no `environment:` do serviço `edge` e recarregue:
+Com isso, **acrescentar uma app é largar um arquivo** — sem editar um Caddyfile central e
+sem tocar no `docker-compose.yml` do edge:
 
 ```bash
-docker compose up -d           # no diretório do edge, para reler o .env
+cp ~/peladex/deploy/peladex.caddy  ~/edge/sites/
+echo 'PELADEX_DOMAIN=peladex.seudominio.com' >> ~/edge/.env
+cd ~/edge && docker compose up -d
 docker compose exec edge caddy reload --config /etc/caddy/Caddyfile
 ```
+
+O `reload` é a quente: as outras apps não caem. O bloco `:80 { respond 404 }` faz o
+servidor recusar host desconhecido — sem ele, quem bater no IP cru recebe um 200 vazio.
+
+### Migrando um edge que já existe
+
+Se o seu edge ainda tem os blocos escritos direto no Caddyfile (era o formato antigo), a
+conversão é de uma vez só e não derruba nada:
+
+```bash
+cd ~/edge
+mkdir -p sites
+
+# 1. mova cada bloco `http://{$ALGUMA_COISA_DOMAIN} { ... }` para o seu arquivo
+#    sites/pokerdex.caddy, sites/rastro.caddy, ...
+
+# 2. o Caddyfile passa a ser só o de cima (auto_https off + import + fallback 404)
+
+# 3. no docker-compose.yml do edge, troque o bloco `environment:` por `env_file: .env`
+#    e acrescente o volume:  - ./sites:/etc/caddy/sites:ro
+
+docker compose up -d
+```
+
+`env_file` é o detalhe que evita voltar no compose a cada app nova: todas as variáveis do
+`.env` entram no container, então a próxima app precisa só da linha no `.env`.
 
 ### Numa VPS zerada
 
 ```bash
 docker network create web
 
-git clone <este-repo> peladex && cd peladex
+git clone https://github.com/viniaraujo68/peladex.git && cd peladex
 cp .env.example .env                 # ajuste PELADEX_DOMAIN
 docker compose up -d --build
 
-cd deploy/edge
-cp .env.example .env
+cp -r deploy/edge ~/edge && cd ~/edge
+cp .env.example .env                 # ajuste os domínios
 docker compose up -d
 ```
 
