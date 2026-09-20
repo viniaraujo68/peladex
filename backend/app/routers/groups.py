@@ -16,6 +16,7 @@ def _out(g: models.Group, matchday_counts: dict[int, int],
         id=g.id, name=g.name, slug=g.slug, description=g.description,
         visibility=g.visibility, share_token=g.share_token,
         win_points=g.win_points, draw_points=g.draw_points, loss_points=g.loss_points,
+        track_scorers=g.track_scorers, track_assists=g.track_assists,
         matchday_count=matchday_counts.get(g.id, 0),
         player_count=player_counts.get(g.id, 0),
     )

@@ -123,6 +123,8 @@
 		{lastMatchday}
 		{editing}
 		{saving}
+		trackScorers={group?.track_scorers ?? true}
+		trackAssists={group?.track_assists ?? false}
 		onsubmit={submit}
 		oncancel={cancel}
 	/>

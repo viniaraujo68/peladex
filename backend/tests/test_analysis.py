@@ -1,0 +1,167 @@
+SEASON = """2026-09-03
+BRANCO: ana, bia, caio
+AZUL: davi, edu, fabio
+BRANCO 1x0 AZUL: ana (bia)
+BRANCO 2x0 AZUL: ana (bia), bia
+---
+2026-09-10
+BRANCO: ana, bia, davi
+AZUL: caio, edu, fabio
+BRANCO 1x0 AZUL: bia (ana)
+BRANCO 3x0 AZUL: ana, ana (bia), bia
+---
+2026-09-17
+BRANCO: ana, bia, edu
+AZUL: caio, davi, fabio
+BRANCO 2x1 AZUL: ana (bia), bia, caio
+BRANCO 1x0 AZUL: ana (bia)
+---
+2026-09-24
+BRANCO: ana, bia, fabio
+AZUL: caio, davi, edu
+AZUL 1x0 BRANCO: caio (davi)
+BRANCO 1x0 AZUL: ana
+"""
+
+
+def seeded(api):
+    group = api.group()
+    assert api.import_text(group, SEASON).status_code == 200
+    return group
+
+
+def players_of(api, group):
+    return {p["name"]: p["id"] for p in api.get(f"/api/groups/{group}/players").json()}
+
+
+def test_the_period_filter_narrows_every_number(api):
+    group = seeded(api)
+    everything = api.get(f"/api/groups/{group}/stats").json()
+    assert everything["total_matchdays"] == 4
+    assert everything["first_date"] == "2026-09-03"
+    assert everything["last_date"] == "2026-09-24"
+
+    window = api.get(
+        f"/api/groups/{group}/stats?date_from=2026-09-10&date_to=2026-09-17"
+    ).json()
+    assert window["total_matchdays"] == 2
+    assert window["first_date"] == "2026-09-10"
+    assert window["last_date"] == "2026-09-17"
+    assert window["total_goals"] < everything["total_goals"]
+
+    by_name = {r["name"]: r for r in window["ranking"]}
+    assert by_name["ana"]["matchdays"] == 2
+
+
+def test_the_period_filter_reaches_the_evolution_chart(api):
+    group = seeded(api)
+    full = api.get(f"/api/groups/{group}/evolution").json()
+    window = api.get(f"/api/groups/{group}/evolution?date_from=2026-09-17").json()
+    assert len(full["dates"]) == 4
+    assert len(window["dates"]) == 2
+
+
+def test_presence_and_streaks_are_reported(api):
+    group = seeded(api)
+    by_name = {r["name"]: r for r in api.get(f"/api/groups/{group}/stats").json()["ranking"]}
+    assert by_name["ana"]["presence"] == 1.0
+    assert by_name["ana"]["matchdays"] == 4
+    assert by_name["ana"]["best_title_streak"] == 3
+    assert by_name["ana"]["title_streak"] == 0
+    assert by_name["ana"]["recent_win_rate"] is not None
+
+
+def test_assists_reach_the_ranking_and_the_records(api):
+    group = seeded(api)
+    stats = api.get(f"/api/groups/{group}/stats").json()
+    by_name = {r["name"]: r for r in stats["ranking"]}
+    assert by_name["bia"]["assists"] == 5
+    assert by_name["ana"]["assists"] == 1
+    assert by_name["ana"]["contributions"] == by_name["ana"]["goals"] + 1
+
+    records = {r["code"]: r for r in stats["records"]}
+    assert records["top_assister"]["player_name"] == "bia"
+    assert records["top_assister"]["value"] == 5
+    assert records["best_duo"]["player_name"] == "ana"
+    assert "bia" in records["best_duo"]["detail"]
+    assert records["most_presence"]["value"] == 4
+
+
+def test_the_assist_network_ranks_the_pairs(api):
+    group = seeded(api)
+    network = api.get(f"/api/groups/{group}/assist-network").json()
+    assert network["total_assisted_goals"] == 7
+    top = network["links"][0]
+    assert (top["assist_name"], top["scorer_name"], top["goals"]) == ("bia", "ana", 5)
+
+
+def test_the_pair_leaderboard_respects_the_minimum(api):
+    group = seeded(api)
+    strict = api.get(f"/api/groups/{group}/pairs?min_days=4").json()
+    assert strict["min_days"] == 4
+    assert [(r["player_a"], r["player_b"]) for r in strict["together"]] == [("ana", "bia")]
+    assert strict["together"][0]["days"] == 4
+
+    loose = api.get(f"/api/groups/{group}/pairs?min_days=1&limit=50").json()
+    assert len(loose["together"]) > 1
+    assert loose["together"][0]["delta"] >= loose["together"][-1]["delta"]
+
+
+def test_combo_measures_players_on_the_same_team(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    combo = api.post(f"/api/groups/{group}/combo",
+                     json={"together": [ids["ana"], ids["bia"]]}).json()
+    assert combo["days"] == 4
+    assert combo["matches"] == 8
+    assert combo["together_names"] == ["ana", "bia"]
+    assert combo["wins"] + combo["draws"] + combo["losses"] == 8
+    assert combo["dates"] == ["2026-09-03", "2026-09-10", "2026-09-17", "2026-09-24"]
+
+
+def test_combo_skips_days_where_they_were_split(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    combo = api.post(f"/api/groups/{group}/combo",
+                     json={"together": [ids["ana"], ids["caio"]]}).json()
+    assert combo["days"] == 1
+    assert combo["dates"] == ["2026-09-03"]
+
+
+def test_combo_can_pit_one_side_against_another(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    combo = api.post(f"/api/groups/{group}/combo", json={
+        "together": [ids["ana"], ids["bia"]], "against": [ids["caio"]],
+    }).json()
+    assert combo["days"] == 3
+    assert combo["against_names"] == ["caio"]
+    assert combo["matches"] == 6
+
+
+def test_combo_honours_the_period(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    combo = api.post(f"/api/groups/{group}/combo", json={
+        "together": [ids["ana"], ids["bia"]], "date_from": "2026-09-17",
+    }).json()
+    assert combo["days"] == 2
+    assert combo["matches"] == 4
+
+
+def test_the_public_surface_exposes_the_new_views(api, client):
+    group = api.group(visibility="public")
+    slug = api.last_group["slug"]
+    api.import_text(group, SEASON)
+    ids = players_of(api, group)
+
+    assert client.get(f"/api/public/{slug}/pairs?min_days=1").status_code == 200
+    assert client.get(f"/api/public/{slug}/assist-network").status_code == 200
+    combo = client.post(f"/api/public/{slug}/combo",
+                        json={"together": [ids["ana"], ids["bia"]]})
+    assert combo.status_code == 200
+    assert combo.json()["days"] == 4
+
+    body = client.get(f"/api/public/{slug}?date_from=2026-09-17").json()
+    assert body["stats"]["total_matchdays"] == 2
+    assert body["track_assists"] is False

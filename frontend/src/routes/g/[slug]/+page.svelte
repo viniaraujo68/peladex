@@ -1,8 +1,11 @@
 <script>
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { get } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import AssistNetwork from '$lib/components/AssistNetwork.svelte';
 	import EvolutionChart from '$lib/components/EvolutionChart.svelte';
+	import PairLeaderboard from '$lib/components/PairLeaderboard.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
 	import RankingTable from '$lib/components/RankingTable.svelte';
@@ -51,6 +54,32 @@
 	/** @param {number} playerId */
 	const playerHref = (playerId) =>
 		`/g/${slug}/players/${playerId}${token ? `?t=${encodeURIComponent(token)}` : ''}`;
+
+	const tokenQuery = $derived(token ? `t=${encodeURIComponent(token)}` : '');
+
+	let pairs = $state(/** @type {import('$lib/types.js').PairLeaderboard|null} */ (null));
+	let network = $state(/** @type {import('$lib/types.js').AssistNetwork|null} */ (null));
+	let minDays = $state(3);
+
+	$effect(() => {
+		const days = minDays;
+		const base = `/public/${encodeURIComponent(slug)}`;
+		/** @param {string} extra */
+		const join = (extra) => [tokenQuery, extra].filter(Boolean).join('&');
+		if (!group) return;
+		Promise.all([
+			get(`${base}/pairs?${join(`min_days=${days}`)}`),
+			get(`${base}/assist-network${tokenQuery ? `?${tokenQuery}` : ''}`)
+		])
+			.then(([p, n]) => {
+				pairs = p;
+				network = n;
+			})
+			.catch(() => {
+				pairs = null;
+				network = null;
+			});
+	});
 
 	const title = $derived(group ? t('title.public', { name: group.name }) : t('title.home'));
 	const metaDescription = $derived.by(() => {
@@ -116,6 +145,26 @@
 					</div>
 					<EvolutionChart evolution={group.evolution} />
 				</div>
+
+				{#if pairs}
+					<PairLeaderboard
+						board={pairs}
+						{minDays}
+						onMinDays={(value) => (minDays = value)}
+						{playerHref}
+					/>
+				{/if}
+
+				{#if network && group.stats.total_assists > 0}
+					<AssistNetwork {network} {playerHref} />
+				{/if}
+
+				<a
+					href={`/g/${slug}/analise${tokenQuery ? `?${tokenQuery}` : ''}`}
+					class="btn self-start"
+				>
+					{t('stats.openAnalysis')}
+				</a>
 			</div>
 		{:else if tab === 'matchdays'}
 			<MatchdaysList matchdays={group.matchdays} showMismatch={false} {playerHref} />

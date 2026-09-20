@@ -18,7 +18,10 @@ def validate_payload(db: DBSession, group_id: int, body: schemas.MatchdayCreate)
     for team in body.teams:
         referenced.update(team.player_ids)
     for match in body.matches:
-        referenced.update(goal.player_id for goal in match.goals)
+        for goal in match.goals:
+            referenced.add(goal.player_id)
+            if goal.assist_player_id is not None:
+                referenced.add(goal.assist_player_id)
     if body.mvp_player_id is not None:
         referenced.add(body.mvp_player_id)
 
@@ -59,6 +62,17 @@ def validate_payload(db: DBSession, group_id: int, body: schemas.MatchdayCreate)
             if goal.player_id not in seen:
                 raise api_error(status.HTTP_400_BAD_REQUEST, "scorer_not_playing",
                                 "Um artilheiro não está escalado neste dia")
+            if goal.assist_player_id is None:
+                continue
+            if goal.own_goal:
+                raise api_error(status.HTTP_400_BAD_REQUEST, "own_goal_assist",
+                                "Gol contra não pode ter assistência")
+            if goal.assist_player_id == goal.player_id:
+                raise api_error(status.HTTP_400_BAD_REQUEST, "self_assist",
+                                "Um jogador não pode dar assistência para si mesmo")
+            if seen.get(goal.assist_player_id) != seen[goal.player_id]:
+                raise api_error(status.HTTP_400_BAD_REQUEST, "assist_other_team",
+                                "A assistência tem que ser de alguém do mesmo time")
 
 
 def clear_children(db: DBSession, matchday_id: int) -> None:
@@ -116,4 +130,5 @@ def apply_payload(db: DBSession, matchday: models.Matchday,
             else:
                 credited = scorer_team
             db.add(models.Goal(match_id=match.id, player_id=goal_in.player_id,
-                               team_id=credited, own_goal=goal_in.own_goal))
+                               team_id=credited, own_goal=goal_in.own_goal,
+                               assist_player_id=goal_in.assist_player_id))

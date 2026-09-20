@@ -76,41 +76,93 @@ A tela **Importar texto** (`/groups/<id>/matchdays/import`) aceita a anotação 
 e mostra a tabela do dia **antes** de gravar qualquer coisa. Também aceita um `.txt`.
 
 ```
-2026-09-16
-Local: Campo do Ze
+16/09/2026 @ Campo do Ze
+
 BRANCO: golin, galetti, galo, rick, palma, disciplina, mini
 VERMELHO: vini, bamma, breno, igor, rod kauer, cesar, beat
 AZUL: ney, rod, lusca, pipi, nona, cop, guarino
+
 VERMELHO 0x0 AZUL
-BRANCO 1x0 VERMELHO
-golin
-BRANCO 2x0 AZUL
-golin galo
+BRANCO 0x0 AZUL
+BRANCO 1x0 VERMELHO: golin (galetti)
+BRANCO 2x0 AZUL: golin, galo (golin)
+BRANCO 0x0 VERMELHO
+VERMELHO 0x0 AZUL
+AZUL 0x1 BRANCO: disciplina
+BRANCO 1x1 VERMELHO: golin (mini), vini
+
 MVP: golin
 ```
 
-Regras do formato:
+Uma linha por coisa, e cada linha se explica sozinha:
 
 | Linha | Significado |
 |---|---|
-| `2026-09-16`, `16/09/2026`, `16/09` | abre um dia (sem ano, herda o do dia anterior do texto) |
+| `16/09/2026 @ Campo do Ze` | abre o dia; o `@ local` é opcional |
+| `2026-09-16`, `16/09` | outros formatos de data (sem ano, herda o do dia anterior) |
 | `TIME: a, b, c` | escala um time |
-| `CASA 2x1 FORA` | uma partida (vale `2-1`, `2 x 1`, `2:1`) |
-| linha seguinte, ou após `:` na própria partida | os artilheiros |
-| `(gc)` antes ou depois do nome | gol contra |
-| `nome x2`, `2x nome`, `nome (2)` | dois gols do mesmo jogador |
-| `MVP: nome`, `Local: nome`, `Obs: …` | opcionais |
+| `CASA 2x1 FORA` | uma partida (vale `2-1` e `2 x 1`) |
+| `CASA 2x1 FORA: golin, vini` | a mesma partida com os artilheiros |
+| `golin (galetti)` | gol do golin, assistência do galetti |
+| `golin (gc)` | gol contra — conta para o outro time, e não entra na artilharia dele |
+| `golin x2`, `2x golin`, `golin (2)` | dois gols do mesmo jogador |
+| `MVP: nome`, `Local: nome`, `Obs: texto` | opcionais |
 | `---` | separa um dia do próximo |
-| `# …` | comentário, ignorado |
+| `# comentário` | ignorado |
 
-O parser resolve nomes por **correspondência mais longa primeiro**, então `rod` e
-`rod kauer` em times diferentes não se confundem. Ele **recusa** o texto quando há erro
-(time jogando contra si mesmo, time não escalado, jogador em dois times) e apenas **avisa**
-quando algo é suspeito mas plausível (artilheiros que não fecham com o placar, MVP fora da
-escalação).
+Os artilheiros também podem ficar na **linha de baixo** da partida, sem os dois-pontos —
+que era como a anotação começou. As duas formas convivem.
+
+Três detalhes que valem saber:
+
+- **O parêntese é assistência**, exceto quando o que está dentro é `gc`, `ct`, `contra`
+  ou `og` — aí é gol contra. É o único caso especial do formato.
+- **`2:1` não vale como placar.** Os dois-pontos já separam a partida dos artilheiros, e
+  aceitar os dois deixaria `BRANCO 2:1 VERMELHO: golin` ambíguo. Use `2x1` ou `2-1`.
+- Nomes são resolvidos por **correspondência mais longa primeiro**, então `rod` e
+  `rod kauer` em times diferentes não se confundem.
+
+O parser **recusa** o texto quando há erro estrutural (time jogando contra si mesmo, time
+não escalado, jogador em dois times) e apenas **avisa** quando algo é suspeito mas
+plausível: artilheiros que não fecham com o placar, assistência de alguém de outro time,
+MVP fora da escalação.
 
 Para backfill em lote existe `backend/scripts/import_text.py`, configurado por constantes
-no topo do arquivo (com `APPLY = False` por padrão, que só relata).
+no topo do arquivo (com `APPLY = False` por padrão, que só relata). E
+`backend/scripts/seed_demo.py` gera uma temporada inteira de mentira nesse mesmo formato,
+para ver o app cheio.
+
+## O que o grupo escolhe anotar
+
+Em **Config** cada pelada liga ou desliga:
+
+- **Anotar quem fez os gols** — desligado, o dia guarda só os placares.
+- **Anotar quem deu a assistência** — cada gol pode ter no máximo uma, de alguém do
+  **mesmo time**, e gol contra nunca tem. É opcional gol a gol: registrar o gol sem saber
+  quem deu o passe é normal.
+
+As duas opções mudam o formulário e escondem as colunas correspondentes; o texto importado
+guarda o que estiver escrito de qualquer jeito.
+
+No formulário, cada gol vira uma etiqueta. **Tocar na etiqueta abre o editor daquele gol**,
+onde se escolhe a assistência e se marca gol contra — marcar move o gol de lado no placar
+sozinho.
+
+## Estatísticas
+
+Além da tabela do dia, ranking e artilharia:
+
+- **Filtro de período** (tudo / 3 / 6 / 12 meses / intervalo) que vale para o ranking, os
+  recordes e o gráfico.
+- **Últimos 5** — aproveitamento nos cinco últimos dias jogados, e **presença** sobre os
+  dias do período.
+- **Sequência** de dias como campeão, atual e a maior.
+- **Duplas da pelada** — quem rende mais e menos junto, medido por dia e com mínimo de dias.
+- **Quem passa pra quem** — o par que mais produz gol, um dando o passe e o outro
+  finalizando.
+- **Combinações** (`/groups/<id>/analise`) — escolha quem joga junto e, se quiser, contra
+  quem; o app acha os dias em que isso aconteceu e compara a campanha com o que se
+  esperaria dos jogadores separados.
 
 ## Migrations (Alembic)
 
@@ -166,8 +218,15 @@ docker compose up -d
 
 No Cloudflare: registro `peladex` (A/CNAME) **proxied (laranja)**, SSL/TLS = **Flexible**.
 
-O SQLite vive no volume `peladex_data`
-(backup = `docker compose cp backend:/data/peladex.db ./backup.db`).
+O SQLite vive no volume `peladex_data`. O banco roda em **WAL**, então copiar só o
+arquivo `.db` pega um estado incompleto — o backup tem que passar pelo `.backup` do
+próprio SQLite:
+
+```bash
+docker compose exec backend python -c \
+  "import sqlite3; s=sqlite3.connect('/data/peladex.db'); d=sqlite3.connect('/data/backup.db'); s.backup(d); d.close()"
+docker compose cp backend:/data/backup.db ./backup.db
+```
 
 ### Variáveis de ambiente (backend)
 

@@ -13,23 +13,21 @@
 	 */
 	let { groupId, onimported } = $props();
 
-	const TEMPLATE = `2026-09-16
-Local: Campo do Ze
+	const TEMPLATE = `16/09/2026 @ Campo do Ze
+
 BRANCO: golin, galetti, galo, rick, palma, disciplina, mini
 VERMELHO: vini, bamma, breno, igor, rod kauer, cesar, beat
 AZUL: ney, rod, lusca, pipi, nona, cop, guarino
+
 VERMELHO 0x0 AZUL
 BRANCO 0x0 AZUL
-BRANCO 1x0 VERMELHO
-golin
-BRANCO 2x0 AZUL
-golin galo
+BRANCO 1x0 VERMELHO: golin (galetti)
+BRANCO 2x0 AZUL: golin, galo (golin)
 BRANCO 0x0 VERMELHO
 VERMELHO 0x0 AZUL
-AZUL 0x1 BRANCO
-disciplina
-BRANCO 1x1 VERMELHO
-golin vini
+AZUL 0x1 BRANCO: disciplina
+BRANCO 1x1 VERMELHO: golin (mini), vini
+
 MVP: golin`;
 
 	let text = $state('');
@@ -290,7 +288,9 @@ MVP: golin`;
 								<span class="pgoals">
 									{#each match.goals as goal, gIndex (gIndex)}
 										<span class:own={goal.own_goal}>
-											{goal.player}{#if goal.own_goal}<i> ({t('day.ownGoalShort')})</i>{/if}
+											{goal.player}{#if goal.own_goal}<i>
+													({t('day.ownGoalShort')})</i
+												>{:else if goal.assist}<i> &larr; {goal.assist}</i>{/if}
 										</span>
 									{/each}
 								</span>
@@ -326,11 +326,12 @@ MVP: golin`;
 		</div>
 		<p class="hint">{t('import.formatIntro')}</p>
 		<ul class="rules">
-			<li>{t('import.ruleDate')}</li>
+			<li>{t('import.ruleHeader')}</li>
 			<li>{t('import.ruleTeam')}</li>
 			<li>{t('import.ruleMatch')}</li>
-			<li>{t('import.ruleGoals')}</li>
-			<li>{t('import.ruleOwnGoal')}</li>
+			<li>{t('import.ruleGoalsInline')}</li>
+			<li>{t('import.ruleAssist')}</li>
+			<li>{t('import.ruleOwnGoal2')}</li>
 			<li>{t('import.ruleMultiplier')}</li>
 			<li>{t('import.ruleMvp')}</li>
 			<li>{t('import.ruleSeparator')}</li>

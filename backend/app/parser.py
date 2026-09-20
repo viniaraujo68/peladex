@@ -16,11 +16,13 @@ RESERVED = RESERVED_VENUE | RESERVED_MVP | RESERVED_DATE | RESERVED_NOTES
 
 SEPARATOR_RE = re.compile(r"^[-*=_]{3,}$")
 MATCH_RE = re.compile(
-    r"^(?P<home>.+?)\s+(?P<hs>\d{1,2})\s*(?:[xX×]|-|:)\s*(?P<as>\d{1,2})\s+(?P<away>.+?)$"
+    r"^(?P<home>.+?)\s+(?P<hs>\d{1,2})\s*(?:[xX×]|-)\s*(?P<as>\d{1,2})\s+(?P<away>.+?)$"
 )
-OWN_GOAL_RE = re.compile(r"\(\s*(?:gc|ct|contra)\s*\)", re.IGNORECASE)
+OWN_GOAL_WORDS = {"gc", "ct", "contra", "og", "gol contra"}
+VENUE_SPLIT_RE = re.compile(r"\s+@\s*(?P<venue>.+)$")
 MULT_PREFIX_RE = re.compile(r"^(\d{1,2})\s*[xX×]\s*(.+)$")
 MULT_SUFFIX_RE = re.compile(r"^(.+?)\s*(?:[xX×]\s*(\d{1,2})|\((\d{1,2})\))$")
+BARE_MULT_RE = re.compile(r"^[xX×]\s*(\d{1,2})$")
 
 ISO_DATE_RE = re.compile(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$")
 BR_DATE_RE = re.compile(r"^(\d{1,2})[-/.](\d{1,2})(?:[-/.](\d{2,4}))?$")
@@ -46,6 +48,7 @@ class ParsedGoal:
     player: str
     team: str
     own_goal: bool = False
+    assist: str | None = None
 
 
 @dataclass
@@ -113,9 +116,26 @@ def parse_date_token(token: str, default_year: int | None = None) -> date | None
     return None
 
 
-def _strip_own_goal(chunk: str) -> tuple[str, bool]:
-    cleaned = OWN_GOAL_RE.sub(" ", chunk)
-    return re.sub(r"\s+", " ", cleaned).strip(), cleaned != chunk
+def split_annotations(text: str) -> list[tuple[str, str | None]]:
+    parts: list[tuple[str, str | None]] = []
+    buffer = ""
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char == "(":
+            close = text.find(")", index)
+            if close == -1:
+                buffer += text[index:]
+                break
+            parts.append((buffer, text[index + 1 : close]))
+            buffer = ""
+            index = close + 1
+        else:
+            buffer += char
+            index += 1
+    if buffer.strip():
+        parts.append((buffer, None))
+    return parts
 
 
 def _strip_multiplier(chunk: str) -> tuple[str, int]:
@@ -244,21 +264,39 @@ class _MatchdayBuilder:
 
         entries: list[dict] = []
         pending_own_goal = False
-        for chunk in split_names(text_body, pool):
-            name_part, marker = _strip_own_goal(chunk)
-            if not name_part:
-                if marker:
+        for segment, annotation in split_annotations(text_body):
+            for raw in split_names(segment, pool):
+                bare = BARE_MULT_RE.match(raw.strip())
+                if bare:
                     if entries:
-                        entries[-1]["own_goal"] = True
-                    else:
-                        pending_own_goal = True
+                        entries[-1]["count"] = int(bare.group(1))
+                    continue
+                name_part, count = _strip_multiplier(raw)
+                if not name_part:
+                    continue
+                entries.append({
+                    "name": name_part, "count": count,
+                    "own_goal": pending_own_goal, "assist": None,
+                })
+                pending_own_goal = False
+
+            if annotation is None:
                 continue
-            name_part, count = _strip_multiplier(name_part)
-            if not name_part:
-                continue
-            entries.append({"name": name_part, "count": count,
-                            "own_goal": marker or pending_own_goal})
-            pending_own_goal = False
+            marker = normalize(annotation)
+            if marker in OWN_GOAL_WORDS:
+                if entries:
+                    entries[-1]["own_goal"] = True
+                else:
+                    pending_own_goal = True
+            elif marker.isdigit():
+                if entries:
+                    entries[-1]["count"] = int(marker)
+            elif marker and entries:
+                entries[-1]["assist"] = annotation.strip()
+            elif marker:
+                self.issue(line, SEVERITY_WARNING, "stray_assist",
+                           f"\u201c{annotation.strip()}\u201d aparece como assist\u00eancia "
+                           f"mas n\u00e3o vem depois de um artilheiro.", text)
 
         for entry in entries:
             name_part = entry["name"]
@@ -268,19 +306,53 @@ class _MatchdayBuilder:
                 resolved = self.roster.get(key)
                 if resolved is None:
                     self.issue(line, SEVERITY_WARNING, "unknown_scorer",
-                               f"\u201c{name_part}\u201d marcou gol mas n\u00e3o est\u00e1 escalado neste dia.", text)
+                               f"\u201c{name_part}\u201d marcou gol mas n\u00e3o est\u00e1 "
+                               f"escalado neste dia.", text)
                     continue
                 self.issue(line, SEVERITY_WARNING, "scorer_off_match",
-                           f"\u201c{resolved}\u201d marcou em {match.home_team} x {match.away_team}, "
-                           f"mas joga em {self.team_of.get(key, '?')}.", text)
+                           f"\u201c{resolved}\u201d marcou em {match.home_team} x "
+                           f"{match.away_team}, mas joga em "
+                           f"{self.team_of.get(key, '?')}.", text)
             scorer_team = self.team_of.get(normalize(resolved), match.home_team)
             if entry["own_goal"]:
                 credited = match.away_team if scorer_team == match.home_team else match.home_team
             else:
                 credited = scorer_team
+
+            assist = self.resolve_assist(line, entry, resolved, scorer_team, pool, text)
             for _ in range(entry["count"]):
                 match.goals.append(ParsedGoal(player=resolved, team=credited,
-                                              own_goal=entry["own_goal"]))
+                                              own_goal=entry["own_goal"], assist=assist))
+
+    def resolve_assist(self, line: int, entry: dict, scorer: str, scorer_team: str,
+                       pool: dict[str, str], text: str) -> str | None:
+        raw = entry["assist"]
+        if raw is None:
+            return None
+        if entry["own_goal"]:
+            self.issue(line, SEVERITY_WARNING, "own_goal_assist",
+                       f"Gol contra de \u201c{scorer}\u201d n\u00e3o pode ter "
+                       f"assist\u00eancia \u2014 a de \u201c{raw}\u201d foi ignorada.", text)
+            return None
+        key = normalize(raw)
+        resolved = pool.get(key) or self.roster.get(key)
+        if resolved is None:
+            self.issue(line, SEVERITY_WARNING, "unknown_assist",
+                       f"\u201c{raw}\u201d deu assist\u00eancia mas n\u00e3o est\u00e1 "
+                       f"escalado neste dia.", text)
+            return None
+        if normalize(resolved) == normalize(scorer):
+            self.issue(line, SEVERITY_WARNING, "self_assist",
+                       f"\u201c{scorer}\u201d n\u00e3o pode dar assist\u00eancia para "
+                       f"si mesmo.", text)
+            return None
+        assist_team = self.team_of.get(normalize(resolved))
+        if assist_team != scorer_team:
+            self.issue(line, SEVERITY_WARNING, "assist_other_team",
+                       f"\u201c{resolved}\u201d n\u00e3o joga no mesmo time de "
+                       f"\u201c{scorer}\u201d, ent\u00e3o a assist\u00eancia foi ignorada.", text)
+            return None
+        return resolved
 
     def finish(self) -> ParsedMatchday:
         if self.day.date is None:
@@ -349,12 +421,17 @@ def parse(text: str, known_players: list[str] | None = None,
             close()
             continue
 
-        as_date = parse_date_token(line.split()[0], year_hint) if line.split() else None
-        if as_date is not None and ":" not in line:
+        venue_match = VENUE_SPLIT_RE.search(line)
+        date_part = line[: venue_match.start()] if venue_match else line
+        tokens = date_part.split()
+        as_date = parse_date_token(tokens[0], year_hint) if tokens else None
+        if as_date is not None and ":" not in date_part:
             close()
             builder = _MatchdayBuilder(index, known)
             builder.day.date = as_date
-            builder.day.raw_date = line
+            builder.day.raw_date = date_part.strip()
+            if venue_match:
+                builder.day.venue = venue_match.group("venue").strip()
             continue
 
         head, sep, tail = line.partition(":")

@@ -27,6 +27,8 @@ SKILL_WEIGHT = 0.30
 SEED = 20260916
 OWN_GOAL_CHANCE = 0.05
 MISSING_SCORER_CHANCE = 0.06
+ASSIST_CHANCE = 0.58
+TRACK_ASSISTS = True
 TEXT_OUTPUT = "peladas-demo.txt"
 APPLY = True
 
@@ -40,27 +42,26 @@ ROSTER = [
     ("nona", 0.38, 0.12), ("cop", 0.50, 0.24), ("guarino", 0.64, 0.30),
 ]
 
-REAL_MATCHDAY = """2026-09-16
-Local: Campo do Ze
+REAL_MATCHDAY = """16/09/2026 @ Campo do Ze
+
 BRANCO: golin, galetti, galo, rick, palma, disciplina, mini
 VERMELHO: vini, bamma, breno, igor, rod kauer, cesar, beat
 AZUL: ney, rod, lusca, pipi, nona, cop, guarino
+
 VERMELHO 0x0 AZUL
 BRANCO 0x0 AZUL
-BRANCO 1x0 VERMELHO
-golin
-BRANCO 2x0 AZUL
-golin galo
+BRANCO 1x0 VERMELHO: golin (galetti)
+BRANCO 2x0 AZUL: golin, galo (golin)
 BRANCO 0x0 VERMELHO
 VERMELHO 0x0 AZUL
-AZUL 0x1 BRANCO
-disciplina
-BRANCO 1x1 VERMELHO
-golin vini
+AZUL 0x1 BRANCO: disciplina (mini)
+BRANCO 1x1 VERMELHO: golin (galetti), vini
+
 MVP: golin"""
 
 SKILL = {name: skill for name, skill, _ in ROSTER}
 ATTACK = {name: attack for name, _, attack in ROSTER}
+PASSING = {name: max(0.08, skill - attack * 0.55) for name, skill, attack in ROSTER}
 
 
 def draft(rng: random.Random, attendees: list[str]) -> list[list[str]]:
@@ -91,6 +92,16 @@ def pick_scorers(rng: random.Random, team: list[str], count: int) -> list[str]:
     return rng.choices(team, weights=weights, k=count)
 
 
+def pick_assist(rng: random.Random, team: list[str], scorer: str) -> str | None:
+    if not TRACK_ASSISTS or rng.random() > ASSIST_CHANCE:
+        return None
+    options = [name for name in team if name != scorer]
+    if not options:
+        return None
+    weights = [PASSING[name] + 0.05 for name in options]
+    return rng.choices(options, weights=weights, k=1)[0]
+
+
 def build_matchday(rng: random.Random, day: date) -> str:
     attendees = [name for name, _, _ in ROSTER if rng.random() < ATTENDANCE]
     while len(attendees) < 18:
@@ -98,9 +109,11 @@ def build_matchday(rng: random.Random, day: date) -> str:
         attendees.append(rng.choice(missing))
     teams = draft(rng, attendees)
 
-    lines = [day.isoformat(), f"Local: {rng.choice(VENUES)}"]
+    header = f"{day.strftime('%d/%m/%Y')} @ {rng.choice(VENUES)}"
+    lines = [header, ""]
     for name, members in zip(TEAM_NAMES, teams):
         lines.append(f"{name}: {', '.join(members)}")
+    lines.append("")
 
     pairs = [(0, 1), (1, 2), (2, 0)]
     scorers_count: dict[str, int] = {}
@@ -123,9 +136,7 @@ def build_matchday(rng: random.Random, day: date) -> str:
             day_points[home_index] += 1
             day_points[away_index] += 1
 
-        lines.append(
-            f"{TEAM_NAMES[home_index]} {home_goals}x{away_goals} {TEAM_NAMES[away_index]}"
-        )
+        scoreline = f"{TEAM_NAMES[home_index]} {home_goals}x{away_goals} {TEAM_NAMES[away_index]}"
 
         credited: list[tuple[str, int]] = []
         for scorer in pick_scorers(rng, home, home_goals):
@@ -142,17 +153,18 @@ def build_matchday(rng: random.Random, day: date) -> str:
                 conceding = away_index if side == home_index else home_index
                 own_scorer = rng.choice(teams[conceding])
                 scorers_count[scorer] = scorers_count.get(scorer, 1) - 1
-                goal_line.append(f"(gc) {own_scorer}")
+                goal_line.append(f"{own_scorer} (gc)")
                 continue
-            goal_line.append(scorer)
+            assist = pick_assist(rng, teams[side], scorer)
+            goal_line.append(f"{scorer} ({assist})" if assist else scorer)
 
         if goal_line and len(goal_line) > 1 and rng.random() < MISSING_SCORER_CHANCE:
             dropped = goal_line.pop(rng.randrange(len(goal_line)))
-            if not dropped.startswith("(gc)"):
-                scorers_count[dropped] = scorers_count.get(dropped, 1) - 1
+            base = dropped.split(" (")[0]
+            if not dropped.endswith("(gc)"):
+                scorers_count[base] = scorers_count.get(base, 1) - 1
 
-        if goal_line:
-            lines.append(", ".join(goal_line))
+        lines.append(f"{scoreline}: {', '.join(goal_line)}" if goal_line else scoreline)
 
     champion = max(day_points, key=lambda k: day_points[k])
     candidates = list(teams[champion])
@@ -160,6 +172,7 @@ def build_matchday(rng: random.Random, day: date) -> str:
     if scored:
         top = max(scored, key=lambda k: scored[k])
         candidates += [top, top]
+    lines.append("")
     lines.append(f"MVP: {rng.choice(candidates)}")
     return "\n".join(lines)
 
@@ -209,6 +222,7 @@ def main() -> None:
                 slug=unique_slug(db, GROUP_NAME),
                 description=GROUP_DESCRIPTION,
                 visibility=VISIBILITY,
+                track_assists=TRACK_ASSISTS,
             )
             db.add(group)
             db.flush()
@@ -272,6 +286,9 @@ def main() -> None:
                             schemas.GoalIn(
                                 player_id=players[parser.normalize(g.player)].id,
                                 own_goal=g.own_goal,
+                                assist_player_id=(
+                                    players[parser.normalize(g.assist)].id if g.assist else None
+                                ),
                             )
                             for g in match.goals
                         ],

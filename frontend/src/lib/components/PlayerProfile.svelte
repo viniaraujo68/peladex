@@ -17,6 +17,9 @@
 	let { detail, evolution, minDays, onMinDays, playerHref } = $props();
 
 	const summary = $derived(detail.summary);
+	const showAssists = $derived(
+		summary.assists > 0 || detail.history.some((row) => row.assists > 0)
+	);
 </script>
 
 <div class="profile">
@@ -38,6 +41,13 @@
 				{t('player.goalsPerDay', { value: formatNumber(summary.goals_per_matchday) })}
 			</span>
 		</div>
+		{#if showAssists}
+			<div class="tile">
+				<span class="tl">{t('ranking.assists')}</span>
+				<span class="tv">{summary.assists}</span>
+				<span class="ts">{t('player.contributions')}: {summary.contributions}</span>
+			</div>
+		{/if}
 		<div class="tile">
 			<span class="tl">{t('ranking.titles')}</span>
 			<span class="tv">{summary.titles}</span>
@@ -46,6 +56,22 @@
 		<div class="tile">
 			<span class="tl">{t('ranking.mvp')}</span>
 			<span class="tv">{summary.mvp_count}</span>
+		</div>
+		<div class="tile">
+			<span class="tl">{t('ranking.form')}</span>
+			<span class="tv">{formatRate(summary.recent_win_rate)}</span>
+			<span class="ts">
+				{t('ranking.presence')} {formatRate(summary.presence)}
+			</span>
+		</div>
+		<div class="tile">
+			<span class="tl">{t('ranking.streak')}</span>
+			<span class="tv">{summary.title_streak}</span>
+			<span class="ts">
+				{t('records.most_titles')}: {t('ranking.streakValue', {
+					count: summary.best_title_streak
+				})}
+			</span>
 		</div>
 	</section>
 
@@ -114,6 +140,7 @@
 							<th class="num">{t('standings.losses')}</th>
 							<th class="num">{t('ranking.winRate')}</th>
 							<th class="num">{t('ranking.goals')}</th>
+							{#if showAssists}<th class="num">{t('ranking.assists')}</th>{/if}
 						</tr>
 					</thead>
 					<tbody>
@@ -144,6 +171,7 @@
 								<td class="num">{row.losses}</td>
 								<td class="num rate">{formatRate(row.win_rate)}</td>
 								<td class="num">{row.goals || ''}</td>
+								{#if showAssists}<td class="num">{row.assists || ''}</td>{/if}
 							</tr>
 						{/each}
 					</tbody>

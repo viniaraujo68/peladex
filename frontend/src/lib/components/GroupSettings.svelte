@@ -29,6 +29,10 @@
 	let drawPoints = $state(group.draw_points);
 	// svelte-ignore state_referenced_locally
 	let lossPoints = $state(group.loss_points);
+	// svelte-ignore state_referenced_locally
+	let trackScorers = $state(group.track_scorers);
+	// svelte-ignore state_referenced_locally
+	let trackAssists = $state(group.track_assists);
 	let saving = $state(false);
 	let error = $state('');
 
@@ -53,7 +57,9 @@
 			visibility !== group.visibility ||
 			winPoints !== group.win_points ||
 			drawPoints !== group.draw_points ||
-			lossPoints !== group.loss_points
+			lossPoints !== group.loss_points ||
+			trackScorers !== group.track_scorers ||
+			trackAssists !== group.track_assists
 	);
 
 	$effect(() => {
@@ -84,7 +90,9 @@
 				visibility,
 				win_points: winPoints,
 				draw_points: drawPoints,
-				loss_points: lossPoints
+				loss_points: lossPoints,
+				track_scorers: trackScorers,
+				track_assists: trackAssists && trackScorers
 			});
 			toast.success(t('toast.settingsSaved'));
 			onchange(updated);
@@ -220,6 +228,33 @@
 					<span class="vis-d">{t('group.privateHint')}</span>
 				</button>
 			</div>
+		</div>
+
+		<div class="block">
+			<span class="blabel">{t('settings.tracking')}</span>
+			<label class="check">
+				<input type="checkbox" class="checkbox checkbox-sm" bind:checked={trackScorers} />
+				<span>
+					{t('settings.trackScorers')}
+					<span class="hint block">{t('settings.trackScorersHint')}</span>
+				</span>
+			</label>
+			<label class="check" class:disabled={!trackScorers}>
+				<input
+					type="checkbox"
+					class="checkbox checkbox-sm"
+					bind:checked={trackAssists}
+					disabled={!trackScorers}
+				/>
+				<span>
+					{t('settings.trackAssists')}
+					<span class="hint block">
+						{trackScorers
+							? t('settings.trackAssistsHint')
+							: t('settings.trackAssistsNeedsScorers')}
+					</span>
+				</span>
+			</label>
 		</div>
 
 		<div class="block">
@@ -485,6 +520,10 @@
 		gap: 10px;
 		font-size: 0.86rem;
 		cursor: pointer;
+	}
+	.check.disabled {
+		opacity: 0.55;
+		cursor: not-allowed;
 	}
 	.names {
 		display: flex;

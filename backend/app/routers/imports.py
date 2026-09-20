@@ -85,7 +85,7 @@ def preview_import(group_id: int, body: schemas.ImportPreviewIn,
                     home_score=m.home_score, away_score=m.away_score,
                     goals=[
                         schemas.ImportGoalPreview(player=g.player, team=g.team,
-                                                  own_goal=g.own_goal)
+                                                  own_goal=g.own_goal, assist=g.assist)
                         for g in m.goals
                     ],
                 )
@@ -184,8 +184,13 @@ def commit_import(group_id: int, body: schemas.ImportCommitIn,
                     home_score=match.home_score,
                     away_score=match.away_score,
                     goals=[
-                        schemas.GoalIn(player_id=players[parser.normalize(g.player)].id,
-                                       own_goal=g.own_goal)
+                        schemas.GoalIn(
+                            player_id=players[parser.normalize(g.player)].id,
+                            own_goal=g.own_goal,
+                            assist_player_id=(
+                                players[parser.normalize(g.assist)].id if g.assist else None
+                            ),
+                        )
                         for g in match.goals
                     ],
                 )

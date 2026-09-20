@@ -1,6 +1,6 @@
 <script>
 	import { DataTable } from '@viniaraujo68/plinth/table';
-	import { formatNumber, formatRate } from '$lib/format.svelte.js';
+	import { formatRate } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import Icon from './Icon.svelte';
 
@@ -19,20 +19,21 @@
 	/** @type {import('@viniaraujo68/plinth/table').SortState} */
 	let sort = $state({ key: 'win_rate', direction: 'desc' });
 
+	const showAssists = $derived(ranking.some((r) => r.assists > 0));
+	const showGoals = $derived(ranking.some((r) => r.goals > 0 || r.assists > 0));
+
 	/** @type {import('@viniaraujo68/plinth/table').Column<Row>[]} */
 	const columns = $derived([
 		{ key: 'rank', label: '#', sortable: false, align: 'center', class: 'w-12', cell: rankCell },
 		{ key: 'name', label: t('ranking.player'), class: 'font-semibold', cell: nameCell },
 		{ key: 'win_rate', label: t('ranking.winRate'), numeric: true, cell: rateCell },
+		{ key: 'recent_win_rate', label: t('ranking.form'), numeric: true, cell: formCell },
 		{ key: 'matchdays', label: t('ranking.matchdays'), numeric: true },
-		{ key: 'matches', label: t('ranking.matches'), numeric: true },
-		{ key: 'goals', label: t('ranking.goals'), numeric: true },
-		{
-			key: 'goals_per_matchday',
-			label: t('ranking.goalsPerDay'),
-			numeric: true,
-			cell: perDayCell
-		},
+		{ key: 'presence', label: t('ranking.presence'), numeric: true, cell: presenceCell },
+		...(showGoals ? [{ key: 'goals', label: t('ranking.goals'), numeric: true }] : []),
+		...(showAssists
+			? [{ key: 'assists', label: t('ranking.assists'), numeric: true }]
+			: []),
 		{ key: 'titles', label: t('ranking.titles'), numeric: true },
 		{ key: 'title_rate', label: t('ranking.titleRate'), numeric: true, cell: titleRateCell },
 		{ key: 'mvp_count', label: t('ranking.mvp'), numeric: true }
@@ -58,8 +59,14 @@
 	<span class="rate">{formatRate(r.win_rate)}</span>
 {/snippet}
 
-{#snippet perDayCell(/** @type {Row} */ r)}
-	<span>{formatNumber(r.goals_per_matchday)}</span>
+{#snippet formCell(/** @type {Row} */ r)}
+	<span class={r.recent_win_rate === null ? 'text-base-content/50' : ''}>
+		{formatRate(r.recent_win_rate)}
+	</span>
+{/snippet}
+
+{#snippet presenceCell(/** @type {Row} */ r)}
+	<span>{formatRate(r.presence)}</span>
 {/snippet}
 
 {#snippet titleRateCell(/** @type {Row} */ r)}
@@ -86,7 +93,9 @@
 				{t('ranking.cardSub', {
 					count: r.matchdays,
 					matches: r.matches,
-					goals: t('ranking.goalCount', { count: r.goals })
+					goals: showAssists
+						? `${r.goals}G ${r.assists}A`
+						: t('ranking.goalCount', { count: r.goals })
 				})}
 			</span>
 		</div>

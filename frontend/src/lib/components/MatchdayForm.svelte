@@ -14,6 +14,8 @@
 	 *   lastMatchday?: import('$lib/types.js').Matchday|null,
 	 *   editing?: boolean,
 	 *   saving?: boolean,
+	 *   trackScorers?: boolean,
+	 *   trackAssists?: boolean,
 	 *   onsubmit: (payload: import('$lib/types.js').MatchdayPayload) => unknown,
 	 *   oncancel: () => void
 	 * }}
@@ -25,6 +27,8 @@
 		lastMatchday = null,
 		editing = false,
 		saving = false,
+		trackScorers = true,
+		trackAssists = false,
 		onsubmit,
 		oncancel
 	} = $props();
@@ -42,7 +46,7 @@
 	const yesterday = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
 
 	/** @typedef {{ name: string, color: string, playerIds: number[] }} TeamDraft */
-	/** @typedef {{ playerId: number, ownGoal: boolean }} GoalDraft */
+	/** @typedef {{ playerId: number, ownGoal: boolean, assistId: number|null }} GoalDraft */
 	/** @typedef {{ home: number, away: number, homeScore: number, awayScore: number, goals: GoalDraft[] }} MatchDraft */
 
 	/** @returns {TeamDraft[]} */
@@ -81,7 +85,11 @@
 			away: order.indexOf(m.away_team_id),
 			homeScore: m.home_score,
 			awayScore: m.away_score,
-			goals: m.goals.map((g) => ({ playerId: g.player_id, ownGoal: g.own_goal }))
+			goals: m.goals.map((g) => ({
+				playerId: g.player_id,
+				ownGoal: g.own_goal,
+				assistId: g.assist_player_id
+			}))
 		}));
 	}
 
@@ -116,7 +124,7 @@
 	let notes = $state(matchday?.notes ?? '');
 
 	let activeTeam = $state(0);
-	let ownGoalMode = $state(false);
+	let editingGoal = $state(/** @type {{ match: number, goal: number }|null} */ (null));
 	let formError = $state('');
 	let submitting = $state(false);
 
@@ -212,36 +220,71 @@
 		matches[matchIndex][key] = next;
 	}
 
-	/** @param {MatchDraft} match @param {number} playerId */
-	function creditedSide(match, playerId) {
-		const team = assigned.get(playerId);
-		const own = ownGoalMode;
-		if (team === match.home) return own ? 'away' : 'home';
-		if (team === match.away) return own ? 'home' : 'away';
+	/** @param {MatchDraft} match @param {GoalDraft} goal */
+	function creditedSide(match, goal) {
+		const team = assigned.get(goal.playerId);
+		if (team === match.home) return goal.ownGoal ? 'away' : 'home';
+		if (team === match.away) return goal.ownGoal ? 'home' : 'away';
 		return null;
+	}
+
+	/** @param {MatchDraft} match @param {'home'|'away'|null} side @param {number} delta */
+	function shiftScore(match, side, delta) {
+		if (side === 'home') match.homeScore = Math.max(0, Math.min(99, match.homeScore + delta));
+		else if (side === 'away') match.awayScore = Math.max(0, Math.min(99, match.awayScore + delta));
 	}
 
 	/** @param {number} matchIndex @param {number} playerId */
 	function addGoal(matchIndex, playerId) {
 		const match = matches[matchIndex];
-		const side = creditedSide(match, playerId);
+		/** @type {GoalDraft} */
+		const goal = { playerId, ownGoal: false, assistId: null };
+		const side = creditedSide(match, goal);
 		if (side === null) return;
-		match.goals = [...match.goals, { playerId, ownGoal: ownGoalMode }];
-		if (side === 'home') match.homeScore = Math.min(99, match.homeScore + 1);
-		else match.awayScore = Math.min(99, match.awayScore + 1);
+		match.goals = [...match.goals, goal];
+		shiftScore(match, side, 1);
 	}
 
 	/** @param {number} matchIndex @param {number} goalIndex */
 	function removeGoal(matchIndex, goalIndex) {
 		const match = matches[matchIndex];
-		const goal = match.goals[goalIndex];
-		const team = assigned.get(goal.playerId);
-		let side = null;
-		if (team === match.home) side = goal.ownGoal ? 'away' : 'home';
-		else if (team === match.away) side = goal.ownGoal ? 'home' : 'away';
+		shiftScore(match, creditedSide(match, match.goals[goalIndex]), -1);
 		match.goals = match.goals.filter((_, i) => i !== goalIndex);
-		if (side === 'home') match.homeScore = Math.max(0, match.homeScore - 1);
-		else if (side === 'away') match.awayScore = Math.max(0, match.awayScore - 1);
+		editingGoal = null;
+	}
+
+	/** @param {number} matchIndex @param {number} goalIndex */
+	function toggleOwnGoal(matchIndex, goalIndex) {
+		const match = matches[matchIndex];
+		const goal = match.goals[goalIndex];
+		shiftScore(match, creditedSide(match, goal), -1);
+		goal.ownGoal = !goal.ownGoal;
+		if (goal.ownGoal) goal.assistId = null;
+		shiftScore(match, creditedSide(match, goal), 1);
+	}
+
+	/** @param {number} matchIndex @param {number} goalIndex @param {number|null} assistId */
+	function setAssist(matchIndex, goalIndex, assistId) {
+		const goal = matches[matchIndex].goals[goalIndex];
+		goal.assistId = goal.assistId === assistId ? null : assistId;
+	}
+
+	/** @param {number} matchIndex @param {number} goalIndex */
+	function openGoal(matchIndex, goalIndex) {
+		editingGoal =
+			editingGoal && editingGoal.match === matchIndex && editingGoal.goal === goalIndex
+				? null
+				: { match: matchIndex, goal: goalIndex };
+	}
+
+	/** @param {MatchDraft} match @param {GoalDraft} goal */
+	function assistOptions(match, goal) {
+		const team = assigned.get(goal.playerId);
+		if (team === undefined) return [];
+		return (teams[team]?.playerIds ?? [])
+			.filter((id) => id !== goal.playerId)
+			.map((id) => ({ id, name: nameById.get(id) ?? '?' }))
+			.sort((a, b) => a.name.localeCompare(b.name, localeTag()));
 	}
 
 	/** @param {MatchDraft} match */
@@ -250,8 +293,13 @@
 		let away = 0;
 		for (const goal of match.goals) {
 			const team = assigned.get(goal.playerId);
-			if (team === match.home) goal.ownGoal ? away++ : home++;
-			else if (team === match.away) goal.ownGoal ? home++ : away++;
+			if (team === match.home) {
+				if (goal.ownGoal) away++;
+				else home++;
+			} else if (team === match.away) {
+				if (goal.ownGoal) home++;
+				else away++;
+			}
 		}
 		return { home, away };
 	}
@@ -386,7 +434,11 @@
 			away: m.away ?? 1,
 			homeScore: m.homeScore ?? 0,
 			awayScore: m.awayScore ?? 0,
-			goals: (m.goals ?? []).map((g) => ({ playerId: g.playerId, ownGoal: !!g.ownGoal }))
+			goals: (m.goals ?? []).map((g) => ({
+				playerId: g.playerId,
+				ownGoal: !!g.ownGoal,
+				assistId: g.assistId ?? null
+			}))
 		}));
 		activeTeam = 0;
 	}
@@ -460,7 +512,11 @@
 				away_team_index: m.away,
 				home_score: m.homeScore,
 				away_score: m.awayScore,
-				goals: m.goals.map((g) => ({ player_id: g.playerId, own_goal: g.ownGoal }))
+				goals: m.goals.map((g) => ({
+					player_id: g.playerId,
+					own_goal: g.ownGoal,
+					assist_player_id: trackAssists && !g.ownGoal ? g.assistId : null
+				}))
 			}))
 		};
 		const ok = await onsubmit(payload);
@@ -664,22 +720,9 @@
 	<section class="card flex flex-col gap-4 bg-base-100 p-5">
 		<div class="sec-head">
 			<h2 class="stitle">{t('day.matches')}</h2>
-			<div class="flex items-center gap-2">
-				<button
-					type="button"
-					class="btn btn-sm"
-					class:btn-warning={ownGoalMode}
-					class:btn-soft={ownGoalMode}
-					aria-pressed={ownGoalMode}
-					onclick={() => (ownGoalMode = !ownGoalMode)}
-					title={t('day.ownGoal')}
-				>
-					{t('day.ownGoal')}
-				</button>
-				<button type="button" class="btn btn-sm" disabled={teams.length < 2} onclick={addMatch}>
-					{t('day.addMatch')}
-				</button>
-			</div>
+			<button type="button" class="btn btn-sm" disabled={teams.length < 2} onclick={addMatch}>
+				{t('day.addMatch')}
+			</button>
 		</div>
 
 		{#if matches.length === 0}
@@ -761,7 +804,9 @@
 					</button>
 				</div>
 
-				{#if match.home !== match.away}
+				{#if match.home === match.away}
+					<p class="mwarn">{t('day.sameTeamTwice')}</p>
+				{:else if trackScorers}
 					{@const roster = matchPlayers(match)}
 					{#if roster.length}
 						<div class="scorers">
@@ -771,7 +816,6 @@
 									type="button"
 									class="gchip"
 									class:has={count > 0}
-									class:own={ownGoalMode}
 									onclick={() => addGoal(index, player.id)}
 								>
 									{player.name}
@@ -783,23 +827,92 @@
 					{#if match.goals.length}
 						<div class="goallist">
 							{#each match.goals as goal, goalIndex (goalIndex)}
+								{@const open =
+									editingGoal?.match === index && editingGoal?.goal === goalIndex}
 								<button
 									type="button"
 									class="goaltag"
 									class:own={goal.ownGoal}
-									onclick={() => removeGoal(index, goalIndex)}
-									title={t('common.remove')}
+									class:open
+									aria-expanded={open}
+									onclick={() => openGoal(index, goalIndex)}
+									title={t('day.editGoal', { name: nameById.get(goal.playerId) ?? '?' })}
 								>
 									{nameById.get(goal.playerId) ?? '?'}{#if goal.ownGoal}<i
 											> ({t('day.ownGoalShort')})</i
+										>{:else if goal.assistId}<i>
+											&larr; {nameById.get(goal.assistId) ?? '?'}</i
 										>{/if}
-									<Icon name="close" class="size-3" />
+									<Icon name="chevron" class="size-3" />
 								</button>
 							{/each}
 						</div>
+						<p class="tiphint">{t('day.tapToEdit')}</p>
 					{/if}
-				{:else}
-					<p class="mwarn">{t('day.sameTeamTwice')}</p>
+
+					{#if editingGoal?.match === index && match.goals[editingGoal.goal]}
+						{@const goalIndex = editingGoal.goal}
+						{@const goal = match.goals[goalIndex]}
+						<div class="goaledit">
+							<div class="ge-head">
+								<span class="ge-title">
+									{t('day.goalOf', { name: nameById.get(goal.playerId) ?? '?' })}
+								</span>
+								<button
+									type="button"
+									class="btn btn-ghost btn-xs"
+									onclick={() => (editingGoal = null)}
+								>
+									{t('common.close')}
+								</button>
+							</div>
+
+							<label class="check">
+								<input
+									type="checkbox"
+									class="checkbox checkbox-sm"
+									checked={goal.ownGoal}
+									onchange={() => toggleOwnGoal(index, goalIndex)}
+								/>
+								<span>{t('day.markOwnGoal')}</span>
+							</label>
+
+							{#if trackAssists && !goal.ownGoal}
+								<div class="block">
+									<span class="blabel">{t('day.assist')}</span>
+									<div class="scorers">
+										<button
+											type="button"
+											class="gchip"
+											class:has={goal.assistId === null}
+											onclick={() => setAssist(index, goalIndex, null)}
+										>
+											{t('day.noAssist')}
+										</button>
+										{#each assistOptions(match, goal) as option (option.id)}
+											<button
+												type="button"
+												class="gchip"
+												class:has={goal.assistId === option.id}
+												onclick={() => setAssist(index, goalIndex, option.id)}
+											>
+												{option.name}
+											</button>
+										{/each}
+									</div>
+									<p class="tiphint">{t('day.assistHint')}</p>
+								</div>
+							{/if}
+
+							<button
+								type="button"
+								class="btn btn-soft btn-error btn-sm self-start"
+								onclick={() => removeGoal(index, goalIndex)}
+							>
+								{t('day.removeGoal')}
+							</button>
+						</div>
+					{/if}
 				{/if}
 			</div>
 		{/each}
@@ -1102,10 +1215,6 @@
 		border-style: solid;
 		color: var(--color-base-content);
 	}
-	.gchip.own:hover {
-		border-color: var(--color-warning);
-		color: var(--ink-warning);
-	}
 	.gcount {
 		display: inline-grid;
 		place-items: center;
@@ -1141,6 +1250,41 @@
 	.goaltag.own {
 		background: color-mix(in oklch, var(--color-warning) 18%, transparent);
 		color: var(--ink-warning);
+	}
+	.goaltag.open {
+		outline: 2px solid var(--color-primary);
+		outline-offset: 1px;
+	}
+	.tiphint {
+		font-size: 0.7rem;
+		color: var(--ink-muted);
+	}
+	.goaledit {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+		margin-top: 4px;
+		padding: 12px;
+		border: 1px solid color-mix(in oklch, var(--color-primary) 40%, transparent);
+		border-radius: var(--radius-field);
+		background: color-mix(in oklch, var(--color-primary) 6%, transparent);
+	}
+	.ge-head {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+	}
+	.ge-title {
+		font-weight: 700;
+		font-size: 0.86rem;
+	}
+	.check {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		font-size: 0.84rem;
+		cursor: pointer;
 	}
 	.goaltag i {
 		font-style: normal;

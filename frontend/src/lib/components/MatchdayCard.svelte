@@ -35,6 +35,12 @@
 	const topScorers = $derived(
 		topScorer ? matchday.top_scorers.filter((s) => s.goals === topScorer.goals) : []
 	);
+	const topAssister = $derived(matchday.top_assisters[0] ?? null);
+	const topAssisters = $derived(
+		topAssister
+			? matchday.top_assisters.filter((s) => s.assists === topAssister.assists)
+			: []
+	);
 
 	/** @param {import('$lib/types.js').Match} match */
 	function scorersOf(match) {
@@ -62,6 +68,11 @@
 				<span class="badge badge-soft badge-sm">
 					{t('day.totalGoals', { count: matchday.total_goals })}
 				</span>
+				{#if matchday.total_assists > 0}
+					<span class="badge badge-soft badge-sm">
+						{t('day.totalAssists', { count: matchday.total_assists })}
+					</span>
+				{/if}
 				{#if showMismatch && matchday.goal_mismatch}
 					<span class="badge badge-soft badge-warning badge-sm" title={t('day.goalMismatch')}>
 						<Icon name="warning" />
@@ -111,6 +122,16 @@
 				<span class="hl-value muted">—</span>
 			{/if}
 		</div>
+		{#if topAssisters.length}
+			<div class="hl">
+				<span class="hl-label">{t('day.topAssister')}</span>
+				<span class="hl-value">
+					<Icon name="players" class="size-4" />
+					{topAssisters.map((s) => s.name).join(', ')}
+					<span class="muted">({topAssister?.assists})</span>
+				</span>
+			</div>
+		{/if}
 		<div class="hl">
 			<span class="hl-label">{t('day.mvp')}</span>
 			{#if matchday.mvp_name}
@@ -154,7 +175,9 @@
 							<span class="goals">
 								{#each goals as goal (goal.id)}
 									<span class="goal" class:own={goal.own_goal}>
-										{goal.player_name}{#if goal.own_goal}<i> ({t('day.ownGoalShort')})</i>{/if}
+										{goal.player_name}{#if goal.own_goal}<i>
+												({t('day.ownGoalShort')})</i
+											>{:else if goal.assist_name}<i> &larr; {goal.assist_name}</i>{/if}
 									</span>
 								{/each}
 							</span>

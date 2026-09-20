@@ -39,6 +39,8 @@ class Group(SQLModel, table=True):
     win_points: int = 3
     draw_points: int = 1
     loss_points: int = 0
+    track_scorers: bool = True
+    track_assists: bool = False
     created_at: datetime = Field(default_factory=utcnow)
 
     players: list["Player"] = Relationship(back_populates="group")
@@ -131,5 +133,6 @@ class Goal(SQLModel, table=True):
     player_id: int = Field(foreign_key="player.id", index=True)
     team_id: int = Field(foreign_key="team.id", index=True)
     own_goal: bool = False
+    assist_player_id: int | None = Field(default=None, foreign_key="player.id", index=True)
 
     match: Match | None = Relationship(back_populates="goals")

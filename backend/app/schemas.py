@@ -33,6 +33,8 @@ class GroupUpdate(BaseModel):
     win_points: int | None = Field(default=None, ge=0, le=10)
     draw_points: int | None = Field(default=None, ge=0, le=10)
     loss_points: int | None = Field(default=None, ge=0, le=10)
+    track_scorers: bool | None = None
+    track_assists: bool | None = None
 
 
 class GroupOut(BaseModel):
@@ -45,6 +47,8 @@ class GroupOut(BaseModel):
     win_points: int
     draw_points: int
     loss_points: int
+    track_scorers: bool = True
+    track_assists: bool = False
     matchday_count: int = 0
     player_count: int = 0
 
@@ -72,6 +76,7 @@ class PlayerUpdate(BaseModel):
 class GoalIn(BaseModel):
     player_id: int
     own_goal: bool = False
+    assist_player_id: int | None = None
 
 
 class MatchIn(BaseModel):
@@ -103,6 +108,8 @@ class GoalOut(BaseModel):
     player_name: str
     team_id: int
     own_goal: bool
+    assist_player_id: int | None = None
+    assist_name: str | None = None
 
 
 class MatchOut(BaseModel):
@@ -144,6 +151,12 @@ class ScorerOut(BaseModel):
     goals: int
 
 
+class AssisterOut(BaseModel):
+    player_id: int
+    name: str
+    assists: int
+
+
 class MatchdayOut(BaseModel):
     id: int
     date: date
@@ -156,7 +169,9 @@ class MatchdayOut(BaseModel):
     matches: list[MatchOut]
     champion_team_id: int | None
     top_scorers: list[ScorerOut]
+    top_assisters: list[AssisterOut]
     total_goals: int
+    total_assists: int
     goal_mismatch: bool
 
 
@@ -172,10 +187,17 @@ class PlayerRow(BaseModel):
     win_rate: float
     goals: int
     own_goals: int
+    assists: int
+    contributions: int
     goals_per_matchday: float
+    contributions_per_matchday: float
     mvp_count: int
     titles: int
     title_rate: float
+    presence: float
+    recent_win_rate: float | None
+    title_streak: int
+    best_title_streak: int
 
 
 class Record(BaseModel):
@@ -192,6 +214,62 @@ class StatsOut(BaseModel):
     total_matchdays: int
     total_matches: int
     total_goals: int
+    total_assists: int
+    first_date: date | None = None
+    last_date: date | None = None
+
+
+class PairLeaderRow(BaseModel):
+    player_a_id: int
+    player_a: str
+    player_b_id: int
+    player_b: str
+    days: int
+    win_rate: float
+    delta: float
+
+
+class PairLeaderboard(BaseModel):
+    together: list[PairLeaderRow]
+    apart: list[PairLeaderRow]
+    min_days: int
+
+
+class ComboIn(BaseModel):
+    together: list[int] = Field(default_factory=list, max_length=8)
+    against: list[int] = Field(default_factory=list, max_length=8)
+    date_from: date | None = None
+    date_to: date | None = None
+
+
+class ComboOut(BaseModel):
+    days: int
+    matches: int
+    wins: int
+    draws: int
+    losses: int
+    points: int
+    goals_for: int
+    goals_against: int
+    win_rate: float
+    baseline: float
+    delta: float
+    dates: list[date]
+    together_names: list[str]
+    against_names: list[str]
+
+
+class AssistLink(BaseModel):
+    assist_player_id: int
+    assist_name: str
+    scorer_player_id: int
+    scorer_name: str
+    goals: int
+
+
+class AssistNetwork(BaseModel):
+    links: list[AssistLink]
+    total_assisted_goals: int
 
 
 class EvolutionPoint(BaseModel):
@@ -231,6 +309,7 @@ class PlayerMatchdayRow(BaseModel):
     losses: int
     win_rate: float
     goals: int
+    assists: int
     champion: bool
     mvp: bool
 
@@ -257,6 +336,7 @@ class ImportGoalPreview(BaseModel):
     player: str
     team: str
     own_goal: bool
+    assist: str | None = None
 
 
 class ImportMatchPreview(BaseModel):
@@ -319,6 +399,8 @@ class PublicGroupOut(BaseModel):
     name: str
     slug: str
     description: str
+    track_scorers: bool = True
+    track_assists: bool = False
     stats: StatsOut
     evolution: EvolutionOut
     matchdays: list[MatchdayOut]

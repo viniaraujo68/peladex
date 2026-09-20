@@ -1,4 +1,5 @@
 <script>
+	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { Skeleton } from '@viniaraujo68/plinth/components';
@@ -10,7 +11,10 @@
 	import { loginUrl } from '$lib/nav.js';
 	import { mismatchBadgeEnabled } from '$lib/prefs.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import AssistNetwork from '$lib/components/AssistNetwork.svelte';
 	import EvolutionChart from '$lib/components/EvolutionChart.svelte';
+	import PairLeaderboard from '$lib/components/PairLeaderboard.svelte';
+	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
 	import GroupSettings from '$lib/components/GroupSettings.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
@@ -24,8 +28,21 @@
 	let matchdays = $state(/** @type {import('$lib/types.js').Matchday[]} */ ([]));
 	let stats = $state(/** @type {import('$lib/types.js').Stats|null} */ (null));
 	let evolution = $state(/** @type {import('$lib/types.js').Evolution|null} */ (null));
+	let pairs = $state(/** @type {import('$lib/types.js').PairLeaderboard|null} */ (null));
+	let network = $state(/** @type {import('$lib/types.js').AssistNetwork|null} */ (null));
 	let loading = $state(true);
 	let error = $state('');
+	let period = $state({ from: '', to: '' });
+	let minDays = $state(3);
+
+	const periodQuery = $derived(
+		[
+			period.from ? `date_from=${period.from}` : '',
+			period.to ? `date_to=${period.to}` : ''
+		]
+			.filter(Boolean)
+			.join('&')
+	);
 
 	const TAB_IDS = ['matchdays', 'ranking', 'stats', 'settings'];
 	const DEFAULT_TAB = 'matchdays';
@@ -68,12 +85,11 @@
 		loading = true;
 		error = '';
 		try {
-			[group, matchdays, stats, evolution] = await Promise.all([
+			[group, matchdays] = await Promise.all([
 				get(`/groups/${groupId}`),
-				get(`/groups/${groupId}/matchdays`),
-				get(`/groups/${groupId}/stats`),
-				get(`/groups/${groupId}/evolution`)
+				get(`/groups/${groupId}/matchdays`)
 			]);
+			await loadAnalysis();
 		} catch (e) {
 			error = errorStatus(e) === 403 ? t('group.accessDenied') : errorMessage(e);
 		} finally {
@@ -81,13 +97,40 @@
 		}
 	}
 
+	/** @param {string} query @param {number} days */
+	async function fetchAnalysis(query, days) {
+		const suffix = query ? `?${query}` : '';
+		const pairSuffix = query ? `?min_days=${days}&${query}` : `?min_days=${days}`;
+		return Promise.all([
+			get(`/groups/${groupId}/stats${suffix}`),
+			get(`/groups/${groupId}/evolution${suffix}`),
+			get(`/groups/${groupId}/pairs${pairSuffix}`),
+			get(`/groups/${groupId}/assist-network${suffix}`)
+		]);
+	}
+
+	async function loadAnalysis() {
+		[stats, evolution, pairs, network] = await fetchAnalysis(periodQuery, minDays);
+	}
+
+	$effect(() => {
+		const query = periodQuery;
+		const days = minDays;
+		if (!groupId || !auth.user || untrack(() => stats === null)) return;
+		fetchAnalysis(query, days)
+			.then(([s, e, p, n]) => {
+				stats = s;
+				evolution = e;
+				pairs = p;
+				network = n;
+			})
+			.catch((e) => toast.error(t('group.refreshFailed', { message: errorMessage(e) })));
+	});
+
 	async function refreshData() {
 		try {
-			[matchdays, stats, evolution] = await Promise.all([
-				get(`/groups/${groupId}/matchdays`),
-				get(`/groups/${groupId}/stats`),
-				get(`/groups/${groupId}/evolution`)
-			]);
+			matchdays = await get(`/groups/${groupId}/matchdays`);
+			await loadAnalysis();
 		} catch (e) {
 			toast.error(t('group.refreshFailed', { message: errorMessage(e) }));
 		}
@@ -201,7 +244,21 @@
 			</div>
 		{:else if tab === 'stats'}
 			<div class="flex flex-col gap-4">
+				<div class="card periodbar bg-base-100 p-4">
+					<div class="min-w-0 flex-1">
+						<PeriodFilter
+							from={period.from}
+							to={period.to}
+							onchange={(range) => (period = range)}
+						/>
+					</div>
+					<a href={`/groups/${groupId}/analise`} class="btn btn-sm flex-none">
+						{t('stats.openAnalysis')}
+					</a>
+				</div>
+
 				<Records records={stats.records} {stats} />
+
 				<div class="card flex flex-col gap-4 bg-base-100 p-5">
 					<div>
 						<h3 class="font-semibold">{t('stats.evolution')}</h3>
@@ -209,6 +266,19 @@
 					</div>
 					<EvolutionChart {evolution} />
 				</div>
+
+				{#if pairs}
+					<PairLeaderboard
+						board={pairs}
+						{minDays}
+						onMinDays={(value) => (minDays = value)}
+						{playerHref}
+					/>
+				{/if}
+
+				{#if network && stats.total_assists > 0}
+					<AssistNetwork {network} {playerHref} />
+				{/if}
 			</div>
 		{:else if tab === 'settings'}
 			<GroupSettings {group} onchange={onGroupChange} />
@@ -252,5 +322,18 @@
 	}
 	.tappable:hover {
 		border-color: var(--color-warning);
+	}
+	.periodbar {
+		display: flex;
+		flex-direction: row;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	@media (max-width: 640px) {
+		.periodbar :global(.btn) {
+			width: 100%;
+		}
 	}
 </style>

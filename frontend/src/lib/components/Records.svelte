@@ -18,14 +18,26 @@
 	function valueText(record) {
 		if (record.value === null) return '—';
 		const count = record.value;
-		if (record.code === 'top_scorer' || record.code === 'most_goals_matchday') {
+		if (['top_scorer', 'most_goals_matchday', 'best_duo'].includes(record.code)) {
 			return t('records.goals', { count });
 		}
+		if (['top_assister', 'most_assists_matchday'].includes(record.code)) {
+			return t('records.assists', { count });
+		}
 		if (record.code === 'most_titles') return t('records.days', { count });
+		if (record.code === 'most_presence') return t('records.presenceDays', { count });
 		if (record.code === 'most_mvp') return t('records.mvps', { count });
 		if (record.code === 'biggest_rout') return t('records.margin', { count });
 		return String(count);
 	}
+
+	const visible = $derived(
+		records.filter(
+			(r) =>
+				!['top_assister', 'most_assists_matchday', 'best_duo'].includes(r.code) ||
+				stats.total_assists > 0
+		)
+	);
 
 	/** @param {import('$lib/types.js').GroupRecord} record */
 	function subtitle(record) {
@@ -50,7 +62,13 @@
 		<span class="rec-label">{t('records.totalGoals')}</span>
 		<span class="rec-value">{stats.total_goals}</span>
 	</div>
-	{#each records as record (record.code)}
+	{#if stats.total_assists > 0}
+		<div class="card flex flex-col gap-1 bg-base-100 p-4">
+			<span class="rec-label">{t('records.totalAssists')}</span>
+			<span class="rec-value">{stats.total_assists}</span>
+		</div>
+	{/if}
+	{#each visible as record (record.code)}
 		<div class="card flex flex-col gap-1 bg-base-100 p-4">
 			<span class="rec-label">{t(`records.${record.code}`)}</span>
 			<span class="rec-value" class:muted={record.value === null}>{valueText(record)}</span>

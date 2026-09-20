@@ -15,6 +15,8 @@
  * @property {number} win_points
  * @property {number} draw_points
  * @property {number} loss_points
+ * @property {boolean} track_scorers
+ * @property {boolean} track_assists
  * @property {number} matchday_count
  * @property {number} player_count
  */
@@ -62,6 +64,8 @@
  * @property {string} player_name
  * @property {number} team_id
  * @property {boolean} own_goal
+ * @property {number|null} assist_player_id
+ * @property {string|null} assist_name
  */
 
 /**
@@ -85,6 +89,13 @@
  */
 
 /**
+ * @typedef {object} Assister
+ * @property {number} player_id
+ * @property {string} name
+ * @property {number} assists
+ */
+
+/**
  * @typedef {object} Matchday
  * @property {number} id
  * @property {string} date
@@ -97,7 +108,9 @@
  * @property {Match[]} matches
  * @property {number|null} champion_team_id
  * @property {Scorer[]} top_scorers
+ * @property {Assister[]} top_assisters
  * @property {number} total_goals
+ * @property {number} total_assists
  * @property {boolean} goal_mismatch
  */
 
@@ -109,7 +122,9 @@
  * @property {string} notes
  * @property {{ name: string, color: string, player_ids: number[] }[]} teams
  * @property {{ home_team_index: number, away_team_index: number, home_score: number,
- *   away_score: number, goals: { player_id: number, own_goal: boolean }[] }[]} matches
+ *   away_score: number,
+ *   goals: { player_id: number, own_goal: boolean, assist_player_id: number|null }[]
+ * }[]} matches
  */
 
 /**
@@ -125,10 +140,17 @@
  * @property {number} win_rate
  * @property {number} goals
  * @property {number} own_goals
+ * @property {number} assists
+ * @property {number} contributions
  * @property {number} goals_per_matchday
+ * @property {number} contributions_per_matchday
  * @property {number} mvp_count
  * @property {number} titles
  * @property {number} title_rate
+ * @property {number} presence
+ * @property {number|null} recent_win_rate
+ * @property {number} title_streak
+ * @property {number} best_title_streak
  */
 
 /**
@@ -147,6 +169,60 @@
  * @property {number} total_matchdays
  * @property {number} total_matches
  * @property {number} total_goals
+ * @property {number} total_assists
+ * @property {string|null} first_date
+ * @property {string|null} last_date
+ */
+
+/**
+ * @typedef {object} PairLeaderRow
+ * @property {number} player_a_id
+ * @property {string} player_a
+ * @property {number} player_b_id
+ * @property {string} player_b
+ * @property {number} days
+ * @property {number} win_rate
+ * @property {number} delta
+ */
+
+/**
+ * @typedef {object} PairLeaderboard
+ * @property {PairLeaderRow[]} together
+ * @property {PairLeaderRow[]} apart
+ * @property {number} min_days
+ */
+
+/**
+ * @typedef {object} ComboResult
+ * @property {number} days
+ * @property {number} matches
+ * @property {number} wins
+ * @property {number} draws
+ * @property {number} losses
+ * @property {number} points
+ * @property {number} goals_for
+ * @property {number} goals_against
+ * @property {number} win_rate
+ * @property {number} baseline
+ * @property {number} delta
+ * @property {string[]} dates
+ * @property {string[]} together_names
+ * @property {string[]} against_names
+ */
+
+/**
+ * @typedef {object} AssistLink
+ * @property {number} assist_player_id
+ * @property {string} assist_name
+ * @property {number} scorer_player_id
+ * @property {string} scorer_name
+ * @property {number} goals
+ */
+
+/**
+ * @typedef {object} AssistNetwork
+ * @property {AssistLink[]} links
+ * @property {number} total_assisted_goals
  */
 
 /**
@@ -191,6 +267,7 @@
  * @property {number} losses
  * @property {number} win_rate
  * @property {number} goals
+ * @property {number} assists
  * @property {boolean} champion
  * @property {boolean} mvp
  */
@@ -223,7 +300,7 @@
  * @property {{ date: string|null, venue: string|null, mvp: string|null, notes: string,
  *   teams: { name: string, players: string[] }[],
  *   matches: { home_team: string, away_team: string, home_score: number, away_score: number,
- *     goals: { player: string, team: string, own_goal: boolean }[] }[],
+ *     goals: { player: string, team: string, own_goal: boolean, assist: string|null }[] }[],
  *   already_exists: boolean,
  *   standings: Record<string, any>[] }[]} matchdays
  */
@@ -242,6 +319,8 @@
  * @property {string} name
  * @property {string} slug
  * @property {string} description
+ * @property {boolean} track_scorers
+ * @property {boolean} track_assists
  * @property {Stats} stats
  * @property {Evolution} evolution
  * @property {Matchday[]} matchdays
