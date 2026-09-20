@@ -7,6 +7,7 @@ services:
       PELADEX_COOKIE_SECURE: "true"
       PELADEX_CORS_ORIGINS: ""
       PELADEX_SESSION_TTL_DAYS: "30"
+      PELADEX_ALLOW_REGISTRATION: "${PELADEX_ALLOW_REGISTRATION:-true}"
     volumes:
       - peladex_data:/data
     networks:

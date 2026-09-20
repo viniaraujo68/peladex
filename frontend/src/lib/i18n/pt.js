@@ -517,4 +517,6 @@ export default {
 	'players.search': 'Buscar jogador…',
 	'players.sortBy': 'Ordenar por',
 	'players.meta': '{days} dias · {matches} jogos · {presence} presença',
+
+	'apiError.registration_closed': 'O cadastro está fechado nesta pelada. Peça um convite ao dono.',
 };

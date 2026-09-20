@@ -516,4 +516,6 @@ export default {
 	'players.search': 'Search player…',
 	'players.sortBy': 'Sort by',
 	'players.meta': '{days} days · {matches} matches · {presence} presence',
+
+	'apiError.registration_closed': 'Registration is closed on this install. Ask the owner for access.',
 };

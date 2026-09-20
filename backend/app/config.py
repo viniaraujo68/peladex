@@ -13,6 +13,8 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    allow_registration: bool = True
+
     rate_limit_enabled: bool = True
     rate_limit_login: str = "5/minute"
     rate_limit_register: str = "3/minute"

@@ -66,3 +66,21 @@ def test_login_is_rate_limited(client, rate_limits):
         for _ in range(8)
     ]
     assert 429 in statuses
+
+
+def test_registration_can_be_closed(client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "allow_registration", False)
+    r = client.post("/api/auth/register",
+                    json={"username": unique("blocked"), "password": PASSWORD})
+    assert r.status_code == 403
+    assert r.json()["detail"]["code"] == "registration_closed"
+
+
+def test_login_still_works_with_registration_closed(api, client, monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "allow_registration", False)
+    r = client.post("/api/auth/login", json={"username": api.username, "password": PASSWORD})
+    assert r.status_code == 200

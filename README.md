@@ -6,6 +6,8 @@ aproveitamento e com quem cada um joga melhor.
 
 **Stack:** FastAPI + SQLite (backend) · SvelteKit (frontend) · Caddy + Docker Compose (deploy).
 
+[![CI](https://github.com/viniaraujo68/peladex/actions/workflows/ci.yml/badge.svg)](https://github.com/viniaraujo68/peladex/actions/workflows/ci.yml)
+
 ## Conceitos
 
 - **Pelada (grupo)** — unidade central. Tem um ou mais **donos** (contas com login).
@@ -298,6 +300,16 @@ O banco sobe vazio e as migrations rodam sozinhas no startup. Então, pela inter
 2. Crie a pelada e deixe-a **pública** se quiser mandar o link no grupo.
 3. Em **Config**, ligue o que vai anotar (artilheiro, assistência) e escolha o local padrão.
 4. Em **Importar texto**, cole o histórico — vários dias de uma vez, separados por `---`.
+5. **Feche o cadastro.** Por padrão qualquer um que ache o site cria conta — não é perigoso
+   (cada um só enxerga as próprias peladas), mas depois que a sua conta existe não há razão
+   para deixar aberto:
+
+   ```bash
+   echo 'PELADEX_ALLOW_REGISTRATION=false' >> .env
+   docker compose up -d
+   ```
+
+   Quem já tem conta continua entrando normalmente; só o `/register` passa a recusar.
 
 ### Backup
 
@@ -332,6 +344,7 @@ mexa no schema.
 | `PELADEX_COOKIE_SECURE` | `false` | **`true` em produção** — o cookie de sessão só viaja por HTTPS |
 | `PELADEX_SESSION_TTL_DAYS` | `30` | Validade da sessão |
 | `PELADEX_CORS_ORIGINS` | `http://localhost:5173` | Vazio em prod (same-origin) |
+| `PELADEX_ALLOW_REGISTRATION` | `true` | `false` fecha o `/register` sem afetar quem já tem conta |
 | `PELADEX_RATE_LIMIT_*` | ver `.env.example` | Limites por IP de login, registro e páginas públicas |
 
 ### Variáveis de ambiente (frontend)
@@ -341,3 +354,7 @@ mexa no schema.
 | `PORT` | `3000` | Porta do servidor Node (adapter-node) |
 | `ORIGIN` | — | URL pública; o adapter-node precisa dela para links absolutos |
 | `PELADEX_API_INTERNAL_URL` | `http://backend:8000` | Onde o **SSR** busca a API |
+
+## Licença
+
+MIT — veja [LICENSE](LICENSE).

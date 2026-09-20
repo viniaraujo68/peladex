@@ -25,6 +25,9 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 @limiter.limit(settings.rate_limit_register)
 def register(request: Request, creds: schemas.Credentials, response: Response,
              db: DBSession = Depends(get_session)):
+    if not settings.allow_registration:
+        raise api_error(status.HTTP_403_FORBIDDEN, "registration_closed",
+                        "O cadastro está fechado nesta instalação")
     exists = db.exec(select(User).where(User.username == creds.username)).first()
     if exists:
         raise api_error(status.HTTP_409_CONFLICT, "username_taken", "Nome de usuário já existe")
