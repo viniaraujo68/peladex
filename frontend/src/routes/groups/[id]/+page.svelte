@@ -10,6 +10,7 @@
 	import { formatMatchdayDate } from '$lib/format.svelte.js';
 	import { loginUrl } from '$lib/nav.js';
 	import { mismatchBadgeEnabled } from '$lib/prefs.svelte.js';
+	import { setTrackingContext } from '$lib/tracking.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import AssistNetwork from '$lib/components/AssistNetwork.svelte';
 	import EvolutionChart from '$lib/components/EvolutionChart.svelte';
@@ -23,6 +24,15 @@
 	import TabBar from '$lib/components/TabBar.svelte';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
+
+	setTrackingContext({
+		get trackScorers() {
+			return group?.track_scorers ?? true;
+		},
+		get trackAssists() {
+			return group?.track_assists ?? false;
+		}
+	});
 
 	let group = $state(/** @type {import('$lib/types.js').Group|null} */ (null));
 	let matchdays = $state(/** @type {import('$lib/types.js').Matchday[]} */ ([]));
@@ -276,7 +286,7 @@
 					/>
 				{/if}
 
-				{#if network && stats.total_assists > 0}
+				{#if network && group.track_scorers && group.track_assists}
 					<AssistNetwork {network} {playerHref} />
 				{/if}
 			</div>

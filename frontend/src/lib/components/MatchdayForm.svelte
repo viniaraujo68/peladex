@@ -4,6 +4,7 @@
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
+	import GoalMark from './GoalMark.svelte';
 	import Icon from './Icon.svelte';
 
 	/**
@@ -16,6 +17,7 @@
 	 *   saving?: boolean,
 	 *   trackScorers?: boolean,
 	 *   trackAssists?: boolean,
+	 *   defaultVenueId?: number|null,
 	 *   onsubmit: (payload: import('$lib/types.js').MatchdayPayload) => unknown,
 	 *   oncancel: () => void
 	 * }}
@@ -29,6 +31,7 @@
 		saving = false,
 		trackScorers = true,
 		trackAssists = false,
+		defaultVenueId = null,
 		onsubmit,
 		oncancel
 	} = $props();
@@ -104,7 +107,9 @@
 	// svelte-ignore state_referenced_locally
 	let venueId = $state(
 		/** @type {string} */ (
-			matchday ? String(matchday.venue_id ?? '') : String(lastMatchday?.venue_id ?? '')
+			matchday
+				? String(matchday.venue_id ?? '')
+				: String(defaultVenueId ?? lastMatchday?.venue_id ?? '')
 		)
 	);
 	let newVenue = $state('');
@@ -838,11 +843,12 @@
 									onclick={() => openGoal(index, goalIndex)}
 									title={t('day.editGoal', { name: nameById.get(goal.playerId) ?? '?' })}
 								>
-									{nameById.get(goal.playerId) ?? '?'}{#if goal.ownGoal}<i
-											> ({t('day.ownGoalShort')})</i
-										>{:else if goal.assistId}<i>
-											&larr; {nameById.get(goal.assistId) ?? '?'}</i
-										>{/if}
+									<GoalMark
+										player={nameById.get(goal.playerId) ?? '?'}
+										assist={goal.assistId ? (nameById.get(goal.assistId) ?? '?') : null}
+										ownGoal={goal.ownGoal}
+										showAssist={trackAssists}
+									/>
 									<Icon name="chevron" class="size-3" />
 								</button>
 							{/each}
@@ -1285,10 +1291,6 @@
 		gap: 10px;
 		font-size: 0.84rem;
 		cursor: pointer;
-	}
-	.goaltag i {
-		font-style: normal;
-		font-weight: 400;
 	}
 	.mwarn {
 		font-size: 0.76rem;

@@ -41,10 +41,14 @@ class Group(SQLModel, table=True):
     loss_points: int = 0
     track_scorers: bool = True
     track_assists: bool = False
+    default_venue_id: int | None = Field(default=None, foreign_key="venue.id")
     created_at: datetime = Field(default_factory=utcnow)
 
     players: list["Player"] = Relationship(back_populates="group")
-    venues: list["Venue"] = Relationship(back_populates="group")
+    venues: list["Venue"] = Relationship(
+        back_populates="group",
+        sa_relationship_kwargs={"foreign_keys": "Venue.group_id"},
+    )
     matchdays: list["Matchday"] = Relationship(back_populates="group")
 
 
@@ -65,7 +69,10 @@ class Venue(SQLModel, table=True):
     group_id: int = Field(foreign_key="group.id", index=True)
     name: str
 
-    group: Group | None = Relationship(back_populates="venues")
+    group: Group | None = Relationship(
+        back_populates="venues",
+        sa_relationship_kwargs={"foreign_keys": "Venue.group_id"},
+    )
 
 
 class Matchday(SQLModel, table=True):

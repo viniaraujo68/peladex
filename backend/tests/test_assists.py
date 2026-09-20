@@ -140,3 +140,50 @@ def test_group_tracking_flags_round_trip(api, group):
     body = updated.json()
     assert body["track_assists"] is True
     assert body["track_scorers"] is False
+
+
+def test_the_group_can_carry_a_default_venue(api, group):
+    venue = api.venue(group, "Campo do Ze")
+    updated = api.patch(f"/api/groups/{group}", json={"default_venue_id": venue})
+    assert updated.status_code == 200
+    body = updated.json()
+    assert body["default_venue_id"] == venue
+    assert body["default_venue_name"] == "Campo do Ze"
+
+    cleared = api.patch(f"/api/groups/{group}", json={"default_venue_id": None})
+    assert cleared.status_code == 200
+    assert cleared.json()["default_venue_id"] is None
+
+
+def test_an_import_without_a_venue_falls_back_to_the_default(api, group):
+    venue = api.venue(group, "Campo do Ze")
+    api.patch(f"/api/groups/{group}", json={"default_venue_id": venue})
+
+    text = "16/09/2026\nBRANCO: a, b\nAZUL: c, d\nBRANCO 1x0 AZUL: a\n"
+    assert api.import_text(group, text).status_code == 200
+    day = api.get(f"/api/groups/{group}/matchdays").json()[0]
+    assert day["venue_name"] == "Campo do Ze"
+
+
+def test_a_venue_written_in_the_text_beats_the_default(api, group):
+    venue = api.venue(group, "Campo do Ze")
+    api.patch(f"/api/groups/{group}", json={"default_venue_id": venue})
+
+    text = "16/09/2026 @ Society da Vila\nBRANCO: a, b\nAZUL: c, d\nBRANCO 1x0 AZUL: a\n"
+    assert api.import_text(group, text).status_code == 200
+    day = api.get(f"/api/groups/{group}/matchdays").json()[0]
+    assert day["venue_name"] == "Society da Vila"
+
+
+def test_deleting_the_default_venue_clears_it(api, group):
+    venue = api.venue(group, "Campo do Ze")
+    api.patch(f"/api/groups/{group}", json={"default_venue_id": venue})
+    assert api.delete(f"/api/groups/{group}/venues/{venue}").status_code == 204
+    assert api.get(f"/api/groups/{group}").json()["default_venue_id"] is None
+
+
+def test_a_default_venue_from_another_group_is_rejected(api, other_api, group):
+    stranger = other_api.venue(other_api.group())
+    r = api.patch(f"/api/groups/{group}", json={"default_venue_id": stranger})
+    assert r.status_code == 400
+    assert r.json()["detail"]["code"] == "venue_in_other_group"

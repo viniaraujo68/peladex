@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { get } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import { setTrackingContext } from '$lib/tracking.svelte.js';
 	import AssistNetwork from '$lib/components/AssistNetwork.svelte';
 	import EvolutionChart from '$lib/components/EvolutionChart.svelte';
 	import PairLeaderboard from '$lib/components/PairLeaderboard.svelte';
@@ -17,6 +18,15 @@
 
 	const group = $derived(data.group);
 	const token = $derived($page.url.searchParams.get('t'));
+
+	setTrackingContext({
+		get trackScorers() {
+			return group?.track_scorers ?? true;
+		},
+		get trackAssists() {
+			return group?.track_assists ?? false;
+		}
+	});
 	const slug = $derived(/** @type {string} */ ($page.params.slug));
 
 	const error = $derived(
@@ -155,7 +165,7 @@
 					/>
 				{/if}
 
-				{#if network && group.stats.total_assists > 0}
+				{#if network && group.track_scorers && group.track_assists}
 					<AssistNetwork {network} {playerHref} />
 				{/if}
 

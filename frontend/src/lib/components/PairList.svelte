@@ -8,18 +8,35 @@
 	 *   title: string,
 	 *   hint: string,
 	 *   rateLabel: string,
+	 *   rateWithoutLabel: string,
 	 *   peerLabel: string,
 	 *   minDays: number,
 	 *   playerHref?: (playerId: number) => string,
 	 *   limit?: number
 	 * }}
 	 */
-	let { rows, title, hint, rateLabel, peerLabel, minDays, playerHref, limit = 5 } = $props();
+	let {
+		rows,
+		title,
+		hint,
+		rateLabel,
+		rateWithoutLabel,
+		peerLabel,
+		minDays,
+		playerHref,
+		limit = 6
+	} = $props();
 
 	let expanded = $state(false);
-	const best = $derived(rows.slice(0, limit));
-	const worst = $derived(rows.slice(-limit).reverse());
-	const shown = $derived(expanded ? rows : [...best, ...worst.filter((r) => !best.includes(r))]);
+
+	const comparable = $derived(rows.filter((r) => r.delta !== null));
+	const shown = $derived.by(() => {
+		if (expanded) return rows;
+		const best = comparable.slice(0, limit);
+		const worst = comparable.slice(-limit).filter((r) => !best.includes(r));
+		const rest = rows.filter((r) => r.delta === null).slice(0, 3);
+		return [...best, ...worst.reverse(), ...rest];
+	});
 </script>
 
 <section class="card flex flex-col gap-3 bg-base-100 p-5">
@@ -38,6 +55,7 @@
 						<th>{peerLabel}</th>
 						<th class="num">{t('player.days')}</th>
 						<th class="num">{rateLabel}</th>
+						<th class="num">{rateWithoutLabel}</th>
 						<th class="num">{t('player.delta')}</th>
 					</tr>
 				</thead>
@@ -53,14 +71,32 @@
 							</td>
 							<td class="num muted">{row.days}</td>
 							<td class="num">{formatRate(row.win_rate)}</td>
-							<td class="num {rateClass(row.delta)}">{formatRateDelta(row.delta)}</td>
+							<td class="num muted">
+								{#if row.win_rate_without === null}
+									<span title={t('player.neverApart')}>—</span>
+								{:else}
+									{formatRate(row.win_rate_without)}
+									<span class="sub">({row.days_without})</span>
+								{/if}
+							</td>
+							<td class="num {row.delta === null ? 'muted' : rateClass(row.delta)}">
+								{#if row.delta === null}
+									<span title={t('player.neverApart')}>—</span>
+								{:else}
+									{formatRateDelta(row.delta)}
+								{/if}
+							</td>
 						</tr>
 					{/each}
 				</tbody>
 			</table>
 		</div>
 		{#if rows.length > shown.length || expanded}
-			<button type="button" class="btn btn-ghost btn-xs self-start" onclick={() => (expanded = !expanded)}>
+			<button
+				type="button"
+				class="btn btn-ghost btn-xs self-start"
+				onclick={() => (expanded = !expanded)}
+			>
 				{expanded ? t('common.close') : t('common.all')} ({rows.length})
 			</button>
 		{/if}
@@ -79,9 +115,14 @@
 	.num {
 		text-align: right;
 		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
 	}
 	.muted {
 		color: var(--ink-muted);
+	}
+	.sub {
+		font-size: 0.72em;
+		opacity: 0.75;
 	}
 	.empty {
 		padding: 20px 0;

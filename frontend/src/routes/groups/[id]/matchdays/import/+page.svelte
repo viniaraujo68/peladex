@@ -10,6 +10,7 @@
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
 
 	let group = $state(/** @type {import('$lib/types.js').Group|null} */ (null));
+	let players = $state(/** @type {import('$lib/types.js').Player[]} */ ([]));
 	let error = $state('');
 
 	$effect(() => {
@@ -22,7 +23,10 @@
 
 	async function load() {
 		try {
-			group = await get(`/groups/${groupId}`);
+			[group, players] = await Promise.all([
+				get(`/groups/${groupId}`),
+				get(`/groups/${groupId}/players`)
+			]);
 		} catch (e) {
 			error = errorMessage(e);
 		}
@@ -50,5 +54,11 @@
 {#if error}
 	<div class="alert alert-soft alert-error">{error}</div>
 {:else}
-	<ImportPanel {groupId} {onimported} />
+	<ImportPanel
+		{groupId}
+		players={players.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))}
+		defaultVenue={group?.default_venue_name ?? null}
+		trackAssists={group?.track_assists ?? false}
+		{onimported}
+	/>
 {/if}

@@ -119,5 +119,9 @@ def delete_venue(group_id: int, venue_id: int, _: models.User = Depends(require_
     if _venue_in_use(db, venue_id):
         raise api_error(status.HTTP_409_CONFLICT, "venue_in_use",
                         "Este local é usado por dias registrados e não pode ser excluído")
+    group = db.get(models.Group, group_id)
+    if group and group.default_venue_id == venue_id:
+        group.default_venue_id = None
+        db.add(group)
     db.delete(venue)
     db.commit()

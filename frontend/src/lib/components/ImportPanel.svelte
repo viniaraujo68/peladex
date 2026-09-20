@@ -3,32 +3,95 @@
 	import { post, errorMessage } from '$lib/http.js';
 	import { formatMatchdayDate, formatRate } from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import GoalMark from './GoalMark.svelte';
 	import Icon from './Icon.svelte';
 
 	/**
 	 * @type {{
 	 *   groupId: number|string,
+	 *   players?: { id: number, name: string }[],
+	 *   defaultVenue?: string|null,
+	 *   trackAssists?: boolean,
 	 *   onimported: (result: { created: number, replaced: number }) => void
 	 * }}
 	 */
-	let { groupId, onimported } = $props();
+	let {
+		groupId,
+		players = [],
+		defaultVenue = null,
+		trackAssists = false,
+		onimported
+	} = $props();
 
-	const TEMPLATE = `16/09/2026 @ Campo do Ze
+	const FALLBACK_NAMES = [
+		'jogador1', 'jogador2', 'jogador3', 'jogador4', 'jogador5', 'jogador6',
+		'jogador7', 'jogador8', 'jogador9', 'jogador10', 'jogador11', 'jogador12'
+	];
+	const TEAM_NAMES = ['BRANCO', 'VERMELHO', 'AZUL'];
 
-BRANCO: golin, galetti, galo, rick, palma, disciplina, mini
-VERMELHO: vini, bamma, breno, igor, rod kauer, cesar, beat
-AZUL: ney, rod, lusca, pipi, nona, cop, guarino
+	/** @param {string[]} list */
+	function shuffled(list) {
+		const copy = [...list];
+		for (let i = copy.length - 1; i > 0; i--) {
+			const j = Math.floor(Math.random() * (i + 1));
+			[copy[i], copy[j]] = [copy[j], copy[i]];
+		}
+		return copy;
+	}
 
-VERMELHO 0x0 AZUL
-BRANCO 0x0 AZUL
-BRANCO 1x0 VERMELHO: golin (galetti)
-BRANCO 2x0 AZUL: golin, galo (golin)
-BRANCO 0x0 VERMELHO
-VERMELHO 0x0 AZUL
-AZUL 0x1 BRANCO: disciplina
-BRANCO 1x1 VERMELHO: golin (mini), vini
+	function todayLabel() {
+		const now = new Date();
+		return `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(
+			2,
+			'0'
+		)}/${now.getFullYear()}`;
+	}
 
-MVP: golin`;
+	function buildTemplate() {
+		const pool = players.length >= 4 ? players.map((p) => p.name) : FALLBACK_NAMES;
+		const names = shuffled(pool);
+		const teamCount = names.length >= 9 ? 3 : 2;
+		const perTeam = Math.max(2, Math.min(7, Math.floor(names.length / teamCount)));
+		const teams = TEAM_NAMES.slice(0, teamCount).map((name, index) => ({
+			name,
+			players: names.slice(index * perTeam, (index + 1) * perTeam)
+		}));
+
+		const [home, away] = teams;
+		const third = teams[2];
+		const lines = [`${todayLabel()}${defaultVenue ? '' : ' @ Campo do Ze'}`, ''];
+		for (const team of teams) lines.push(`${team.name}: ${team.players.join(', ')}`);
+		lines.push('');
+
+		const scorer = home.players[0];
+		const helper = home.players[1] ?? home.players[0];
+		const foe = away.players[0];
+		const withAssist = trackAssists ? `${scorer} (${helper})` : scorer;
+
+		lines.push(`${home.name} 1x0 ${away.name}: ${withAssist}`);
+		lines.push(`${home.name} 0x0 ${away.name}`);
+		lines.push(`${away.name} 1x1 ${home.name}: ${foe}, ${scorer}`);
+		lines.push(`${home.name} 1x0 ${away.name}: ${foe} (gc)`);
+		if (third) {
+			const other = third.players[0];
+			const otherHelper = third.players[1] ?? other;
+			lines.push(
+				`${third.name} 2x0 ${away.name}: ${other}${
+					trackAssists ? ` (${otherHelper})` : ''
+				}, ${otherHelper}`
+			);
+		}
+		lines.push('');
+		lines.push(`MVP: ${scorer}`);
+		return lines.join('\n');
+	}
+
+	const TEMPLATE = $derived.by(() => {
+		players;
+		defaultVenue;
+		trackAssists;
+		return buildTemplate();
+	});
 
 	let text = $state('');
 	let checking = $state(false);
@@ -287,11 +350,11 @@ MVP: golin`;
 							{#if match.goals.length}
 								<span class="pgoals">
 									{#each match.goals as goal, gIndex (gIndex)}
-										<span class:own={goal.own_goal}>
-											{goal.player}{#if goal.own_goal}<i>
-													({t('day.ownGoalShort')})</i
-												>{:else if goal.assist}<i> &larr; {goal.assist}</i>{/if}
-										</span>
+										<GoalMark
+											player={goal.player}
+											assist={goal.assist}
+											ownGoal={goal.own_goal}
+										/>
 									{/each}
 								</span>
 							{/if}
@@ -490,12 +553,6 @@ MVP: golin`;
 		gap: 4px 10px;
 		font-size: 0.72rem;
 		color: var(--ink-muted);
-	}
-	.pgoals .own {
-		color: var(--ink-warning);
-	}
-	.pgoals i {
-		font-style: normal;
 	}
 	.check {
 		display: flex;

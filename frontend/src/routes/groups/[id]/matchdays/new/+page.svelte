@@ -125,6 +125,7 @@
 		{saving}
 		trackScorers={group?.track_scorers ?? true}
 		trackAssists={group?.track_assists ?? false}
+		defaultVenueId={group?.default_venue_id ?? null}
 		onsubmit={submit}
 		oncancel={cancel}
 	/>

@@ -2,7 +2,10 @@
 	import { DataTable } from '@viniaraujo68/plinth/table';
 	import { formatRate } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
+	import { getTracking } from '$lib/tracking.svelte.js';
 	import Icon from './Icon.svelte';
+
+	const tracking = getTracking();
 
 	/**
 	 * @type {{
@@ -19,8 +22,8 @@
 	/** @type {import('@viniaraujo68/plinth/table').SortState} */
 	let sort = $state({ key: 'win_rate', direction: 'desc' });
 
-	const showAssists = $derived(ranking.some((r) => r.assists > 0));
-	const showGoals = $derived(ranking.some((r) => r.goals > 0 || r.assists > 0));
+	const showGoals = $derived(tracking.trackScorers);
+	const showAssists = $derived(tracking.trackScorers && tracking.trackAssists);
 
 	/** @type {import('@viniaraujo68/plinth/table').Column<Row>[]} */
 	const columns = $derived([

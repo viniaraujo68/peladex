@@ -1,5 +1,10 @@
 <script>
 	import { localeTag, t } from '$lib/i18n.svelte.js';
+	import { getTracking } from '$lib/tracking.svelte.js';
+
+	const tracking = getTracking();
+	const GOAL_RECORDS = ['top_scorer', 'most_goals_matchday'];
+	const ASSIST_RECORDS = ['top_assister', 'most_assists_matchday', 'best_duo'];
 
 	/**
 	 * @type {{
@@ -32,11 +37,11 @@
 	}
 
 	const visible = $derived(
-		records.filter(
-			(r) =>
-				!['top_assister', 'most_assists_matchday', 'best_duo'].includes(r.code) ||
-				stats.total_assists > 0
-		)
+		records.filter((r) => {
+			if (GOAL_RECORDS.includes(r.code)) return tracking.trackScorers;
+			if (ASSIST_RECORDS.includes(r.code)) return tracking.trackScorers && tracking.trackAssists;
+			return true;
+		})
 	);
 
 	/** @param {import('$lib/types.js').GroupRecord} record */
@@ -58,11 +63,13 @@
 		<span class="rec-label">{t('records.totalMatches')}</span>
 		<span class="rec-value">{stats.total_matches}</span>
 	</div>
-	<div class="card flex flex-col gap-1 bg-base-100 p-4">
-		<span class="rec-label">{t('records.totalGoals')}</span>
-		<span class="rec-value">{stats.total_goals}</span>
-	</div>
-	{#if stats.total_assists > 0}
+	{#if tracking.trackScorers}
+		<div class="card flex flex-col gap-1 bg-base-100 p-4">
+			<span class="rec-label">{t('records.totalGoals')}</span>
+			<span class="rec-value">{stats.total_goals}</span>
+		</div>
+	{/if}
+	{#if tracking.trackScorers && tracking.trackAssists}
 		<div class="card flex flex-col gap-1 bg-base-100 p-4">
 			<span class="rec-label">{t('records.totalAssists')}</span>
 			<span class="rec-value">{stats.total_assists}</span>

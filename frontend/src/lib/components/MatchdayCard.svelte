@@ -1,8 +1,12 @@
 <script>
 	import { formatMatchdayDate } from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import { getTracking } from '$lib/tracking.svelte.js';
+	import GoalMark from './GoalMark.svelte';
 	import Icon from './Icon.svelte';
 	import StandingsTable from './StandingsTable.svelte';
+
+	const tracking = getTracking();
 
 	/**
 	 * @type {{
@@ -68,7 +72,7 @@
 				<span class="badge badge-soft badge-sm">
 					{t('day.totalGoals', { count: matchday.total_goals })}
 				</span>
-				{#if matchday.total_assists > 0}
+				{#if tracking.trackAssists && matchday.total_assists > 0}
 					<span class="badge badge-soft badge-sm">
 						{t('day.totalAssists', { count: matchday.total_assists })}
 					</span>
@@ -110,6 +114,7 @@
 				<span class="hl-value muted">{t('day.noChampion')}</span>
 			{/if}
 		</div>
+		{#if tracking.trackScorers}
 		<div class="hl">
 			<span class="hl-label">{t('day.topScorer')}</span>
 			{#if topScorers.length}
@@ -122,7 +127,8 @@
 				<span class="hl-value muted">—</span>
 			{/if}
 		</div>
-		{#if topAssisters.length}
+		{/if}
+		{#if tracking.trackAssists && topAssisters.length}
 			<div class="hl">
 				<span class="hl-label">{t('day.topAssister')}</span>
 				<span class="hl-value">
@@ -171,14 +177,15 @@
 						<span class="side away" class:win={match.away_score > match.home_score}>
 							{match.away_team_name}
 						</span>
-						{#if goals.length}
+						{#if tracking.trackScorers && goals.length}
 							<span class="goals">
 								{#each goals as goal (goal.id)}
-									<span class="goal" class:own={goal.own_goal}>
-										{goal.player_name}{#if goal.own_goal}<i>
-												({t('day.ownGoalShort')})</i
-											>{:else if goal.assist_name}<i> &larr; {goal.assist_name}</i>{/if}
-									</span>
+									<GoalMark
+										player={goal.player_name}
+										assist={goal.assist_name}
+										ownGoal={goal.own_goal}
+										showAssist={tracking.trackAssists}
+									/>
 								{/each}
 							</span>
 						{/if}
@@ -341,12 +348,6 @@
 		gap: 4px 10px;
 		font-size: 0.74rem;
 		color: var(--ink-muted);
-	}
-	.goal.own {
-		color: var(--ink-warning);
-	}
-	.goal i {
-		font-style: normal;
 	}
 	.empty {
 		padding: 16px 0;

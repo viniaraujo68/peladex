@@ -1,7 +1,11 @@
 <script>
 	import { formatNumber, formatRate, formatShortDate } from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import { getTracking } from '$lib/tracking.svelte.js';
+
+	const tracking = getTracking();
 	import Icon from './Icon.svelte';
+	import ComboExplorer from './ComboExplorer.svelte';
 	import PairList from './PairList.svelte';
 	import PlayerCharts from './PlayerCharts.svelte';
 
@@ -11,15 +15,24 @@
 	 *   evolution: import('$lib/types.js').Evolution,
 	 *   minDays: number,
 	 *   onMinDays: (value: number) => void,
-	 *   playerHref?: (playerId: number) => string
+	 *   playerHref?: (playerId: number) => string,
+	 *   players?: { id: number, name: string }[],
+	 *   runCombo?: ((body: any) => Promise<import('$lib/types.js').ComboResult>)|null
 	 * }}
 	 */
-	let { detail, evolution, minDays, onMinDays, playerHref } = $props();
+	let {
+		detail,
+		evolution,
+		minDays,
+		onMinDays,
+		playerHref,
+		players = [],
+		runCombo = null
+	} = $props();
 
 	const summary = $derived(detail.summary);
-	const showAssists = $derived(
-		summary.assists > 0 || detail.history.some((row) => row.assists > 0)
-	);
+	const showGoals = $derived(tracking.trackScorers);
+	const showAssists = $derived(tracking.trackScorers && tracking.trackAssists);
 </script>
 
 <div class="profile">
@@ -34,6 +47,7 @@
 			<span class="tv">{summary.matchdays}</span>
 			<span class="ts">{summary.wins}V · {summary.draws}E · {summary.losses}D</span>
 		</div>
+		{#if showGoals}
 		<div class="tile">
 			<span class="tl">{t('ranking.goals')}</span>
 			<span class="tv">{summary.goals}</span>
@@ -41,6 +55,7 @@
 				{t('player.goalsPerDay', { value: formatNumber(summary.goals_per_matchday) })}
 			</span>
 		</div>
+		{/if}
 		{#if showAssists}
 			<div class="tile">
 				<span class="tl">{t('ranking.assists')}</span>
@@ -108,8 +123,9 @@
 			<PairList
 				rows={detail.partners}
 				title={t('player.partners')}
-				hint={t('player.partnersHint')}
+				hint={t('player.partnersHint2')}
 				rateLabel={t('player.rateTogether')}
+				rateWithoutLabel={t('player.rateWithout')}
 				peerLabel={t('player.teammate')}
 				{minDays}
 				{playerHref}
@@ -117,13 +133,66 @@
 			<PairList
 				rows={detail.opponents}
 				title={t('player.opponents')}
-				hint={t('player.opponentsHint')}
+				hint={t('player.opponentsHint2')}
 				rateLabel={t('player.rateAgainst')}
+				rateWithoutLabel={t('player.rateAgainstWithout')}
 				peerLabel={t('player.opponent')}
 				{minDays}
 				{playerHref}
 			/>
 		</div>
+
+		{#if detail.by_venue.length > 1 || detail.by_team.length > 1}
+			<section class="card flex flex-col gap-4 bg-base-100 p-5">
+				<h3 class="font-semibold">{t('player.splits')}</h3>
+				<div class="splits">
+					{#each [{ rows: detail.by_venue, title: t('player.byVenue'), head: t('player.splitLabel') }, { rows: detail.by_team, title: t('player.byTeam'), head: t('player.teamLabel') }] as column (column.title)}
+						{#if column.rows.length > 1}
+							<div class="split">
+								<h4 class="ctitle">{column.title}</h4>
+								<div class="scroll">
+									<table class="table table-sm">
+										<thead>
+											<tr>
+												<th>{column.head}</th>
+												<th class="num">{t('player.days')}</th>
+												<th class="num">{t('ranking.winRate')}</th>
+												{#if showGoals}<th class="num">{t('ranking.goals')}</th>{/if}
+											</tr>
+										</thead>
+										<tbody>
+											{#each column.rows as row (row.key)}
+												<tr>
+													<td class="font-medium">{row.label || t('day.noVenue')}</td>
+													<td class="num muted">{row.days}</td>
+													<td class="num rate">{formatRate(row.win_rate)}</td>
+													{#if showGoals}<td class="num">{row.goals || ''}</td>{/if}
+												</tr>
+											{/each}
+										</tbody>
+									</table>
+								</div>
+							</div>
+						{/if}
+					{/each}
+				</div>
+			</section>
+		{/if}
+
+		{#if runCombo && players.length > 1}
+			<section class="card flex flex-col gap-3 bg-base-100 p-5">
+				<div>
+					<h3 class="font-semibold">{t('player.myCombos')}</h3>
+					<p class="hint">{t('player.myCombosHint')}</p>
+				</div>
+				<ComboExplorer
+					{players}
+					run={runCombo}
+					locked={{ id: detail.player_id, name: detail.name }}
+					compact
+				/>
+			</section>
+		{/if}
 
 		<section class="card flex flex-col gap-3 bg-base-100 p-5">
 			<h3 class="font-semibold">{t('player.history')}</h3>
@@ -139,7 +208,7 @@
 							<th class="num">{t('standings.draws')}</th>
 							<th class="num">{t('standings.losses')}</th>
 							<th class="num">{t('ranking.winRate')}</th>
-							<th class="num">{t('ranking.goals')}</th>
+							{#if showGoals}<th class="num">{t('ranking.goals')}</th>{/if}
 							{#if showAssists}<th class="num">{t('ranking.assists')}</th>{/if}
 						</tr>
 					</thead>
@@ -170,7 +239,7 @@
 								<td class="num">{row.draws}</td>
 								<td class="num">{row.losses}</td>
 								<td class="num rate">{formatRate(row.win_rate)}</td>
-								<td class="num">{row.goals || ''}</td>
+								{#if showGoals}<td class="num">{row.goals || ''}</td>{/if}
 								{#if showAssists}<td class="num">{row.assists || ''}</td>{/if}
 							</tr>
 						{/each}
@@ -245,9 +314,32 @@
 	.mindays input {
 		width: 4.5rem;
 	}
+	.hint {
+		margin-top: 3px;
+		font-size: 0.76rem;
+		color: var(--ink-muted);
+	}
+	.splits {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+		gap: 16px;
+	}
+	.split {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		min-width: 0;
+	}
+	.ctitle {
+		font-size: 0.7rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		color: var(--ink-muted);
+	}
 	.pairs {
 		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		grid-template-columns: repeat(auto-fit, minmax(460px, 1fr));
 		gap: 16px;
 	}
 	.scroll {

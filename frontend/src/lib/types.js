@@ -17,6 +17,8 @@
  * @property {number} loss_points
  * @property {boolean} track_scorers
  * @property {boolean} track_assists
+ * @property {number|null} default_venue_id
+ * @property {string|null} default_venue_name
  * @property {number} matchday_count
  * @property {number} player_count
  */
@@ -251,7 +253,23 @@
  * @property {string} name
  * @property {number} days
  * @property {number} win_rate
- * @property {number} delta
+ * @property {number} days_without
+ * @property {number|null} win_rate_without
+ * @property {number|null} delta
+ */
+
+/**
+ * @typedef {object} SplitRow
+ * @property {string} key
+ * @property {string} label
+ * @property {number} days
+ * @property {number} matches
+ * @property {number} wins
+ * @property {number} draws
+ * @property {number} losses
+ * @property {number} win_rate
+ * @property {number} goals
+ * @property {number} assists
  */
 
 /**
@@ -280,6 +298,8 @@
  * @property {PlayerMatchdayRow[]} history
  * @property {PairRow[]} partners
  * @property {PairRow[]} opponents
+ * @property {SplitRow[]} by_venue
+ * @property {SplitRow[]} by_team
  * @property {number} min_days
  */
 

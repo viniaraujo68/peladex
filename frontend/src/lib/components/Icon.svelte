@@ -1,13 +1,14 @@
 <script>
 	/**
 	 * @typedef {'ball'|'venue'|'players'|'calendar'|'trophy'|'globe'|'lock'|'search'
-	 *   |'warning'|'edit'|'restore'|'close'|'chevron'|'star'|'upload'|'plus'|'check'} IconName
+	 *   |'warning'|'edit'|'restore'|'close'|'chevron'|'star'|'upload'|'plus'|'check'
+	 *   |'boot'} IconName
 	 */
 
 	/** @type {{ name: IconName, class?: string, label?: string }} */
 	let { name, class: className = 'size-[1em]', label } = $props();
 
-	const filled = $derived(name === 'ball' || name === 'star');
+	const filled = $derived(name === 'ball' || name === 'star' || name === 'boot');
 </script>
 
 <svg
@@ -75,5 +76,13 @@
 		<path d="M12 5v14M5 12h14" />
 	{:else if name === 'check'}
 		<path d="m4.6 12.6 4.8 4.8 10-11" />
+	{:else if name === 'boot'}
+		<path
+			d="M5 5.4h3.1c.8 0 1.5.6 1.66 1.4l.73 3.6c.13.66.63 1.18 1.29 1.33l5.2 1.18c2.23.5 3.82 2.48 3.82 4.77v.44H5c-.66 0-1.2-.54-1.2-1.2V6.6c0-.66.54-1.2 1.2-1.2Z"
+		/>
+		<rect x="3.3" y="17.9" width="17.6" height="2.1" rx="1.05" />
+		<rect x="5.2" y="20" width="3" height="1.9" rx="0.95" />
+		<rect x="10.5" y="20" width="3" height="1.9" rx="0.95" />
+		<rect x="15.8" y="20" width="3" height="1.9" rx="0.95" />
 	{/if}
 </svg>

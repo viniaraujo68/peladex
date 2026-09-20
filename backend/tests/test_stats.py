@@ -86,10 +86,15 @@ def test_partner_stats_need_a_minimum_of_shared_days(api, group):
         f"/api/groups/{group}/players/{players['ana']}/detail?min_days=1"
     ).json()
     assert len(loose["partners"]) == 5
-    top = loose["partners"][0]
-    assert (top["name"], top["days"]) == ("caio", 1)
+
     bia = next(p for p in loose["partners"] if p["name"] == "bia")
-    assert (bia["days"], round(bia["delta"], 6)) == (4, 0.0)
+    assert (bia["days"], bia["days_without"]) == (4, 0)
+    assert bia["win_rate_without"] is None
+    assert bia["delta"] is None
+
+    caio = next(p for p in loose["partners"] if p["name"] == "caio")
+    assert (caio["days"], caio["days_without"]) == (1, 3)
+    assert caio["delta"] is not None
 
 
 def test_partner_rate_is_measured_per_day_not_per_match(api, group):

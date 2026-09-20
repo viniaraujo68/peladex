@@ -6,24 +6,30 @@ from sqlmodel import select
 from .. import models, schemas, services
 from ..auth import get_current_user, require_owner
 from ..db import get_session
+from ..errors import api_error
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
 
 def _out(g: models.Group, matchday_counts: dict[int, int],
-         player_counts: dict[int, int]) -> schemas.GroupOut:
+         player_counts: dict[int, int],
+         venue_names: dict[int, str] | None = None) -> schemas.GroupOut:
+    venue_names = venue_names or {}
     return schemas.GroupOut(
         id=g.id, name=g.name, slug=g.slug, description=g.description,
         visibility=g.visibility, share_token=g.share_token,
         win_points=g.win_points, draw_points=g.draw_points, loss_points=g.loss_points,
         track_scorers=g.track_scorers, track_assists=g.track_assists,
+        default_venue_id=g.default_venue_id,
+        default_venue_name=venue_names.get(g.default_venue_id) if g.default_venue_id else None,
         matchday_count=matchday_counts.get(g.id, 0),
         player_count=player_counts.get(g.id, 0),
     )
 
 
 def _to_out(db: DBSession, g: models.Group) -> schemas.GroupOut:
-    return _out(g, *services.group_counts(db, [g.id]))
+    counts = services.group_counts(db, [g.id])
+    return _out(g, counts[0], counts[1], services.venue_names(db, g.id))
 
 
 def load_group(db: DBSession, group_id: int) -> models.Group:
@@ -73,9 +79,16 @@ def update_group(group_id: int, body: schemas.GroupUpdate,
                  user: models.User = Depends(require_owner),
                  db: DBSession = Depends(get_session)):
     group = load_group(db, group_id)
-    data = body.model_dump(exclude_unset=True, exclude_none=True)
+    data = body.model_dump(exclude_unset=True)
     if "visibility" in data and data["visibility"] not in ("private", "public"):
         data.pop("visibility")
+    if "default_venue_id" in data and data["default_venue_id"] is not None:
+        venue = db.get(models.Venue, data["default_venue_id"])
+        if not venue or venue.group_id != group_id:
+            raise api_error(status.HTTP_400_BAD_REQUEST, "venue_in_other_group",
+                            "Local não pertence a esta pelada")
+    for key in [k for k, v in data.items() if v is None and k != "default_venue_id"]:
+        data.pop(key)
     for key, value in data.items():
         setattr(group, key, value)
     db.add(group)

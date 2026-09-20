@@ -3,6 +3,9 @@
 	import { getThemeContext } from '@viniaraujo68/plinth/theme';
 	import { formatRate } from '$lib/format.svelte.js';
 	import { i18n, localeTag, t } from '$lib/i18n.svelte.js';
+	import { getTracking } from '$lib/tracking.svelte.js';
+
+	const tracking = getTracking();
 
 	/**
 	 * @type {{
@@ -37,7 +40,9 @@
 	});
 
 	const goalsSeries = $derived([...history].reverse());
-	const hasGoals = $derived(goalsSeries.some((row) => row.goals > 0));
+	const hasGoals = $derived(
+		tracking.trackScorers && goalsSeries.some((row) => row.goals > 0)
+	);
 
 	/** @param {HTMLElement} host */
 	function colorResolver(host) {

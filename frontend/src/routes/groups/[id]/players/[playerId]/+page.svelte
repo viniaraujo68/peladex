@@ -3,10 +3,11 @@
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { Skeleton } from '@viniaraujo68/plinth/components';
-	import { get, errorMessage, errorStatus } from '$lib/http.js';
+	import { get, post, errorMessage, errorStatus } from '$lib/http.js';
 	import { auth } from '$lib/stores/auth.svelte.js';
 	import { loginUrl } from '$lib/nav.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import { setTrackingContext } from '$lib/tracking.svelte.js';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
@@ -15,8 +16,18 @@
 	let group = $state(/** @type {import('$lib/types.js').Group|null} */ (null));
 	let detail = $state(/** @type {import('$lib/types.js').PlayerDetail|null} */ (null));
 	let evolution = $state(/** @type {import('$lib/types.js').Evolution|null} */ (null));
+	let players = $state(/** @type {import('$lib/types.js').Player[]} */ ([]));
 	let minDays = $state(3);
 	let loading = $state(true);
+
+	setTrackingContext({
+		get trackScorers() {
+			return group?.track_scorers ?? true;
+		},
+		get trackAssists() {
+			return group?.track_assists ?? false;
+		}
+	});
 	let error = $state('');
 
 	/** @param {number} id */
@@ -38,10 +49,11 @@
 		loading = untrack(() => detail === null);
 		error = '';
 		try {
-			[group, detail, evolution] = await Promise.all([
+			[group, detail, evolution, players] = await Promise.all([
 				get(`/groups/${groupId}`),
 				get(`/groups/${groupId}/players/${playerId}/detail?min_days=${days}`),
-				get(`/groups/${groupId}/evolution`)
+				get(`/groups/${groupId}/evolution`),
+				get(`/groups/${groupId}/players`)
 			]);
 		} catch (e) {
 			error = errorStatus(e) === 403 ? t('group.accessDenied') : errorMessage(e);
@@ -83,5 +95,7 @@
 		{minDays}
 		onMinDays={(value) => (minDays = value)}
 		{playerHref}
+		players={players.map((p) => ({ id: p.id, name: p.name }))}
+		runCombo={(body) => post(`/groups/${groupId}/combo`, body)}
 	/>
 {/if}

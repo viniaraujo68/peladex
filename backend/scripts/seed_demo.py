@@ -300,6 +300,11 @@ def main() -> None:
             writes.apply_payload(db, models.Matchday(group_id=group.id, date=day.date), payload)
             written += 1
 
+        if group.default_venue_id is None and venues:
+            first = sorted(venues.values(), key=lambda v: v.name)[0]
+            group.default_venue_id = first.id
+            db.add(group)
+
         db.commit()
         print(f"{written} dias gravados em '{group.name}' (slug: {group.slug})")
         print(f"login: {OWNER_USERNAME} / {OWNER_PASSWORD}")

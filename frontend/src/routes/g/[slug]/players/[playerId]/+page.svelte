@@ -1,7 +1,9 @@
 <script>
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
+	import { post } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import { setTrackingContext } from '$lib/tracking.svelte.js';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 
 	/**
@@ -16,6 +18,15 @@
 
 	const detail = $derived(data.detail);
 	const group = $derived(data.group);
+
+	setTrackingContext({
+		get trackScorers() {
+			return group?.track_scorers ?? true;
+		},
+		get trackAssists() {
+			return group?.track_assists ?? false;
+		}
+	});
 	const token = $derived($page.url.searchParams.get('t'));
 	const slug = $derived(/** @type {string} */ ($page.params.slug));
 
@@ -81,5 +92,8 @@
 		minDays={data.minDays}
 		onMinDays={setMinDays}
 		{playerHref}
+		players={group.stats.ranking.map((r) => ({ id: r.player_id, name: r.name }))}
+		runCombo={(body) =>
+			post(`/public/${encodeURIComponent(slug)}/combo${tokenQuery}`, body)}
 	/>
 {/if}

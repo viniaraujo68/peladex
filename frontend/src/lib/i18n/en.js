@@ -480,4 +480,21 @@ export default {
 	'import.ruleGoalsInline': 'Scorers come after a : on the match line (or on the next line).',
 	'import.ruleAssist': 'name (assister) records who made the pass.',
 	'import.ruleOwnGoal2': 'name (gc) is an own goal — it counts for the other team.',
+
+	'settings.defaultVenue': 'Default venue',
+	'settings.noDefaultVenue': 'no default venue',
+	'settings.defaultVenueHint': 'Pre-selected on a new matchday, and used on text import when the notes carry no “@ venue”.',
+
+	'player.rateWithout': 'Rate without',
+	'player.rateAgainstWithout': 'Rate not facing',
+	'player.neverApart': 'They never played apart in this period — nothing to compare against.',
+	'player.partnersHint2': 'Your team’s win rate on the days with each of them, against the days without. The comparison is with yourself, not with the group average.',
+	'player.opponentsHint2': 'Your win rate in matches against each one’s team, against the matches versus the others.',
+	'player.splits': 'Splits',
+	'player.byVenue': 'By venue',
+	'player.byTeam': 'By team',
+	'player.splitLabel': 'Where',
+	'player.teamLabel': 'Team',
+	'player.myCombos': 'Your combinations',
+	'player.myCombosHint': 'You are always in. Pick who with and who against to see how it went.',
 };

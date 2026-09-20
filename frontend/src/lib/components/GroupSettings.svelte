@@ -1,6 +1,6 @@
 <script>
 	import { goto } from '$app/navigation';
-	import { Copyable } from '@viniaraujo68/plinth/components';
+	import { Copyable, Select } from '@viniaraujo68/plinth/components';
 	import { confirm } from '@viniaraujo68/plinth/confirm';
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { page } from '$app/stores';
@@ -33,6 +33,8 @@
 	let trackScorers = $state(group.track_scorers);
 	// svelte-ignore state_referenced_locally
 	let trackAssists = $state(group.track_assists);
+	// svelte-ignore state_referenced_locally
+	let defaultVenueId = $state(String(group.default_venue_id ?? ''));
 	let saving = $state(false);
 	let error = $state('');
 
@@ -59,8 +61,12 @@
 			drawPoints !== group.draw_points ||
 			lossPoints !== group.loss_points ||
 			trackScorers !== group.track_scorers ||
-			trackAssists !== group.track_assists
+			trackAssists !== group.track_assists ||
+			defaultVenueId !== String(group.default_venue_id ?? '')
 	);
+
+	/** @type {import('@viniaraujo68/plinth/components').SelectOption[]} */
+	const venueOptions = $derived(venues.map((v) => ({ value: String(v.id), label: v.name })));
 
 	$effect(() => {
 		load();
@@ -92,7 +98,8 @@
 				draw_points: drawPoints,
 				loss_points: lossPoints,
 				track_scorers: trackScorers,
-				track_assists: trackAssists && trackScorers
+				track_assists: trackAssists && trackScorers,
+				default_venue_id: defaultVenueId ? Number(defaultVenueId) : null
 			});
 			toast.success(t('toast.settingsSaved'));
 			onchange(updated);
@@ -419,6 +426,22 @@
 				{t('common.add')}
 			</button>
 		</div>
+
+		{#if venues.length}
+			<div class="block">
+				<span class="blabel" id="dv-label">{t('settings.defaultVenue')}</span>
+				<Select
+					options={venueOptions}
+					bind:value={() => defaultVenueId, (value) => (defaultVenueId = value ?? '')}
+					placeholder={t('settings.noDefaultVenue')}
+					clearable={defaultVenueId !== ''}
+					clearLabel={t('common.remove')}
+					aria-labelledby="dv-label"
+					class="w-full max-w-sm"
+				/>
+				<p class="hint">{t('settings.defaultVenueHint')}</p>
+			</div>
+		{/if}
 	</section>
 
 	<section class="card danger flex flex-col gap-3 bg-base-100 p-5">

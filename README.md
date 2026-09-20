@@ -141,12 +141,22 @@ Em **Config** cada pelada liga ou desliga:
   **mesmo time**, e gol contra nunca tem. É opcional gol a gol: registrar o gol sem saber
   quem deu o passe é normal.
 
-As duas opções mudam o formulário e escondem as colunas correspondentes; o texto importado
-guarda o que estiver escrito de qualquer jeito.
+As duas opções **governam o que a interface mostra**: com artilheiro desligado somem as
+colunas de gol e assistência do ranking, os recordes de artilharia, o artilheiro do dia e
+o gráfico de gols; com assistência desligada some só a parte dela. O texto importado guarda
+o que estiver escrito de qualquer jeito — desligar a opção esconde, não apaga.
+
+A pelada também escolhe um **local padrão**. Ele entra selecionado num dia novo e vale na
+importação quando a anotação não traz `@ local` — na prática, quem joga sempre no mesmo
+campo nunca mais digita o nome dele.
 
 No formulário, cada gol vira uma etiqueta. **Tocar na etiqueta abre o editor daquele gol**,
 onde se escolhe a assistência e se marca gol contra — marcar move o gol de lado no placar
 sozinho.
+
+Gols e assistências aparecem com ícone, como em súmula: **bola** para o gol, **chuteira**
+para a assistência, **bola vermelha** para o gol contra. São SVG, não emoji, então seguem a
+cor do tema e não mudam de desenho entre sistemas.
 
 ## Estatísticas
 
@@ -163,6 +173,23 @@ Além da tabela do dia, ranking e artilharia:
 - **Combinações** (`/groups/<id>/analise`) — escolha quem joga junto e, se quiser, contra
   quem; o app acha os dias em que isso aconteceu e compara a campanha com o que se
   esperaria dos jogadores separados.
+
+### A tela do jogador
+
+Cada jogador tem a sua (`/groups/<id>/players/<id>`), e ali a comparação é **com ele
+mesmo**, não com a média do grupo:
+
+- **Com X / sem X** — o aproveitamento do seu time nos dias com cada parceiro, contra os
+  dias sem ele. Um parceiro que nunca faltou não tem base de comparação, e a tabela diz
+  isso em vez de inventar um número.
+- **Contra X / sem enfrentar X** — o mesmo para adversários, usando só as partidas contra
+  o time dele.
+- **Recortes** por local e por time (a cor que pegou no sorteio).
+- **Suas combinações** — o explorador de combinações já com ele fixo: é só escolher com
+  quem e contra quem.
+
+A diferença importa: comparar "com o fulano" contra a média do grupo mistura o efeito do
+parceiro com a fase do próprio jogador. Comparar com os dias sem ele controla isso.
 
 ## Migrations (Alembic)
 

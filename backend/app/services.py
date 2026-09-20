@@ -7,6 +7,7 @@ from sqlmodel import Session as DBSession
 from sqlmodel import func, select
 
 from . import models, schemas
+from .parser import normalize
 from .security import new_token
 
 MIN_PAIR_DAYS = 3
@@ -628,6 +629,162 @@ def _pair_rows(source: dict[tuple[int, int], list[float]], player_id: int,
     return rows
 
 
+def _rate_of(bucket: dict, group: models.Group) -> float | None:
+    best = bucket["played"] * group.win_points
+    return (bucket["points"] / best) if best else None
+
+
+def _day_team_map(matchday: models.Matchday) -> dict[int, int]:
+    team_of: dict[int, int] = {}
+    for team in matchday.teams:
+        for member in team.members:
+            team_of[member.player_id] = team.id
+    return team_of
+
+
+def _player_pair_stats(matchdays: list[models.Matchday], group: models.Group, player_id: int):
+    universe: set[int] = set()
+    for matchday in matchdays:
+        universe.update(_day_team_map(matchday))
+    universe.discard(player_id)
+
+    partner_with: dict[int, list[float]] = defaultdict(list)
+    partner_without: dict[int, list[float]] = defaultdict(list)
+    opponent_with: dict[int, list[float]] = defaultdict(list)
+    opponent_without: dict[int, list[float]] = defaultdict(list)
+
+    for matchday in matchdays:
+        team_of = _day_team_map(matchday)
+        my_team = team_of.get(player_id)
+        if my_team is None:
+            continue
+        tallies = tally(matchday, group)
+        row = tallies[my_team]
+        if row["played"] == 0:
+            continue
+        day_rate = row["win_rate"]
+
+        teammates = {pid for pid, tid in team_of.items() if tid == my_team and pid != player_id}
+        for other in universe:
+            target = partner_with if other in teammates else partner_without
+            target[other].append(day_rate)
+
+        per_team: dict[int, dict] = defaultdict(lambda: {"played": 0, "points": 0})
+        for match in matchday.matches:
+            if my_team not in (match.home_team_id, match.away_team_id):
+                continue
+            at_home = match.home_team_id == my_team
+            foe = match.away_team_id if at_home else match.home_team_id
+            mine = match.home_score if at_home else match.away_score
+            theirs = match.away_score if at_home else match.home_score
+            bucket = per_team[foe]
+            bucket["played"] += 1
+            if mine > theirs:
+                bucket["points"] += group.win_points
+            elif mine < theirs:
+                bucket["points"] += group.loss_points
+            else:
+                bucket["points"] += group.draw_points
+
+        for other in universe:
+            foe_team = team_of.get(other)
+            faced = foe_team is not None and foe_team != my_team and foe_team in per_team
+            if faced:
+                value = _rate_of(per_team[foe_team], group)
+                if value is not None:
+                    opponent_with[other].append(value)
+            rest = {"played": 0, "points": 0}
+            for team_id, bucket in per_team.items():
+                if faced and team_id == foe_team:
+                    continue
+                rest["played"] += bucket["played"]
+                rest["points"] += bucket["points"]
+            value = _rate_of(rest, group)
+            if value is not None:
+                opponent_without[other].append(value)
+
+    return partner_with, partner_without, opponent_with, opponent_without
+
+
+def _pair_rows_with_without(with_map: dict[int, list[float]],
+                            without_map: dict[int, list[float]],
+                            names: dict[int, str], min_days: int) -> list[schemas.PairRow]:
+    rows: list[schemas.PairRow] = []
+    for other, values in with_map.items():
+        if len(values) < min_days:
+            continue
+        rate = sum(values) / len(values)
+        apart = without_map.get(other, [])
+        rate_without = (sum(apart) / len(apart)) if apart else None
+        rows.append(schemas.PairRow(
+            player_id=other,
+            name=names.get(other, "?"),
+            days=len(values),
+            win_rate=rate,
+            days_without=len(apart),
+            win_rate_without=rate_without,
+            delta=(rate - rate_without) if rate_without is not None else None,
+        ))
+    rows.sort(key=lambda r: (r.delta if r.delta is not None else -9, r.days), reverse=True)
+    return rows
+
+
+def _blank_split(key: str, label: str) -> dict:
+    return {"key": key, "label": label, "days": 0, "matches": 0, "wins": 0,
+            "draws": 0, "losses": 0, "points": 0, "goals": 0, "assists": 0}
+
+
+def _player_splits(matchdays: list[models.Matchday], group: models.Group, player_id: int,
+                   venues: dict[int, str]):
+    by_venue: dict[str, dict] = {}
+    by_team: dict[str, dict] = {}
+
+    for matchday in matchdays:
+        team = next(
+            (t for t in matchday.teams if any(m.player_id == player_id for m in t.members)),
+            None,
+        )
+        if team is None:
+            continue
+        row = tally(matchday, group)[team.id]
+        if row["played"] == 0:
+            continue
+        goals = matchday_goals(matchday).get(player_id, 0)
+        assists = matchday_assists(matchday).get(player_id, 0)
+
+        venue_key = str(matchday.venue_id) if matchday.venue_id else ""
+        venue_label = venues.get(matchday.venue_id, "") if matchday.venue_id else ""
+        for store, key, label in (
+            (by_venue, venue_key, venue_label),
+            (by_team, normalize(team.name), team.name),
+        ):
+            bucket = store.setdefault(key, _blank_split(key, label))
+            bucket["days"] += 1
+            bucket["matches"] += row["played"]
+            bucket["wins"] += row["wins"]
+            bucket["draws"] += row["draws"]
+            bucket["losses"] += row["losses"]
+            bucket["points"] += row["points"]
+            bucket["goals"] += goals
+            bucket["assists"] += assists
+
+    def finish(store: dict[str, dict]) -> list[schemas.SplitRow]:
+        rows = []
+        for bucket in store.values():
+            best = bucket["matches"] * group.win_points
+            rows.append(schemas.SplitRow(
+                key=bucket["key"], label=bucket["label"], days=bucket["days"],
+                matches=bucket["matches"], wins=bucket["wins"], draws=bucket["draws"],
+                losses=bucket["losses"],
+                win_rate=(bucket["points"] / best) if best else 0.0,
+                goals=bucket["goals"], assists=bucket["assists"],
+            ))
+        rows.sort(key=lambda r: (r.days, r.win_rate), reverse=True)
+        return rows
+
+    return finish(by_venue), finish(by_team)
+
+
 def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
                           min_days: int = MIN_PAIR_DAYS, date_from=None,
                           date_to=None) -> schemas.PlayerDetailOut | None:
@@ -670,14 +827,21 @@ def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
         ))
     rows.reverse()
 
-    partners, opponents = _pairs(matchdays, group)
+    partner_with, partner_without, opponent_with, opponent_without = _player_pair_stats(
+        matchdays, group, player_id
+    )
+    by_venue, by_team = _player_splits(
+        matchdays, group, player_id, venue_names(db, group.id)
+    )
     return schemas.PlayerDetailOut(
         player_id=player_id,
         name=player.name,
         summary=summary,
         history=rows,
-        partners=_pair_rows(partners, player_id, names, summary.win_rate, min_days),
-        opponents=_pair_rows(opponents, player_id, names, summary.win_rate, min_days),
+        partners=_pair_rows_with_without(partner_with, partner_without, names, min_days),
+        opponents=_pair_rows_with_without(opponent_with, opponent_without, names, min_days),
+        by_venue=by_venue,
+        by_team=by_team,
         min_days=min_days,
     )
 

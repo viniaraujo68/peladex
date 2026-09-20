@@ -165,3 +165,77 @@ def test_the_public_surface_exposes_the_new_views(api, client):
     body = client.get(f"/api/public/{slug}?date_from=2026-09-17").json()
     assert body["stats"]["total_matchdays"] == 2
     assert body["track_assists"] is False
+
+
+SPLIT_SEASON = """2026-09-03 @ Campo do Ze
+BRANCO: ana, bia
+AZUL: caio, davi
+BRANCO 2x0 AZUL: ana (bia), ana
+---
+2026-09-10 @ Campo do Ze
+BRANCO: ana, caio
+AZUL: bia, davi
+BRANCO 0x1 AZUL: bia
+---
+2026-09-17 @ Society
+VERDE: ana, davi
+AZUL: bia, caio
+VERDE 1x1 AZUL: ana, caio
+"""
+
+
+def test_partner_stats_compare_with_against_without(api):
+    group = api.group()
+    api.import_text(group, SPLIT_SEASON)
+    ids = players_of(api, group)
+    detail = api.get(
+        f"/api/groups/{group}/players/{ids['ana']}/detail?min_days=1"
+    ).json()
+
+    bia = next(p for p in detail["partners"] if p["name"] == "bia")
+    assert (bia["days"], bia["days_without"]) == (1, 2)
+    assert bia["win_rate"] == 1.0
+    assert bia["win_rate_without"] is not None
+    assert round(bia["delta"], 6) == round(bia["win_rate"] - bia["win_rate_without"], 6)
+
+
+def test_opponent_stats_compare_facing_against_not_facing(api):
+    group = api.group()
+    api.import_text(group, SPLIT_SEASON)
+    ids = players_of(api, group)
+    detail = api.get(
+        f"/api/groups/{group}/players/{ids['ana']}/detail?min_days=1"
+    ).json()
+
+    caio = next(p for p in detail["opponents"] if p["name"] == "caio")
+    assert caio["days"] == 2
+    assert caio["days_without"] >= 1
+
+
+def test_player_detail_splits_by_venue_and_team(api):
+    group = api.group()
+    api.import_text(group, SPLIT_SEASON)
+    ids = players_of(api, group)
+    detail = api.get(f"/api/groups/{group}/players/{ids['ana']}/detail").json()
+
+    venues = {row["label"]: row for row in detail["by_venue"]}
+    assert venues["Campo do Ze"]["days"] == 2
+    assert venues["Society"]["days"] == 1
+    assert venues["Campo do Ze"]["goals"] == 2
+
+    teams = {row["label"]: row for row in detail["by_team"]}
+    assert teams["BRANCO"]["days"] == 2
+    assert teams["VERDE"]["days"] == 1
+    assert teams["VERDE"]["win_rate"] == 1 / 3
+
+
+def test_a_player_who_never_played_apart_has_no_delta(api):
+    group = api.group()
+    api.import_text(group, "2026-09-03\nBRANCO: ana, bia\nAZUL: caio\nBRANCO 1x0 AZUL: ana\n")
+    ids = players_of(api, group)
+    detail = api.get(
+        f"/api/groups/{group}/players/{ids['ana']}/detail?min_days=1"
+    ).json()
+    bia = next(p for p in detail["partners"] if p["name"] == "bia")
+    assert bia["days_without"] == 0
+    assert bia["delta"] is None

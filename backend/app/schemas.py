@@ -35,6 +35,7 @@ class GroupUpdate(BaseModel):
     loss_points: int | None = Field(default=None, ge=0, le=10)
     track_scorers: bool | None = None
     track_assists: bool | None = None
+    default_venue_id: int | None = None
 
 
 class GroupOut(BaseModel):
@@ -49,6 +50,8 @@ class GroupOut(BaseModel):
     loss_points: int
     track_scorers: bool = True
     track_assists: bool = False
+    default_venue_id: int | None = None
+    default_venue_name: str | None = None
     matchday_count: int = 0
     player_count: int = 0
 
@@ -294,7 +297,9 @@ class PairRow(BaseModel):
     name: str
     days: int
     win_rate: float
-    delta: float
+    days_without: int
+    win_rate_without: float | None
+    delta: float | None
 
 
 class PlayerMatchdayRow(BaseModel):
@@ -314,6 +319,19 @@ class PlayerMatchdayRow(BaseModel):
     mvp: bool
 
 
+class SplitRow(BaseModel):
+    key: str
+    label: str
+    days: int
+    matches: int
+    wins: int
+    draws: int
+    losses: int
+    win_rate: float
+    goals: int
+    assists: int
+
+
 class PlayerDetailOut(BaseModel):
     player_id: int
     name: str
@@ -321,6 +339,8 @@ class PlayerDetailOut(BaseModel):
     history: list[PlayerMatchdayRow]
     partners: list[PairRow]
     opponents: list[PairRow]
+    by_venue: list[SplitRow]
+    by_team: list[SplitRow]
     min_days: int
 
 

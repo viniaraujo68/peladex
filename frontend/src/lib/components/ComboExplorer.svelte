@@ -6,13 +6,15 @@
 	/**
 	 * @type {{
 	 *   players: { id: number, name: string }[],
+	 *   locked?: { id: number, name: string }|null,
+	 *   compact?: boolean,
 	 *   run: (body: {
 	 *     together: number[], against: number[],
 	 *     date_from: string|null, date_to: string|null
 	 *   }) => Promise<import('$lib/types.js').ComboResult>
 	 * }}
 	 */
-	let { players, run } = $props();
+	let { players, run, locked = null, compact = false } = $props();
 
 	let together = $state(/** @type {number[]} */ ([]));
 	let against = $state(/** @type {number[]} */ ([]));
@@ -22,8 +24,12 @@
 	let error = $state('');
 
 	const sorted = $derived(
-		[...players].sort((a, b) => a.name.localeCompare(b.name, localeTag()))
+		[...players]
+			.filter((p) => p.id !== locked?.id)
+			.sort((a, b) => a.name.localeCompare(b.name, localeTag()))
 	);
+
+	const effectiveTogether = $derived(locked ? [locked.id, ...together] : together);
 
 	/** @param {number[]} list @param {number} id */
 	function toggle(list, id) {
@@ -51,7 +57,7 @@
 
 	$effect(() => {
 		const body = {
-			together: [...together],
+			together: [...effectiveTogether],
 			against: [...against],
 			date_from: period.from || null,
 			date_to: period.to || null
@@ -85,10 +91,12 @@
 </script>
 
 <div class="combo">
-	<section class="card flex flex-col gap-4 bg-base-100 p-5">
-		<p class="text-sm text-base-content/80">{t('analysis.subtitle')}</p>
-		<PeriodFilter from={period.from} to={period.to} onchange={(range) => (period = range)} />
-	</section>
+	{#if !compact}
+		<section class="card flex flex-col gap-4 bg-base-100 p-5">
+			<p class="text-sm text-base-content/80">{t('analysis.subtitle')}</p>
+			<PeriodFilter from={period.from} to={period.to} onchange={(range) => (period = range)} />
+		</section>
+	{/if}
 
 	<section class="card flex flex-col gap-4 bg-base-100 p-5">
 		<div class="pickhead">
@@ -100,6 +108,9 @@
 			{/if}
 		</div>
 		<div class="picker">
+			{#if locked}
+				<span class="pk sel locked">{locked.name}</span>
+			{/if}
 			{#each sorted as player (player.id)}
 				<button
 					type="button"
@@ -138,7 +149,7 @@
 
 	{#if error}
 		<div class="alert alert-soft alert-error">{error}</div>
-	{:else if together.length === 0}
+	{:else if effectiveTogether.length === 0}
 		<div class="card bg-base-100 px-5 py-10 text-center text-base-content/65">
 			{t('analysis.noSelection')}
 		</div>
@@ -239,6 +250,10 @@
 		background: color-mix(in oklch, var(--color-primary) 16%, transparent);
 		color: var(--ink-primary);
 		font-weight: 600;
+	}
+	.pk.locked {
+		cursor: default;
+		opacity: 0.85;
 	}
 	.pk.foe.sel {
 		border-color: var(--color-warning);

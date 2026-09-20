@@ -148,7 +148,7 @@ def commit_import(group_id: int, body: schemas.ImportCommitIn,
     created_ids: list[int] = []
     replaced = 0
     for day in result.matchdays:
-        venue_id = None
+        venue_id = group.default_venue_id
         if day.venue:
             key = parser.normalize(day.venue)
             venue = venues.get(key)

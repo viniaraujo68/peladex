@@ -481,4 +481,21 @@ export default {
 	'import.ruleGoalsInline': 'Os artilheiros vêm depois de : na linha da partida (ou na linha de baixo).',
 	'import.ruleAssist': 'nome (assistente) registra quem deu o passe.',
 	'import.ruleOwnGoal2': 'nome (gc) é gol contra — conta para o outro time.',
+
+	'settings.defaultVenue': 'Local padrão',
+	'settings.noDefaultVenue': 'sem local padrão',
+	'settings.defaultVenueHint': 'Entra selecionado num dia novo e vale na importação de texto quando a anotação não traz “@ local”.',
+
+	'player.rateWithout': 'Aprov. sem',
+	'player.rateAgainstWithout': 'Aprov. sem enfrentar',
+	'player.neverApart': 'Nunca jogaram separados no período — não dá para comparar.',
+	'player.partnersHint2': 'Aproveitamento do seu time nos dias com cada um, comparado aos dias sem ele. A comparação é com você mesmo, não com a média do grupo.',
+	'player.opponentsHint2': 'Seu aproveitamento nas partidas contra o time de cada um, comparado às partidas contra os outros.',
+	'player.splits': 'Recortes',
+	'player.byVenue': 'Por local',
+	'player.byTeam': 'Por time',
+	'player.splitLabel': 'Onde',
+	'player.teamLabel': 'Time',
+	'player.myCombos': 'Suas combinações',
+	'player.myCombosHint': 'Você já entra fixo. Escolha com quem e contra quem para ver como foi.',
 };
