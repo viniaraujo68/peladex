@@ -44,9 +44,12 @@
 			d.getDate()
 		).padStart(2, '0')}`;
 	}
-	const now = new Date();
-	const today = ymd(now);
-	const yesterday = ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1));
+	let now = $state(new Date());
+	function refreshNow() {
+		now = new Date();
+	}
+	const today = $derived(ymd(now));
+	const yesterday = $derived(ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)));
 
 	/** @typedef {{ name: string, color: string, playerIds: number[] }} TeamDraft */
 	/** @typedef {{ playerId: number, ownGoal: boolean, assistId: number|null }} GoalDraft */
@@ -425,7 +428,7 @@
 		draftPrompt = null;
 		if (!s) return;
 		date = s.date ?? date;
-		showDateInput = !!s.showDateInput;
+		showDateInput = date !== today && date !== yesterday;
 		venueId = s.venueId ?? '';
 		mvpId = s.mvpId ?? '';
 		notes = s.notes ?? '';
@@ -493,6 +496,10 @@
 		ev.returnValue = '';
 	}
 
+	function onVisibilityChange() {
+		if (document.visibilityState === 'visible') refreshNow();
+	}
+
 	/** @param {SubmitEvent} ev */
 	async function submit(ev) {
 		ev.preventDefault();
@@ -533,7 +540,8 @@
 	}
 </script>
 
-<svelte:window onbeforeunload={onBeforeUnload} />
+<svelte:window onbeforeunload={onBeforeUnload} onfocus={refreshNow} />
+<svelte:document onvisibilitychange={onVisibilityChange} />
 
 <form class="sheet" onsubmit={submit}>
 	{#if draftPrompt}

@@ -1,5 +1,11 @@
 <script>
-	import { formatNumber, formatRate, formatShortDate } from '$lib/format.svelte.js';
+	import {
+		formatContribution,
+		formatNote,
+		formatNumber,
+		formatRate,
+		formatShortDate
+	} from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 
@@ -33,6 +39,23 @@
 	const summary = $derived(detail.summary);
 	const showGoals = $derived(tracking.trackScorers);
 	const showAssists = $derived(tracking.trackScorers && tracking.trackAssists);
+	const rating = $derived(tracking.showRatings ? detail.rating : null);
+
+	/** @param {import('$lib/types.js').RatingComponent} component */
+	function componentHint(component) {
+		const format = ['results', 'mvp'].includes(component.code) ? formatRate : formatNumber;
+		const key =
+			component.code === 'scoring' && !showAssists
+				? 'rating.scoringGoalsHint'
+				: `rating.${component.code}Hint`;
+		return t(key, {
+			rate: format(component.rate),
+			group: format(component.group_rate),
+			goals: summary.goals,
+			assists: summary.assists,
+			matches: summary.matches
+		});
+	}
 </script>
 
 <div class="profile">
@@ -90,6 +113,41 @@
 		</div>
 	</section>
 
+	{#if rating}
+		<section class="card flex flex-col gap-4 bg-base-100 p-5">
+			<div class="ratinghead">
+				<div>
+					<h3 class="font-semibold">{t('rating.title')}</h3>
+					<p class="hint">{t('rating.hint')}</p>
+				</div>
+				<div class="note">
+					<span class="notevalue">{formatNote(rating.note)}</span>
+					{#if rating.provisional}
+						<span class="badge badge-soft badge-warning badge-sm">{t('rating.provisional')}</span>
+					{/if}
+				</div>
+			</div>
+			{#if rating.provisional}
+				<p class="hint">{t('rating.provisionalHint')}</p>
+			{/if}
+			<ul class="components">
+				{#each rating.components as component (component.code)}
+					<li class="component">
+						<span class="cname">{t(`rating.${component.code}`)}</span>
+						<span
+							class="cvalue"
+							class:up={component.contribution > 0}
+							class:down={component.contribution < 0}
+						>
+							{formatContribution(component.contribution)}
+						</span>
+						<span class="chint">{componentHint(component)}</span>
+					</li>
+				{/each}
+			</ul>
+		</section>
+	{/if}
+
 	{#if summary.matchdays === 0}
 		<div class="card bg-base-100 px-5 py-12 text-center text-base-content/65">
 			{t('player.noHistory')}
@@ -141,43 +199,6 @@
 				{playerHref}
 			/>
 		</div>
-
-		{#if detail.by_venue.length > 1 || detail.by_team.length > 1}
-			<section class="card flex flex-col gap-4 bg-base-100 p-5">
-				<h3 class="font-semibold">{t('player.splits')}</h3>
-				<div class="splits">
-					{#each [{ rows: detail.by_venue, title: t('player.byVenue'), head: t('player.splitLabel') }, { rows: detail.by_team, title: t('player.byTeam'), head: t('player.teamLabel') }] as column (column.title)}
-						{#if column.rows.length > 1}
-							<div class="split">
-								<h4 class="ctitle">{column.title}</h4>
-								<div class="scroll">
-									<table class="table table-sm">
-										<thead>
-											<tr>
-												<th>{column.head}</th>
-												<th class="num">{t('player.days')}</th>
-												<th class="num">{t('ranking.winRate')}</th>
-												{#if showGoals}<th class="num">{t('ranking.goals')}</th>{/if}
-											</tr>
-										</thead>
-										<tbody>
-											{#each column.rows as row (row.key)}
-												<tr>
-													<td class="font-medium">{row.label || t('day.noVenue')}</td>
-													<td class="num muted">{row.days}</td>
-													<td class="num rate">{formatRate(row.win_rate)}</td>
-													{#if showGoals}<td class="num">{row.goals || ''}</td>{/if}
-												</tr>
-											{/each}
-										</tbody>
-									</table>
-								</div>
-							</div>
-						{/if}
-					{/each}
-				</div>
-			</section>
-		{/if}
 
 		{#if runCombo && players.length > 1}
 			<section class="card flex flex-col gap-3 bg-base-100 p-5">
@@ -251,6 +272,64 @@
 </div>
 
 <style>
+	.ratinghead {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 12px;
+	}
+	.note {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+	}
+	.notevalue {
+		font-size: 2rem;
+		font-weight: 700;
+		letter-spacing: -0.02em;
+		font-variant-numeric: tabular-nums;
+		color: var(--ink-primary);
+	}
+	.components {
+		display: flex;
+		flex-direction: column;
+		gap: 10px;
+	}
+	.component {
+		display: grid;
+		grid-template-columns: 8.5rem 4rem 1fr;
+		align-items: baseline;
+		gap: 10px;
+		font-size: 0.84rem;
+	}
+	.cname {
+		font-weight: 600;
+	}
+	.cvalue {
+		text-align: right;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		color: var(--ink-muted);
+	}
+	.cvalue.up {
+		color: var(--color-success);
+	}
+	.cvalue.down {
+		color: var(--color-error);
+	}
+	.chint {
+		font-size: 0.76rem;
+		color: var(--ink-muted);
+	}
+	@media (max-width: 560px) {
+		.component {
+			grid-template-columns: 1fr auto;
+		}
+		.chint {
+			grid-column: 1 / -1;
+		}
+	}
 	.profile {
 		display: flex;
 		flex-direction: column;
@@ -317,24 +396,6 @@
 	.hint {
 		margin-top: 3px;
 		font-size: 0.76rem;
-		color: var(--ink-muted);
-	}
-	.splits {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-		gap: 16px;
-	}
-	.split {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		min-width: 0;
-	}
-	.ctitle {
-		font-size: 0.7rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
 		color: var(--ink-muted);
 	}
 	.pairs {

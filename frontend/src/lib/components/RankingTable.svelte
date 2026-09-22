@@ -1,6 +1,6 @@
 <script>
 	import { DataTable } from '@viniaraujo68/plinth/table';
-	import { formatRate } from '$lib/format.svelte.js';
+	import { formatNote, formatRate } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import Icon from './Icon.svelte';
@@ -25,11 +25,25 @@
 	const showGoals = $derived(tracking.trackScorers);
 	const showAssists = $derived(tracking.trackScorers && tracking.trackAssists);
 
+	/** @param {Row} r */
+	const ratingValue = (r) => (r.rating_provisional ? null : r.rating);
+
 	/** @type {import('@viniaraujo68/plinth/table').Column<Row>[]} */
 	const columns = $derived([
 		{ key: 'rank', label: '#', sortable: false, align: 'center', class: 'w-12', cell: rankCell },
 		{ key: 'name', label: t('ranking.player'), class: 'font-semibold', cell: nameCell },
 		{ key: 'win_rate', label: t('ranking.winRate'), numeric: true, cell: rateCell },
+		...(tracking.showRatings
+			? [
+					{
+						key: 'rating',
+						label: t('ranking.rating'),
+						numeric: true,
+						sortBy: ratingValue,
+						cell: ratingCell
+					}
+				]
+			: []),
 		{ key: 'recent_win_rate', label: t('ranking.form'), numeric: true, cell: formCell },
 		{ key: 'matchdays', label: t('ranking.matchdays'), numeric: true },
 		{ key: 'presence', label: t('ranking.presence'), numeric: true, cell: presenceCell },
@@ -60,6 +74,12 @@
 
 {#snippet rateCell(/** @type {Row} */ r)}
 	<span class="rate">{formatRate(r.win_rate)}</span>
+{/snippet}
+
+{#snippet ratingCell(/** @type {Row} */ r)}
+	<span class={ratingValue(r) === null ? 'text-base-content/50' : ''}>
+		{formatNote(ratingValue(r))}
+	</span>
 {/snippet}
 
 {#snippet formCell(/** @type {Row} */ r)}

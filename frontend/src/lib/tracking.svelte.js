@@ -2,10 +2,10 @@ import { getContext, setContext } from 'svelte';
 
 const KEY = Symbol('peladex.tracking');
 
-/** @typedef {{ trackScorers: boolean, trackAssists: boolean }} Tracking */
+/** @typedef {{ trackScorers: boolean, trackAssists: boolean, showRatings: boolean }} Tracking */
 
 /** @type {Tracking} */
-const DEFAULT = { trackScorers: true, trackAssists: false };
+const DEFAULT = { trackScorers: true, trackAssists: false, showRatings: true };
 
 /** @param {Tracking} source */
 export function setTrackingContext(source) {

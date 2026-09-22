@@ -1,5 +1,5 @@
 <script>
-	import { formatRate } from '$lib/format.svelte.js';
+	import { formatNote, formatRate } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import Icon from './Icon.svelte';
@@ -14,26 +14,59 @@
 
 	const tracking = getTracking();
 
+	const PREVIEW_COUNT = 10;
+
 	let query = $state('');
-	let order = $state(/** @type {'rate'|'name'|'goals'|'days'} */ ('rate'));
+	let expanded = $state(false);
+	let order = $state(
+		/** @type {'rate'|'rating'|'name'|'goals'|'assists'|'mvp'|'titles'|'days'} */ ('rate')
+	);
 
 	const orders = $derived([
 		{ id: 'rate', label: t('ranking.winRate') },
+		...(tracking.showRatings ? [{ id: 'rating', label: t('ranking.rating') }] : []),
 		{ id: 'name', label: t('ranking.player') },
 		...(tracking.trackScorers ? [{ id: 'goals', label: t('ranking.goals') }] : []),
+		...(tracking.trackScorers && tracking.trackAssists
+			? [{ id: 'assists', label: t('ranking.assists') }]
+			: []),
+		{ id: 'mvp', label: t('ranking.mvp') },
+		{ id: 'titles', label: t('ranking.titles') },
 		{ id: 'days', label: t('ranking.matchdays') }
 	]);
+
+	const activeOrder = $derived(orders.some((o) => o.id === order) ? order : 'rate');
+
+	/** @param {import('$lib/types.js').PlayerRow} row */
+	const ratingValue = (row) =>
+		row.rating_provisional || row.rating === null ? -1 : row.rating;
 
 	const filtered = $derived.by(() => {
 		const term = query.trim().toLowerCase();
 		const rows = term
 			? ranking.filter((r) => r.name.toLowerCase().includes(term))
 			: [...ranking];
-		if (order === 'name') return rows.sort((a, b) => a.name.localeCompare(b.name, localeTag()));
-		if (order === 'goals') return rows.sort((a, b) => b.goals - a.goals);
-		if (order === 'days') return rows.sort((a, b) => b.matchdays - a.matchdays);
+		if (activeOrder === 'name') {
+			return rows.sort((a, b) => a.name.localeCompare(b.name, localeTag()));
+		}
+		if (activeOrder === 'rating') return rows.sort((a, b) => ratingValue(b) - ratingValue(a));
+		if (activeOrder === 'goals') return rows.sort((a, b) => b.goals - a.goals);
+		if (activeOrder === 'assists') return rows.sort((a, b) => b.assists - a.assists);
+		if (activeOrder === 'mvp') return rows.sort((a, b) => b.mvp_count - a.mvp_count);
+		if (activeOrder === 'titles') return rows.sort((a, b) => b.titles - a.titles);
+		if (activeOrder === 'days') return rows.sort((a, b) => b.matchdays - a.matchdays);
 		return rows.sort((a, b) => b.win_rate - a.win_rate);
 	});
+
+	const collapsible = $derived(ranking.length > PREVIEW_COUNT);
+	const shown = $derived(
+		collapsible && !expanded ? filtered.slice(0, PREVIEW_COUNT) : filtered
+	);
+
+	function toggleExpanded() {
+		expanded = !expanded;
+		if (!expanded) query = '';
+	}
 </script>
 
 {#if ranking.length === 0}
@@ -43,17 +76,19 @@
 {:else}
 	<div class="wrap">
 		<div class="bar">
-			<label class="input search">
-				<Icon name="search" class="size-4 opacity-55" />
-				<input placeholder={t('players.search')} bind:value={query} />
-			</label>
+			{#if collapsible && expanded}
+				<label class="input search">
+					<Icon name="search" class="size-4 opacity-55" />
+					<input placeholder={t('players.search')} bind:value={query} />
+				</label>
+			{/if}
 			<div class="orders" role="group" aria-label={t('players.sortBy')}>
 				{#each orders as option (option.id)}
 					<button
 						type="button"
 						class="ochip"
-						class:sel={order === option.id}
-						aria-pressed={order === option.id}
+						class:sel={activeOrder === option.id}
+						aria-pressed={activeOrder === option.id}
 						onclick={() => (order = /** @type {any} */ (option.id))}
 					>
 						{option.label}
@@ -64,11 +99,11 @@
 
 		{#if filtered.length === 0}
 			<div class="card bg-base-100 px-5 py-12 text-center text-base-content/65">
-				{t('home.noResults', { query })}
+				{t('players.noResults', { query })}
 			</div>
 		{:else}
 			<div class="grid">
-				{#each filtered as row (row.player_id)}
+				{#each shown as row (row.player_id)}
 					<a class="pcard card bg-base-100 p-4" href={playerHref(row.player_id)}>
 						<div class="ph">
 							<span class="pname">{row.name}</span>
@@ -100,10 +135,22 @@
 							<span class="chip">
 								<Icon name="trophy" class="size-3" />{row.titles}
 							</span>
+							{#if tracking.showRatings}
+								<span class="chip" title={t('ranking.rating')}>
+									{t('ranking.rating')}
+									{formatNote(row.rating_provisional ? null : row.rating)}
+								</span>
+							{/if}
 						</div>
 					</a>
 				{/each}
 			</div>
+		{/if}
+
+		{#if collapsible}
+			<button type="button" class="btn btn-sm self-center" onclick={toggleExpanded}>
+				{expanded ? t('players.showLess') : t('players.showAll', { count: ranking.length })}
+			</button>
 		{/if}
 	</div>
 {/if}

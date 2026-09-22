@@ -1,5 +1,5 @@
 <script>
-	import { formatRate, formatRateDelta, formatShortDate, rateClass } from '$lib/format.svelte.js';
+	import { formatRate, formatRateDelta, rateClass } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import PeriodFilter from './PeriodFilter.svelte';
 
@@ -190,13 +190,6 @@
 						</span>
 					</div>
 				</div>
-
-				<div class="dates">
-					<span class="dl">{t('analysis.datesLabel')}</span>
-					<span class="dv">
-						{result.dates.map((d) => formatShortDate(d)).join(' · ')}
-					</span>
-				</div>
 			</section>
 		{/if}
 	{/if}
@@ -301,25 +294,6 @@
 	.ts {
 		font-size: 0.72rem;
 		color: var(--ink-muted);
-	}
-	.dates {
-		display: flex;
-		flex-direction: column;
-		gap: 3px;
-		padding-top: 12px;
-		border-top: 1px solid color-mix(in oklch, var(--color-base-content) 10%, transparent);
-	}
-	.dl {
-		font-size: 0.64rem;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
-		color: var(--ink-muted);
-	}
-	.dv {
-		font-size: 0.78rem;
-		color: color-mix(in oklch, var(--color-base-content) 80%, transparent);
-		line-height: 1.6;
 	}
 	@media (max-width: 560px) {
 		.pk {

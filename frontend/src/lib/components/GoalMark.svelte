@@ -28,11 +28,12 @@
 		class="{size} gm-ball"
 		label={ownGoal ? t('day.ownGoal') : t('records.totalGoals')}
 	/>
-	<span class="gm-name">{player}</span>
-	{#if showAssist && assist && !ownGoal}
-		<Icon name="boot" class="{size} gm-boot" label={t('day.assist')} />
-		<span class="gm-assist">{assist}</span>
-	{/if}
+	<span class="gm-text">
+		<span class="gm-name">{player}</span>
+		{#if showAssist && assist && !ownGoal}
+			<span class="gm-assist" title={t('day.assist')}>({assist})</span>
+		{/if}
+	</span>
 </span>
 
 <style>
@@ -52,20 +53,19 @@
 	.gm.own :global(.gm-ball) {
 		color: var(--goal-own, color-mix(in oklab, var(--color-error) 92%, var(--color-base-content)));
 	}
+	.gm-text {
+		display: inline-flex;
+		align-items: baseline;
+		gap: 4px;
+	}
+	.gm.mirror .gm-text {
+		flex-direction: row-reverse;
+	}
 	.gm-name {
 		font-weight: 600;
 	}
 	.gm.own .gm-name {
 		color: var(--goal-own, color-mix(in oklab, var(--color-error) 92%, var(--color-base-content)));
-	}
-	.gm.mirror :global(.gm-boot) {
-		margin-left: 0;
-		margin-right: 4px;
-	}
-	.gm :global(.gm-boot) {
-		flex: none;
-		margin-left: 4px;
-		color: color-mix(in oklch, var(--color-base-content) 52%, transparent);
 	}
 	.gm-assist {
 		color: color-mix(in oklch, var(--color-base-content) 68%, transparent);

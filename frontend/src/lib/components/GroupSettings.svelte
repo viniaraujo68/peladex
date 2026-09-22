@@ -34,6 +34,8 @@
 	// svelte-ignore state_referenced_locally
 	let trackAssists = $state(group.track_assists);
 	// svelte-ignore state_referenced_locally
+	let showRatings = $state(group.show_ratings);
+	// svelte-ignore state_referenced_locally
 	let defaultVenueId = $state(String(group.default_venue_id ?? ''));
 	let saving = $state(false);
 	let error = $state('');
@@ -62,6 +64,7 @@
 			lossPoints !== group.loss_points ||
 			trackScorers !== group.track_scorers ||
 			trackAssists !== group.track_assists ||
+			showRatings !== group.show_ratings ||
 			defaultVenueId !== String(group.default_venue_id ?? '')
 	);
 
@@ -99,6 +102,7 @@
 				loss_points: lossPoints,
 				track_scorers: trackScorers,
 				track_assists: trackAssists && trackScorers,
+				show_ratings: showRatings,
 				default_venue_id: defaultVenueId ? Number(defaultVenueId) : null
 			});
 			toast.success(t('toast.settingsSaved'));
@@ -206,6 +210,9 @@
 		<div class="block">
 			<label class="blabel" for="s-name">{t('common.name')}</label>
 			<input id="s-name" class="input w-full" bind:value={name} />
+			{#if name.trim() && name !== group.name}
+				<span class="hint">{t('settings.renameMovesLink')}</span>
+			{/if}
 		</div>
 		<div class="block">
 			<label class="blabel" for="s-desc">{t('common.description')}</label>
@@ -260,6 +267,13 @@
 							? t('settings.trackAssistsHint')
 							: t('settings.trackAssistsNeedsScorers')}
 					</span>
+				</span>
+			</label>
+			<label class="check">
+				<input type="checkbox" class="checkbox checkbox-sm" bind:checked={showRatings} />
+				<span>
+					{t('settings.showRatings')}
+					<span class="hint block">{t('settings.showRatingsHint')}</span>
 				</span>
 			</label>
 		</div>

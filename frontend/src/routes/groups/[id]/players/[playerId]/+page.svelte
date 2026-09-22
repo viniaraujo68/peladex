@@ -26,6 +26,9 @@
 		},
 		get trackAssists() {
 			return group?.track_assists ?? false;
+		},
+		get showRatings() {
+			return group?.show_ratings ?? true;
 		}
 	});
 	let error = $state('');

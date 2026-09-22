@@ -3,14 +3,15 @@
 	import { post, errorMessage } from '$lib/http.js';
 	import { formatMatchdayDate, formatRate } from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
-	import GoalMark from './GoalMark.svelte';
 	import Icon from './Icon.svelte';
+	import MatchRow from './MatchRow.svelte';
 
 	/**
 	 * @type {{
 	 *   groupId: number|string,
 	 *   players?: { id: number, name: string }[],
 	 *   defaultVenue?: string|null,
+	 *   trackScorers?: boolean,
 	 *   trackAssists?: boolean,
 	 *   onimported: (result: { created: number, replaced: number }) => void
 	 * }}
@@ -19,15 +20,38 @@
 		groupId,
 		players = [],
 		defaultVenue = null,
+		trackScorers = true,
 		trackAssists = false,
 		onimported
 	} = $props();
 
-	const FALLBACK_NAMES = [
-		'jogador1', 'jogador2', 'jogador3', 'jogador4', 'jogador5', 'jogador6',
-		'jogador7', 'jogador8', 'jogador9', 'jogador10', 'jogador11', 'jogador12'
-	];
-	const TEAM_NAMES = ['BRANCO', 'VERMELHO', 'AZUL'];
+	const FALLBACK_PLAYER_COUNT = 12;
+
+	function fallbackNames() {
+		return Array.from({ length: FALLBACK_PLAYER_COUNT }, (_, index) =>
+			t('import.examplePlayer', { n: index + 1 })
+		);
+	}
+
+	function teamNames() {
+		return [t('import.exampleTeam1'), t('import.exampleTeam2'), t('import.exampleTeam3')];
+	}
+
+	/**
+	 * @param {import('$lib/types.js').ImportPreview['matchdays'][number]['matches'][number]} match
+	 * @param {string} team
+	 */
+	function goalsOf(match, team) {
+		return match.goals
+			.map((goal, index) => ({
+				key: index,
+				team: goal.team,
+				player: goal.player,
+				assist: goal.assist,
+				ownGoal: goal.own_goal
+			}))
+			.filter((goal) => goal.team === team);
+	}
 
 	/** @param {string[]} list */
 	function shuffled(list) {
@@ -48,18 +72,21 @@
 	}
 
 	function buildTemplate() {
-		const pool = players.length >= 4 ? players.map((p) => p.name) : FALLBACK_NAMES;
+		const pool = players.length >= 4 ? players.map((p) => p.name) : fallbackNames();
 		const names = shuffled(pool);
 		const teamCount = names.length >= 9 ? 3 : 2;
 		const perTeam = Math.max(2, Math.min(7, Math.floor(names.length / teamCount)));
-		const teams = TEAM_NAMES.slice(0, teamCount).map((name, index) => ({
+		const teams = teamNames().slice(0, teamCount).map((name, index) => ({
 			name,
 			players: names.slice(index * perTeam, (index + 1) * perTeam)
 		}));
 
 		const [home, away] = teams;
 		const third = teams[2];
-		const lines = [`${todayLabel()}${defaultVenue ? '' : ' @ Campo do Ze'}`, ''];
+		const lines = [
+			`${todayLabel()}${defaultVenue ? '' : ` @ ${t('import.exampleVenue')}`}`,
+			''
+		];
 		for (const team of teams) lines.push(`${team.name}: ${team.players.join(', ')}`);
 		lines.push('');
 
@@ -343,22 +370,16 @@
 
 				<div class="pmatches">
 					{#each day.matches as match, mIndex (mIndex)}
-						<div class="pmatch">
-							<span class="pside">{match.home_team}</span>
-							<span class="pscore">{match.home_score}<i>x</i>{match.away_score}</span>
-							<span class="pside away">{match.away_team}</span>
-							{#if match.goals.length}
-								<span class="pgoals">
-									{#each match.goals as goal, gIndex (gIndex)}
-										<GoalMark
-											player={goal.player}
-											assist={goal.assist}
-											ownGoal={goal.own_goal}
-										/>
-									{/each}
-								</span>
-							{/if}
-						</div>
+						<MatchRow
+							homeName={match.home_team}
+							awayName={match.away_team}
+							homeScore={match.home_score}
+							awayScore={match.away_score}
+							homeGoals={goalsOf(match, match.home_team)}
+							awayGoals={goalsOf(match, match.away_team)}
+							showGoals={trackScorers}
+							showAssist={trackAssists}
+						/>
 					{/each}
 				</div>
 			</section>
@@ -515,44 +536,7 @@
 	.pmatches {
 		display: flex;
 		flex-direction: column;
-		gap: 5px;
-	}
-	.pmatch {
-		display: grid;
-		grid-template-columns: 1fr auto 1fr;
-		align-items: center;
-		gap: 8px;
-		padding: 6px 10px;
-		border-radius: var(--radius-field);
-		background: color-mix(in oklch, var(--color-base-content) 4%, transparent);
-		font-size: 0.82rem;
-	}
-	.pside {
-		text-align: right;
-		overflow-wrap: anywhere;
-	}
-	.pside.away {
-		text-align: left;
-	}
-	.pscore {
-		font-weight: 700;
-		font-variant-numeric: tabular-nums;
-		white-space: nowrap;
-	}
-	.pscore i {
-		margin: 0 3px;
-		font-style: normal;
-		opacity: 0.4;
-		font-weight: 400;
-	}
-	.pgoals {
-		grid-column: 1 / -1;
-		display: flex;
-		flex-wrap: wrap;
-		justify-content: center;
-		gap: 4px 10px;
-		font-size: 0.72rem;
-		color: var(--ink-muted);
+		gap: 6px;
 	}
 	.check {
 		display: flex;

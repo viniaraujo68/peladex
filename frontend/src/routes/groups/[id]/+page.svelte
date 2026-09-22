@@ -12,17 +12,15 @@
 	import { mismatchBadgeEnabled } from '$lib/prefs.svelte.js';
 	import { setTrackingContext } from '$lib/tracking.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
-	import AssistNetwork from '$lib/components/AssistNetwork.svelte';
-	import EvolutionChart from '$lib/components/EvolutionChart.svelte';
-	import PairLeaderboard from '$lib/components/PairLeaderboard.svelte';
+	import GroupStats from '$lib/components/GroupStats.svelte';
 	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
+	import PlayerComparisons from '$lib/components/PlayerComparisons.svelte';
 	import PlayersGrid from '$lib/components/PlayersGrid.svelte';
 	import TimelineCharts from '$lib/components/TimelineCharts.svelte';
 	import GroupSettings from '$lib/components/GroupSettings.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
 	import RankingTable from '$lib/components/RankingTable.svelte';
-	import Records from '$lib/components/Records.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
@@ -33,6 +31,9 @@
 		},
 		get trackAssists() {
 			return group?.track_assists ?? false;
+		},
+		get showRatings() {
+			return group?.show_ratings ?? true;
 		}
 	});
 
@@ -43,7 +44,6 @@
 	let pairs = $state(/** @type {import('$lib/types.js').PairLeaderboard|null} */ (null));
 	let network = $state(/** @type {import('$lib/types.js').AssistNetwork|null} */ (null));
 	let timeline = $state(/** @type {import('$lib/types.js').Timeline|null} */ (null));
-	let metric = $state(/** @type {'win_rate'|'goals'|'assists'} */ ('win_rate'));
 	let loading = $state(true);
 	let error = $state('');
 	let period = $state({ from: '', to: '' });
@@ -180,6 +180,12 @@
 	}
 </script>
 
+{#snippet periodBar()}
+	<div class="card bg-base-100 p-4">
+		<PeriodFilter from={period.from} to={period.to} onchange={(range) => (period = range)} />
+	</div>
+{/snippet}
+
 <svelte:head>
 	<title>{group ? t('title.group', { name: group.name }) : t('title.home')}</title>
 </svelte:head>
@@ -260,70 +266,27 @@
 				<RankingTable ranking={stats.ranking} {playerHref} />
 			</div>
 		{:else if tab === 'players'}
-			<PlayersGrid ranking={stats.ranking} {playerHref} />
+			<div class="flex flex-col gap-4">
+				{@render periodBar()}
+				<PlayersGrid ranking={stats.ranking} {playerHref} />
+				<PlayerComparisons
+					{evolution}
+					{pairs}
+					{network}
+					{minDays}
+					onMinDays={(value) => (minDays = value)}
+					{playerHref}
+				/>
+				<a href={`/groups/${groupId}/analise`} class="btn self-start">
+					{t('stats.openAnalysis')}
+				</a>
+			</div>
 		{:else if tab === 'stats'}
 			<div class="flex flex-col gap-4">
-				<div class="card periodbar bg-base-100 p-4">
-					<div class="min-w-0 flex-1">
-						<PeriodFilter
-							from={period.from}
-							to={period.to}
-							onchange={(range) => (period = range)}
-						/>
-					</div>
-					<a href={`/groups/${groupId}/analise`} class="btn btn-sm flex-none">
-						{t('stats.openAnalysis')}
-					</a>
-				</div>
-
-				<Records records={stats.records} {stats} />
-
-				<div class="card flex flex-col gap-4 bg-base-100 p-5">
-					<div class="charthead">
-						<div>
-							<h3 class="font-semibold">
-								{metric === 'win_rate'
-									? t('stats.evolution')
-									: `${metric === 'goals' ? t('chart.metricGoals') : t('chart.metricAssists')} · ${t('chart.cumulative')}`}
-							</h3>
-							{#if metric === 'win_rate'}
-								<p class="mt-1 text-xs text-base-content/65">{t('stats.evolutionHint')}</p>
-							{/if}
-						</div>
-						<div class="metrics" role="group" aria-label={t('chart.metric')}>
-							{#each [{ id: 'win_rate', label: t('chart.metricRate'), on: true }, { id: 'goals', label: t('chart.metricGoals'), on: group.track_scorers }, { id: 'assists', label: t('chart.metricAssists'), on: group.track_scorers && group.track_assists }] as option (option.id)}
-								{#if option.on}
-									<button
-										type="button"
-										class="mchip"
-										class:sel={metric === option.id}
-										aria-pressed={metric === option.id}
-										onclick={() => (metric = /** @type {any} */ (option.id))}
-									>
-										{option.label}
-									</button>
-								{/if}
-							{/each}
-						</div>
-					</div>
-					<EvolutionChart {evolution} {metric} />
-				</div>
-
+				{@render periodBar()}
+				<GroupStats {stats} />
 				{#if timeline}
 					<TimelineCharts {timeline} />
-				{/if}
-
-				{#if pairs}
-					<PairLeaderboard
-						board={pairs}
-						{minDays}
-						onMinDays={(value) => (minDays = value)}
-						{playerHref}
-					/>
-				{/if}
-
-				{#if network && group.track_scorers && group.track_assists}
-					<AssistNetwork {network} {playerHref} />
 				{/if}
 			</div>
 		{:else if tab === 'settings'}
@@ -368,46 +331,5 @@
 	}
 	.tappable:hover {
 		border-color: var(--color-warning);
-	}
-	.charthead {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 10px;
-	}
-	.metrics {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 5px;
-	}
-	.mchip {
-		min-height: 32px;
-		padding: 4px 11px;
-		border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
-		border-radius: var(--radius-field);
-		background: var(--color-base-100);
-		color: var(--ink-muted);
-		font-size: 0.78rem;
-		cursor: pointer;
-	}
-	.mchip.sel {
-		border-color: var(--color-primary);
-		background: color-mix(in oklch, var(--color-primary) 14%, transparent);
-		color: var(--ink-primary);
-		font-weight: 600;
-	}
-	.periodbar {
-		display: flex;
-		flex-direction: row;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: 12px;
-	}
-	@media (max-width: 640px) {
-		.periodbar :global(.btn) {
-			width: 100%;
-		}
 	}
 </style>

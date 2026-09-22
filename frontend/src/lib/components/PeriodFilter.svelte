@@ -12,14 +12,38 @@
 	let { from, to, onchange } = $props();
 
 	let custom = $state(false);
+	let rangeError = $state(false);
 
 	/** @param {number} months */
 	function monthsAgo(months) {
 		const now = new Date();
-		const then = new Date(now.getFullYear(), now.getMonth() - months, now.getDate());
+		const targetMonth = now.getMonth() - months;
+		const lastDayOfTargetMonth = new Date(now.getFullYear(), targetMonth + 1, 0).getDate();
+		const day = Math.min(now.getDate(), lastDayOfTargetMonth);
+		const then = new Date(now.getFullYear(), targetMonth, day);
 		return `${then.getFullYear()}-${String(then.getMonth() + 1).padStart(2, '0')}-${String(
 			then.getDate()
 		).padStart(2, '0')}`;
+	}
+
+	/** @param {string} value */
+	function isPlausibleDate(value) {
+		if (!value) return true;
+		const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+		if (!match) return false;
+		if (Number(match[1]) < 2000) return false;
+		return !Number.isNaN(new Date(value).getTime());
+	}
+
+	/** @param {string} newFrom @param {string} newTo */
+	function applyRange(newFrom, newTo) {
+		if (!isPlausibleDate(newFrom) || !isPlausibleDate(newTo)) return;
+		if (newFrom && newTo && newFrom > newTo) {
+			rangeError = true;
+			return;
+		}
+		rangeError = false;
+		onchange({ from: newFrom, to: newTo });
 	}
 
 	const presets = $derived([
@@ -37,6 +61,7 @@
 	/** @param {{ from: string }} preset */
 	function pick(preset) {
 		custom = false;
+		rangeError = false;
 		onchange({ from: preset.from, to: '' });
 	}
 </script>
@@ -67,7 +92,7 @@
 	</div>
 
 	{#if custom}
-		<div class="range">
+		<div class="period-range">
 			<label class="rl">
 				<span>{t('filters.from')}</span>
 				<input
@@ -75,7 +100,7 @@
 					type="date"
 					value={from}
 					max={to || undefined}
-					onchange={(e) => onchange({ from: e.currentTarget.value, to })}
+					onchange={(e) => applyRange(e.currentTarget.value, to)}
 				/>
 			</label>
 			<label class="rl">
@@ -85,15 +110,25 @@
 					type="date"
 					value={to}
 					min={from || undefined}
-					onchange={(e) => onchange({ from, to: e.currentTarget.value })}
+					onchange={(e) => applyRange(from, e.currentTarget.value)}
 				/>
 			</label>
 			{#if from || to}
-				<button type="button" class="btn btn-ghost btn-xs" onclick={() => onchange({ from: '', to: '' })}>
+				<button
+					type="button"
+					class="btn btn-ghost btn-xs"
+					onclick={() => {
+						rangeError = false;
+						onchange({ from: '', to: '' });
+					}}
+				>
 					{t('import.clear')}
 				</button>
 			{/if}
 		</div>
+		{#if rangeError}
+			<span class="rangeerror">{t('filters.invalidRange')}</span>
+		{/if}
 	{:else if from || to}
 		<span class="rangetext">
 			{t('stats.periodRange', {
@@ -142,7 +177,7 @@
 		color: var(--ink-primary);
 		font-weight: 600;
 	}
-	.range {
+	.period-range {
 		display: flex;
 		flex-wrap: wrap;
 		align-items: flex-end;
@@ -160,6 +195,10 @@
 	.rangetext {
 		font-size: 0.76rem;
 		color: var(--ink-muted);
+	}
+	.rangeerror {
+		font-size: 0.72rem;
+		color: var(--color-error);
 	}
 	@media (max-width: 560px) {
 		.pchip {

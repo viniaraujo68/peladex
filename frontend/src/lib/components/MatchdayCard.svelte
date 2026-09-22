@@ -2,9 +2,8 @@
 	import { formatMatchdayDate } from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
-	import GoalMark from './GoalMark.svelte';
 	import Icon from './Icon.svelte';
-	import TeamCrest from './TeamCrest.svelte';
+	import MatchRow from './MatchRow.svelte';
 	import StandingsTable from './StandingsTable.svelte';
 
 	const tracking = getTracking();
@@ -56,7 +55,14 @@
 	 * @param {number} teamId
 	 */
 	function goalsOf(match, teamId) {
-		return match.goals.filter((g) => g.team_id === teamId);
+		return match.goals
+			.filter((g) => g.team_id === teamId)
+			.map((g) => ({
+				key: g.id,
+				player: g.player_name,
+				assist: g.assist_name,
+				ownGoal: g.own_goal
+			}));
 	}
 </script>
 
@@ -173,49 +179,18 @@
 
 			<div class="matches">
 				{#each matchday.matches as match (match.id)}
-					{@const homeGoals = goalsOf(match, match.home_team_id)}
-					{@const awayGoals = goalsOf(match, match.away_team_id)}
-					<div class="match">
-						<span class="side home" class:win={match.home_score > match.away_score}>
-							<TeamCrest
-								name={match.home_team_name}
-								color={teamColors.get(match.home_team_id) ?? ''}
-							/>
-							<span class="tname">{match.home_team_name}</span>
-						</span>
-						<span class="score">{match.home_score}<i>x</i>{match.away_score}</span>
-						<span class="side away" class:win={match.away_score > match.home_score}>
-							<span class="tname">{match.away_team_name}</span>
-							<TeamCrest
-								name={match.away_team_name}
-								color={teamColors.get(match.away_team_id) ?? ''}
-							/>
-						</span>
-						{#if tracking.trackScorers && homeGoals.length + awayGoals.length > 0}
-							<span class="gcol home">
-								{#each homeGoals as goal (goal.id)}
-									<GoalMark
-										mirror
-										player={goal.player_name}
-										assist={goal.assist_name}
-										ownGoal={goal.own_goal}
-										showAssist={tracking.trackAssists}
-									/>
-								{/each}
-							</span>
-							<span class="gsep"></span>
-							<span class="gcol away">
-								{#each awayGoals as goal (goal.id)}
-									<GoalMark
-										player={goal.player_name}
-										assist={goal.assist_name}
-										ownGoal={goal.own_goal}
-										showAssist={tracking.trackAssists}
-									/>
-								{/each}
-							</span>
-						{/if}
-					</div>
+					<MatchRow
+						homeName={match.home_team_name}
+						awayName={match.away_team_name}
+						homeScore={match.home_score}
+						awayScore={match.away_score}
+						homeColor={teamColors.get(match.home_team_id) ?? ''}
+						awayColor={teamColors.get(match.away_team_id) ?? ''}
+						homeGoals={goalsOf(match, match.home_team_id)}
+						awayGoals={goalsOf(match, match.away_team_id)}
+						showGoals={tracking.trackScorers}
+						showAssist={tracking.trackAssists}
+					/>
 				{/each}
 				{#if matchday.matches.length === 0}
 					<p class="empty">{t('day.noMatches')}</p>
@@ -329,69 +304,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 6px;
-	}
-	.match {
-		display: grid;
-		grid-template-columns: 1fr auto 1fr;
-		align-items: center;
-		gap: 8px;
-		padding: 7px 10px;
-		border-radius: var(--radius-field);
-		background: color-mix(in oklch, var(--color-base-content) 4%, transparent);
-		font-size: 0.86rem;
-	}
-	.side {
-		display: flex;
-		align-items: center;
-		gap: 6px;
-		min-width: 0;
-		overflow-wrap: anywhere;
-		color: var(--ink-muted);
-		text-transform: uppercase;
-		letter-spacing: 0.02em;
-	}
-	.side.home {
-		justify-content: flex-end;
-		text-align: right;
-	}
-	.side.away {
-		justify-content: flex-start;
-		text-align: left;
-	}
-	.tname {
-		min-width: 0;
-	}
-	.side.win {
-		color: var(--color-base-content);
-		font-weight: 700;
-	}
-	.score {
-		font-variant-numeric: tabular-nums;
-		font-weight: 700;
-		white-space: nowrap;
-	}
-	.score i {
-		margin: 0 3px;
-		font-style: normal;
-		opacity: 0.4;
-		font-weight: 400;
-	}
-	.gcol {
-		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		margin-top: 4px;
-		min-width: 0;
-		font-size: 0.74rem;
-		color: var(--ink-muted);
-	}
-	.gcol.home {
-		align-items: flex-end;
-		text-align: right;
-	}
-	.gcol.away {
-		align-items: flex-start;
-		text-align: left;
 	}
 	.empty {
 		padding: 16px 0;

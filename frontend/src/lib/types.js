@@ -17,6 +17,7 @@
  * @property {number} loss_points
  * @property {boolean} track_scorers
  * @property {boolean} track_assists
+ * @property {boolean} show_ratings
  * @property {number|null} default_venue_id
  * @property {string|null} default_venue_name
  * @property {number} matchday_count
@@ -153,25 +154,34 @@
  * @property {number|null} recent_win_rate
  * @property {number} title_streak
  * @property {number} best_title_streak
+ * @property {number|null} rating
+ * @property {boolean} rating_provisional
  */
 
 /**
- * @typedef {object} GroupRecord
- * @property {string} code
- * @property {string|null} player_name
- * @property {number|null} value
- * @property {string} detail
- * @property {string|null} matchday_date
+ * @typedef {object} RatingComponent
+ * @property {'results'|'team_attack'|'team_defense'|'scoring'|'mvp'} code
+ * @property {number} contribution
+ * @property {number} rate
+ * @property {number} group_rate
+ */
+
+/**
+ * @typedef {object} PlayerRating
+ * @property {number} note
+ * @property {boolean} provisional
+ * @property {number} appearances
+ * @property {RatingComponent[]} components
  */
 
 /**
  * @typedef {object} Stats
  * @property {PlayerRow[]} ranking
- * @property {GroupRecord[]} records
  * @property {number} total_matchdays
  * @property {number} total_matches
  * @property {number} total_goals
  * @property {number} total_assists
+ * @property {number} draw_rate
  * @property {string|null} first_date
  * @property {string|null} last_date
  */
@@ -287,20 +297,6 @@
  */
 
 /**
- * @typedef {object} SplitRow
- * @property {string} key
- * @property {string} label
- * @property {number} days
- * @property {number} matches
- * @property {number} wins
- * @property {number} draws
- * @property {number} losses
- * @property {number} win_rate
- * @property {number} goals
- * @property {number} assists
- */
-
-/**
  * @typedef {object} PlayerMatchdayRow
  * @property {number} matchday_id
  * @property {string} date
@@ -323,11 +319,10 @@
  * @property {number} player_id
  * @property {string} name
  * @property {PlayerRow} summary
+ * @property {PlayerRating|null} rating
  * @property {PlayerMatchdayRow[]} history
  * @property {PairRow[]} partners
  * @property {PairRow[]} opponents
- * @property {SplitRow[]} by_venue
- * @property {SplitRow[]} by_team
  * @property {number} min_days
  */
 
@@ -369,6 +364,7 @@
  * @property {string} description
  * @property {boolean} track_scorers
  * @property {boolean} track_assists
+ * @property {boolean} show_ratings
  * @property {Stats} stats
  * @property {Evolution} evolution
  * @property {Matchday[]} matchdays

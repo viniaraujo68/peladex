@@ -71,3 +71,33 @@ export function formatWeekday(date) {
 }
 
 export { i18n };
+
+/** @type {Map<string, Intl.NumberFormat>} */
+const fixedFormats = new Map();
+
+/** @param {number} digits @param {boolean} signed */
+function fixedFormat(digits, signed) {
+	const tag = localeTag();
+	const key = `${tag}:${digits}:${signed}`;
+	let format = fixedFormats.get(key);
+	if (!format) {
+		format = new Intl.NumberFormat(tag, {
+			minimumFractionDigits: digits,
+			maximumFractionDigits: digits,
+			signDisplay: signed ? 'exceptZero' : 'auto'
+		});
+		fixedFormats.set(key, format);
+	}
+	return format;
+}
+
+/** @param {number|null|undefined} value */
+export function formatNote(value) {
+	if (value === null || value === undefined) return '—';
+	return fixedFormat(1, false).format(value);
+}
+
+/** @param {number} value */
+export function formatContribution(value) {
+	return fixedFormat(2, true).format(value);
+}

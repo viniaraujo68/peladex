@@ -418,10 +418,12 @@
 				{/each}
 				<div class="legend-actions">
 					{#if hiddenCount > 0}
-						<button type="button" class="reset" onclick={showAll}>{t('chart.showAll')}</button>
+						<button type="button" class="reset" onclick={showAll}>
+							{t('chart.showAll')}
+						</button>
 					{/if}
 					{#if hiddenCount < series.length}
-						<button type="button" class="reset ghost" onclick={hideAll}>
+						<button type="button" class="reset" onclick={hideAll}>
 							{t('chart.showNone')}
 						</button>
 					{/if}
@@ -524,23 +526,15 @@
 	.reset {
 		min-height: 36px;
 		padding: 6px 12px;
-		border: 1px solid transparent;
+		border: 1px solid color-mix(in oklch, var(--color-base-content) 16%, transparent);
 		border-radius: var(--radius-field, 0.5rem);
-		background-color: color-mix(in oklch, var(--color-primary) 12%, transparent);
-		color: var(--color-primary);
+		background-color: transparent;
+		color: var(--ink-muted);
 		font-size: 0.8rem;
 		font-weight: 600;
 		cursor: pointer;
 	}
 	.reset:hover {
-		background-color: color-mix(in oklch, var(--color-primary) 20%, transparent);
-	}
-	.reset.ghost {
-		background-color: transparent;
-		border-color: color-mix(in oklch, var(--color-base-content) 16%, transparent);
-		color: var(--ink-muted);
-	}
-	.reset.ghost:hover {
 		background-color: color-mix(in oklch, var(--color-base-content) 7%, transparent);
 		color: var(--color-base-content);
 	}

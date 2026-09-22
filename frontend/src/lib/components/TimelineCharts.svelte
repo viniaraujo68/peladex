@@ -3,21 +3,22 @@
 	import { getThemeContext } from '@viniaraujo68/plinth/theme';
 	import { formatNumber, formatRate } from '$lib/format.svelte.js';
 	import { i18n, localeTag, t } from '$lib/i18n.svelte.js';
-	import { getTracking } from '$lib/tracking.svelte.js';
 
 	/** @type {{ timeline: import('$lib/types.js').Timeline }} */
 	let { timeline } = $props();
 
 	const theme = getThemeContext();
-	const tracking = getTracking();
 
 	let goalsCanvas = $state(/** @type {HTMLCanvasElement|undefined} */ (undefined));
-	let averageCanvas = $state(/** @type {HTMLCanvasElement|undefined} */ (undefined));
 	/** @type {import('chart.js').Chart | null} */
 	let goalsChart = null;
-	/** @type {import('chart.js').Chart | null} */
-	let averageChart = null;
 	let renderTicket = 0;
+	let scope = $state(/** @type {'matchday'|'match'} */ ('matchday'));
+
+	const scopes = $derived([
+		{ id: 'matchday', label: t('chart.perMatchday') },
+		{ id: 'match', label: t('chart.perMatch') }
+	]);
 
 	const points = $derived(timeline.points);
 	const hasData = $derived(points.length > 0);
@@ -58,7 +59,7 @@
 		const { Chart } = await import('chart.js/auto');
 		if (ticket !== renderTicket) return;
 
-		const host = goalsCanvas?.parentElement ?? averageCanvas?.parentElement ?? document.body;
+		const host = goalsCanvas?.parentElement ?? document.body;
 		const resolve = colorResolver(host);
 		const ink = (/** @type {number} */ percent, /** @type {string} */ fallback) =>
 			resolve.read(
@@ -70,7 +71,6 @@
 		const gridColor = ink(10, 'rgba(127,127,127,0.12)');
 		const surface = resolve.read('var(--color-base-100)', '#ffffff');
 		const bar = resolve.read('var(--series-1)', '#2a78d6');
-		const line = resolve.read('var(--series-2)', '#eb6834');
 
 		const tooltip = {
 			backgroundColor: surface,
@@ -83,6 +83,8 @@
 		};
 		const labels = points.map((p) => labelFor(p.date));
 
+		const perMatch = scope === 'match';
+
 		if (goalsChart) goalsChart.destroy();
 		if (goalsCanvas) {
 			goalsChart = new Chart(goalsCanvas, {
@@ -91,8 +93,8 @@
 					labels,
 					datasets: [
 						{
-							label: t('chart.goalsPerMatchday'),
-							data: points.map((p) => p.goals),
+							label: perMatch ? t('chart.goalsPerMatch') : t('chart.goalsPerMatchday'),
+							data: points.map((p) => (perMatch ? p.goals_per_match : p.goals)),
 							backgroundColor: bar,
 							borderRadius: 4,
 							borderSkipped: 'bottom',
@@ -112,10 +114,9 @@
 							callbacks: {
 								label: (ctx) => {
 									const point = points[ctx.dataIndex];
-									return `${t('records.goals', { count: point.goals })} · ${t(
-										'analysis.matches',
-										{ count: point.matches }
-									)}`;
+									const matches = t('analysis.matches', { count: point.matches });
+									if (perMatch) return `${formatNumber(point.goals_per_match)} · ${matches}`;
+									return `${t('records.goals', { count: point.goals })} · ${matches}`;
 								}
 							}
 						}
@@ -125,53 +126,7 @@
 						y: {
 							beginAtZero: true,
 							grid: { color: gridColor },
-							ticks: { color: axisColor, precision: 0 }
-						}
-					}
-				}
-			});
-		}
-
-		if (averageChart) averageChart.destroy();
-		if (averageCanvas) {
-			averageChart = new Chart(averageCanvas, {
-				type: 'line',
-				data: {
-					labels,
-					datasets: [
-						{
-							label: t('chart.goalsPerMatch'),
-							data: points.map((p) => p.goals_per_match),
-							borderColor: line,
-							backgroundColor: line,
-							tension: 0.3,
-							borderWidth: 2,
-							pointRadius: points.length <= 24 ? 4 : 0,
-							pointBorderColor: surface,
-							pointBorderWidth: points.length <= 24 ? 2 : 0,
-							pointHoverRadius: 5
-						}
-					]
-				},
-				options: {
-					responsive: true,
-					maintainAspectRatio: false,
-					interaction: { mode: 'index', intersect: false },
-					plugins: {
-						legend: { display: false },
-						tooltip: {
-							...tooltip,
-							callbacks: {
-								label: (ctx) => formatNumber(ctx.parsed.y)
-							}
-						}
-					},
-					scales: {
-						x: { grid: { display: false }, ticks: { color: axisColor } },
-						y: {
-							beginAtZero: true,
-							grid: { color: gridColor },
-							ticks: { color: axisColor }
+							ticks: perMatch ? { color: axisColor } : { color: axisColor, precision: 0 }
 						}
 					}
 				}
@@ -183,52 +138,20 @@
 
 	onMount(() => () => {
 		goalsChart?.destroy();
-		averageChart?.destroy();
 	});
 
 	$effect(() => {
 		timeline;
+		scope;
 		i18n.locale;
 		theme.preference;
 		theme.dark;
-		if (!goalsCanvas && !averageCanvas) return;
+		if (!goalsCanvas) return;
 		render();
 	});
 </script>
 
 <div class="timeline">
-	<section class="tiles">
-		<div class="tile">
-			<span class="tl">{t('chart.goalsPerMatch')}</span>
-			<span class="tv">{formatNumber(timeline.goals_per_match)}</span>
-		</div>
-		<div class="tile">
-			<span class="tl">{t('chart.goalsPerMatchday')}</span>
-			<span class="tv">{formatNumber(timeline.goals_per_matchday)}</span>
-		</div>
-		{#if tracking.trackAssists}
-			<div class="tile">
-				<span class="tl">{t('chart.assistsPerMatchday')}</span>
-				<span class="tv">{formatNumber(timeline.assists_per_matchday)}</span>
-			</div>
-		{/if}
-	</section>
-
-	{#if hasData}
-		<section class="card flex flex-col gap-3 bg-base-100 p-5">
-			<h3 class="font-semibold">{t('chart.goalsPerMatchday')}</h3>
-			<div class="wrap"><canvas bind:this={goalsCanvas}></canvas></div>
-		</section>
-
-		<section class="card flex flex-col gap-3 bg-base-100 p-5">
-			<div>
-				<h3 class="font-semibold">{t('chart.goalsPerMatch')}</h3>
-				<p class="hint">{t('chart.goalsPerMatchHint')}</p>
-			</div>
-			<div class="wrap"><canvas bind:this={averageCanvas}></canvas></div>
-		</section>
-	{/if}
-
 	{#if timeline.scorelines.length}
 		<section class="card flex flex-col gap-3 bg-base-100 p-5">
 			<div>
@@ -247,42 +170,71 @@
 			</ul>
 		</section>
 	{/if}
+
+	{#if hasData}
+		<section class="card flex flex-col gap-3 bg-base-100 p-5">
+			<div class="charthead">
+				<div>
+					<h3 class="font-semibold">
+						{scope === 'match' ? t('chart.goalsPerMatch') : t('chart.goalsPerMatchday')}
+					</h3>
+					{#if scope === 'match'}
+						<p class="hint">{t('chart.goalsPerMatchHint')}</p>
+					{/if}
+				</div>
+				<div class="scopes" role="group" aria-label={t('chart.metric')}>
+					{#each scopes as option (option.id)}
+						<button
+							type="button"
+							class="schip"
+							class:sel={scope === option.id}
+							aria-pressed={scope === option.id}
+							onclick={() => (scope = /** @type {any} */ (option.id))}
+						>
+							{option.label}
+						</button>
+					{/each}
+				</div>
+			</div>
+			<div class="wrap"><canvas bind:this={goalsCanvas}></canvas></div>
+		</section>
+	{/if}
 </div>
 
 <style>
 	.timeline {
 		--series-1: light-dark(#2a78d6, #3987e5);
-		--series-2: light-dark(#eb6834, #d95926);
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
 	}
-	.tiles {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-		gap: 12px;
-	}
-	.tile {
+	.charthead {
 		display: flex;
-		flex-direction: column;
-		gap: 2px;
-		padding: 14px 16px;
-		border: 1px solid color-mix(in oklch, var(--color-base-content) 12%, transparent);
-		border-radius: var(--radius-box);
+		flex-wrap: wrap;
+		align-items: flex-start;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.scopes {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 5px;
+	}
+	.schip {
+		min-height: 32px;
+		padding: 4px 11px;
+		border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
+		border-radius: var(--radius-field);
 		background: var(--color-base-100);
-	}
-	.tl {
-		font-size: 0.66rem;
-		font-weight: 500;
-		text-transform: uppercase;
-		letter-spacing: 0.06em;
 		color: var(--ink-muted);
+		font-size: 0.78rem;
+		cursor: pointer;
 	}
-	.tv {
-		font-size: 1.55rem;
+	.schip.sel {
+		border-color: var(--color-primary);
+		background: color-mix(in oklch, var(--color-primary) 14%, transparent);
+		color: var(--ink-primary);
 		font-weight: 600;
-		letter-spacing: -0.02em;
-		font-variant-numeric: tabular-nums;
 	}
 	.hint {
 		margin-top: 3px;

@@ -25,6 +25,9 @@
 		},
 		get trackAssists() {
 			return group?.track_assists ?? false;
+		},
+		get showRatings() {
+			return group?.show_ratings ?? true;
 		}
 	});
 	const token = $derived($page.url.searchParams.get('t'));

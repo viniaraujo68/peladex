@@ -62,11 +62,15 @@
 			.sort((a, b) => a.name.localeCompare(b.name));
 	});
 
+	const rangeInvalid = $derived(!!(dateFrom && dateTo && dateFrom > dateTo));
+
 	const filtered = $derived(
 		matchdays.filter((m) => {
 			if (venueFilter && m.venue_id !== Number(venueFilter)) return false;
-			if (dateFrom && m.date < dateFrom) return false;
-			if (dateTo && m.date > dateTo) return false;
+			if (!rangeInvalid) {
+				if (dateFrom && m.date < dateFrom) return false;
+				if (dateTo && m.date > dateTo) return false;
+			}
 			if (selectedPlayers.size) {
 				const present = new Set(
 					m.standings.flatMap((s) => s.members.map((member) => member.player_id))
@@ -126,7 +130,7 @@
 		{/if}
 	</div>
 {:else}
-	<div class="list">
+	<div class="matchday-list">
 		<div class="card filters bg-base-100 p-4">
 			<button
 				type="button"
@@ -180,6 +184,10 @@
 						/>
 					</div>
 				</div>
+
+				{#if rangeInvalid}
+					<p class="frangeerror">{t('filters.invalidRange')}</p>
+				{/if}
 
 				{#if players.length}
 					<div class="fplayers">
@@ -239,7 +247,7 @@
 {/if}
 
 <style>
-	.list {
+	.matchday-list {
 		display: flex;
 		flex-direction: column;
 		gap: 14px;
@@ -316,6 +324,10 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 8px;
+	}
+	.frangeerror {
+		font-size: 0.72rem;
+		color: var(--color-error);
 	}
 	@media (max-width: 640px) {
 		.fsummary {

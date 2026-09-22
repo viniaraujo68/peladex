@@ -58,6 +58,7 @@
 		{groupId}
 		players={players.filter((p) => p.active).map((p) => ({ id: p.id, name: p.name }))}
 		defaultVenue={group?.default_venue_name ?? null}
+		trackScorers={group?.track_scorers ?? true}
 		trackAssists={group?.track_assists ?? false}
 		{onimported}
 	/>
