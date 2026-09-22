@@ -71,7 +71,7 @@ def test_presence_and_streaks_are_reported(api):
     assert by_name["ana"]["recent_win_rate"] is not None
 
 
-def test_assists_reach_the_ranking_and_the_records(api):
+def test_assists_reach_the_ranking(api):
     group = seeded(api)
     stats = api.get(f"/api/groups/{group}/stats").json()
     by_name = {r["name"]: r for r in stats["ranking"]}
@@ -79,12 +79,7 @@ def test_assists_reach_the_ranking_and_the_records(api):
     assert by_name["ana"]["assists"] == 1
     assert by_name["ana"]["contributions"] == by_name["ana"]["goals"] + 1
 
-    records = {r["code"]: r for r in stats["records"]}
-    assert records["top_assister"]["player_name"] == "bia"
-    assert records["top_assister"]["value"] == 5
-    assert records["best_duo"]["player_name"] == "ana"
-    assert "bia" in records["best_duo"]["detail"]
-    assert records["most_presence"]["value"] == 4
+    assert by_name["ana"]["matchdays"] == 4
 
 
 def test_the_assist_network_ranks_the_pairs(api):
@@ -210,23 +205,6 @@ def test_opponent_stats_compare_facing_against_not_facing(api):
     caio = next(p for p in detail["opponents"] if p["name"] == "caio")
     assert caio["days"] == 2
     assert caio["days_without"] >= 1
-
-
-def test_player_detail_splits_by_venue_and_team(api):
-    group = api.group()
-    api.import_text(group, SPLIT_SEASON)
-    ids = players_of(api, group)
-    detail = api.get(f"/api/groups/{group}/players/{ids['ana']}/detail").json()
-
-    venues = {row["label"]: row for row in detail["by_venue"]}
-    assert venues["Campo do Ze"]["days"] == 2
-    assert venues["Society"]["days"] == 1
-    assert venues["Campo do Ze"]["goals"] == 2
-
-    teams = {row["label"]: row for row in detail["by_team"]}
-    assert teams["branco"]["days"] == 2
-    assert teams["verde"]["days"] == 1
-    assert teams["verde"]["win_rate"] == 1 / 3
 
 
 def test_a_player_who_never_played_apart_has_no_delta(api):

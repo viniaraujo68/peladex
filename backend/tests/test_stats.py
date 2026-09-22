@@ -53,14 +53,10 @@ def test_the_real_matchday_produces_the_expected_table(api, group):
     assert ney["points"] == 3
 
 
-def test_records_name_a_single_holder_and_flag_ties(api, group):
+def test_the_stats_report_the_draw_rate(api, group):
     api.import_text(group, PELADA_TEXT)
-    records = {r["code"]: r for r in api.get(f"/api/groups/{group}/stats").json()["records"]}
-    assert records["top_scorer"]["player_name"] == "golin"
-    assert records["top_scorer"]["value"] == 3
-    assert records["biggest_rout"]["value"] == 2
-    assert records["biggest_rout"]["detail"] == "branco 2x0 azul"
-    assert records["most_titles"]["detail"] == "empatado com mais 6"
+    stats = api.get(f"/api/groups/{group}/stats").json()
+    assert round(stats["draw_rate"], 6) == round(5 / 8, 6)
 
 
 def test_evolution_pads_series_before_a_player_debuts(api, group):
@@ -132,4 +128,4 @@ def test_a_group_with_no_matchdays_reports_empty_stats(api, group):
     stats = api.get(f"/api/groups/{group}/stats").json()
     assert stats["ranking"] == []
     assert stats["total_matchdays"] == 0
-    assert all(r["value"] is None for r in stats["records"])
+    assert stats["draw_rate"] == 0

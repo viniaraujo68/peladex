@@ -1,6 +1,7 @@
 import pytest
+from slugify import slugify
 
-from tests.conftest import PELADA_TEXT
+from tests.conftest import PELADA_TEXT, unique
 
 
 @pytest.fixture
@@ -69,3 +70,28 @@ def test_a_public_group_is_readable_by_anyone(api, client):
 
 def test_a_missing_slug_is_a_404(client):
     assert client.get("/api/public/nao-existe").status_code == 404
+
+
+def test_renaming_a_group_moves_its_public_link(api, client):
+    gid = api.group(visibility="public")
+    old = api.last_group["slug"]
+    name = unique("Pelada Nova ")
+    renamed = api.patch(f"/api/groups/{gid}", json={"name": name}).json()
+    assert renamed["slug"] == slugify(name)
+    assert client.get(f"/api/public/{renamed['slug']}").status_code == 200
+    assert client.get(f"/api/public/{old}").status_code == 404
+
+
+def test_a_rename_that_keeps_the_slug_keeps_it(api):
+    gid = api.group()
+    slug = api.last_group["slug"]
+    renamed = api.patch(f"/api/groups/{gid}", json={"name": api.last_group["name"].upper()})
+    assert renamed.json()["slug"] == slug
+
+
+def test_a_rename_into_a_taken_slug_gets_a_suffix(api):
+    api.group()
+    taken = api.last_group
+    gid = api.group()
+    renamed = api.patch(f"/api/groups/{gid}", json={"name": taken["name"]}).json()
+    assert renamed["slug"] == f"{taken['slug']}-2"

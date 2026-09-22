@@ -7,21 +7,23 @@ from sqlmodel import Session as DBSession
 from sqlmodel import func, select
 
 from . import models, schemas
-from .parser import normalize
+from .rating import rate_players
 from .security import new_token
 
 MIN_PAIR_DAYS = 3
 RECENT_MATCHDAYS = 5
 
 
-def unique_slug(db: DBSession, name: str) -> str:
+def unique_slug(db: DBSession, name: str, group_id: int | None = None) -> str:
     base = slugify(name) or "pelada"
     slug = base
     i = 2
-    while db.exec(select(models.Group).where(models.Group.slug == slug)).first():
+    while True:
+        taken = db.exec(select(models.Group).where(models.Group.slug == slug)).first()
+        if not taken or taken.id == group_id:
+            return slug
         slug = f"{base}-{i}"
         i += 1
-    return slug
 
 
 def player_names(db: DBSession, group_id: int) -> dict[int, str]:
@@ -338,7 +340,8 @@ def _recent_rate(entries: list[dict], group: models.Group) -> float | None:
 
 
 def _player_row(pid: int, name: str, bucket: dict, group: models.Group,
-                entries: list[dict], total_matchdays: int) -> schemas.PlayerRow:
+                entries: list[dict], total_matchdays: int,
+                rating: schemas.PlayerRating | None = None) -> schemas.PlayerRow:
     best = bucket["matches"] * group.win_points
     days = bucket["matchdays"]
     contributions = bucket["goals"] + bucket["assists"]
@@ -366,124 +369,9 @@ def _player_row(pid: int, name: str, bucket: dict, group: models.Group,
         recent_win_rate=_recent_rate(entries, group),
         title_streak=current_streak,
         best_title_streak=best_streak,
+        rating=rating.note if rating else None,
+        rating_provisional=rating.provisional if rating else False,
     )
-
-
-def _records(matchdays: list[models.Matchday], group: models.Group,
-             names: dict[int, str], agg: dict[int, dict]) -> list[schemas.Record]:
-    best_rout = None
-    best_day_scorer = None
-    best_day_assister = None
-    duos: dict[tuple[int, int], int] = defaultdict(int)
-
-    for matchday in matchdays:
-        by_id = {team.id: team.name for team in matchday.teams}
-        for match in matchday.matches:
-            margin = abs(match.home_score - match.away_score)
-            if margin and (best_rout is None or margin > best_rout[0]):
-                best_rout = (
-                    margin,
-                    f"{by_id.get(match.home_team_id, '?')} {match.home_score}x"
-                    f"{match.away_score} {by_id.get(match.away_team_id, '?')}",
-                    matchday.date,
-                )
-            for goal in match.goals:
-                if goal.assist_player_id is not None and not goal.own_goal:
-                    duos[(goal.assist_player_id, goal.player_id)] += 1
-        for pid, count in sorted(matchday_goals(matchday).items(),
-                                 key=lambda kv: names.get(kv[0], "")):
-            if best_day_scorer is None or count > best_day_scorer[0]:
-                best_day_scorer = (count, pid, matchday.date)
-        for pid, count in sorted(matchday_assists(matchday).items(),
-                                 key=lambda kv: names.get(kv[0], "")):
-            if best_day_assister is None or count > best_day_assister[0]:
-                best_day_assister = (count, pid, matchday.date)
-
-    def top(field: str) -> tuple[int, int, int] | None:
-        rows = [(bucket[field], pid) for pid, bucket in agg.items() if bucket[field] > 0]
-        if not rows:
-            return None
-        best = max(value for value, _ in rows)
-        tied = sorted((pid for value, pid in rows if value == best),
-                      key=lambda pid: names.get(pid, ""))
-        return best, tied[0], len(tied)
-
-    def tie_detail(record: tuple[int, int, int] | None) -> str:
-        if record is None or record[2] < 2:
-            return ""
-        return f"empatado com mais {record[2] - 1}"
-
-    records: list[schemas.Record] = []
-
-    scorer = top("goals")
-    records.append(schemas.Record(
-        code="top_scorer",
-        player_name=names.get(scorer[1]) if scorer else None,
-        value=float(scorer[0]) if scorer else None,
-        detail=tie_detail(scorer),
-    ))
-    assister = top("assists")
-    records.append(schemas.Record(
-        code="top_assister",
-        player_name=names.get(assister[1]) if assister else None,
-        value=float(assister[0]) if assister else None,
-        detail=tie_detail(assister),
-    ))
-    records.append(schemas.Record(
-        code="most_goals_matchday",
-        player_name=names.get(best_day_scorer[1]) if best_day_scorer else None,
-        value=float(best_day_scorer[0]) if best_day_scorer else None,
-        matchday_date=best_day_scorer[2] if best_day_scorer else None,
-    ))
-    records.append(schemas.Record(
-        code="most_assists_matchday",
-        player_name=names.get(best_day_assister[1]) if best_day_assister else None,
-        value=float(best_day_assister[0]) if best_day_assister else None,
-        matchday_date=best_day_assister[2] if best_day_assister else None,
-    ))
-    titles = top("titles")
-    records.append(schemas.Record(
-        code="most_titles",
-        player_name=names.get(titles[1]) if titles else None,
-        value=float(titles[0]) if titles else None,
-        detail=tie_detail(titles),
-    ))
-    presence = top("matchdays")
-    records.append(schemas.Record(
-        code="most_presence",
-        player_name=names.get(presence[1]) if presence else None,
-        value=float(presence[0]) if presence else None,
-        detail=tie_detail(presence),
-    ))
-    mvps = top("mvp_count")
-    records.append(schemas.Record(
-        code="most_mvp",
-        player_name=names.get(mvps[1]) if mvps else None,
-        value=float(mvps[0]) if mvps else None,
-        detail=tie_detail(mvps),
-    ))
-    if duos:
-        best_duo = max(
-            duos.items(),
-            key=lambda item: (item[1], -item[0][0], -item[0][1]),
-        )
-        (assist_id, scorer_id), count = best_duo
-        records.append(schemas.Record(
-            code="best_duo",
-            player_name=names.get(scorer_id, "?"),
-            value=float(count),
-            detail=f"com passe de {names.get(assist_id, '?')}",
-        ))
-    else:
-        records.append(schemas.Record(code="best_duo", player_name=None, value=None))
-    records.append(schemas.Record(
-        code="biggest_rout",
-        player_name=None,
-        value=float(best_rout[0]) if best_rout else None,
-        detail=best_rout[1] if best_rout else "",
-        matchday_date=best_rout[2] if best_rout else None,
-    ))
-    return records
 
 
 def compute_stats(db: DBSession, group: models.Group, date_from=None,
@@ -492,25 +380,26 @@ def compute_stats(db: DBSession, group: models.Group, date_from=None,
     names = player_names(db, group.id)
     agg, history = _aggregate(matchdays, group)
     total = len(matchdays)
+    ratings = rate_players(matchdays, group) if group.show_ratings else {}
 
     ranking = [
-        _player_row(pid, names.get(pid, "?"), bucket, group, history.get(pid, []), total)
+        _player_row(pid, names.get(pid, "?"), bucket, group, history.get(pid, []), total,
+                    ratings.get(pid))
         for pid, bucket in agg.items()
     ]
     ranking.sort(key=lambda r: (r.win_rate, r.points, r.goals), reverse=True)
+    matches = [match for m in matchdays for match in m.matches]
+    draws = sum(1 for match in matches if match.home_score == match.away_score)
 
     return schemas.StatsOut(
         ranking=ranking,
-        records=_records(matchdays, group, names, agg),
         total_matchdays=total,
-        total_matches=sum(len(m.matches) for m in matchdays),
-        total_goals=sum(
-            match.home_score + match.away_score for m in matchdays for match in m.matches
-        ),
+        total_matches=len(matches),
+        total_goals=sum(match.home_score + match.away_score for match in matches),
         total_assists=sum(
-            1 for m in matchdays for match in m.matches for goal in match.goals
-            if goal.assist_player_id is not None
+            1 for match in matches for goal in match.goals if goal.assist_player_id is not None
         ),
+        draw_rate=(draws / len(matches)) if matches else 0.0,
         first_date=matchdays[0].date if matchdays else None,
         last_date=matchdays[-1].date if matchdays else None,
     )
@@ -738,62 +627,6 @@ def _pair_rows_with_without(with_map: dict[int, list[float]],
     return rows
 
 
-def _blank_split(key: str, label: str) -> dict:
-    return {"key": key, "label": label, "days": 0, "matches": 0, "wins": 0,
-            "draws": 0, "losses": 0, "points": 0, "goals": 0, "assists": 0}
-
-
-def _player_splits(matchdays: list[models.Matchday], group: models.Group, player_id: int,
-                   venues: dict[int, str]):
-    by_venue: dict[str, dict] = {}
-    by_team: dict[str, dict] = {}
-
-    for matchday in matchdays:
-        team = next(
-            (t for t in matchday.teams if any(m.player_id == player_id for m in t.members)),
-            None,
-        )
-        if team is None:
-            continue
-        row = tally(matchday, group)[team.id]
-        if row["played"] == 0:
-            continue
-        goals = matchday_goals(matchday).get(player_id, 0)
-        assists = matchday_assists(matchday).get(player_id, 0)
-
-        venue_key = str(matchday.venue_id) if matchday.venue_id else ""
-        venue_label = venues.get(matchday.venue_id, "") if matchday.venue_id else ""
-        for store, key, label in (
-            (by_venue, venue_key, venue_label),
-            (by_team, normalize(team.name), team.name),
-        ):
-            bucket = store.setdefault(key, _blank_split(key, label))
-            bucket["days"] += 1
-            bucket["matches"] += row["played"]
-            bucket["wins"] += row["wins"]
-            bucket["draws"] += row["draws"]
-            bucket["losses"] += row["losses"]
-            bucket["points"] += row["points"]
-            bucket["goals"] += goals
-            bucket["assists"] += assists
-
-    def finish(store: dict[str, dict]) -> list[schemas.SplitRow]:
-        rows = []
-        for bucket in store.values():
-            best = bucket["matches"] * group.win_points
-            rows.append(schemas.SplitRow(
-                key=bucket["key"], label=bucket["label"], days=bucket["days"],
-                matches=bucket["matches"], wins=bucket["wins"], draws=bucket["draws"],
-                losses=bucket["losses"],
-                win_rate=(bucket["points"] / best) if best else 0.0,
-                goals=bucket["goals"], assists=bucket["assists"],
-            ))
-        rows.sort(key=lambda r: (r.days, r.win_rate), reverse=True)
-        return rows
-
-    return finish(by_venue), finish(by_team)
-
-
 def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
                           min_days: int = MIN_PAIR_DAYS, date_from=None,
                           date_to=None) -> schemas.PlayerDetailOut | None:
@@ -804,8 +637,9 @@ def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
     matchdays = active_matchdays(db, group.id, date_from, date_to)
     names = player_names(db, group.id)
     agg, history = _aggregate(matchdays, group)
+    rating = rate_players(matchdays, group).get(player_id) if group.show_ratings else None
     summary = _player_row(player_id, player.name, agg[player_id], group,
-                          history.get(player_id, []), len(matchdays))
+                          history.get(player_id, []), len(matchdays), rating)
 
     rows: list[schemas.PlayerMatchdayRow] = []
     for matchday in matchdays:
@@ -839,18 +673,14 @@ def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
     partner_with, partner_without, opponent_with, opponent_without = _player_pair_stats(
         matchdays, group, player_id
     )
-    by_venue, by_team = _player_splits(
-        matchdays, group, player_id, venue_names(db, group.id)
-    )
     return schemas.PlayerDetailOut(
         player_id=player_id,
         name=player.name,
         summary=summary,
+        rating=rating,
         history=rows,
         partners=_pair_rows_with_without(partner_with, partner_without, names, min_days),
         opponents=_pair_rows_with_without(opponent_with, opponent_without, names, min_days),
-        by_venue=by_venue,
-        by_team=by_team,
         min_days=min_days,
     )
 

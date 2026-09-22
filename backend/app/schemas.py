@@ -37,6 +37,7 @@ class GroupUpdate(BaseModel):
     loss_points: int | None = Field(default=None, ge=0, le=10)
     track_scorers: bool | None = None
     track_assists: bool | None = None
+    show_ratings: bool | None = None
     default_venue_id: int | None = None
 
 
@@ -52,6 +53,7 @@ class GroupOut(BaseModel):
     loss_points: int
     track_scorers: bool = True
     track_assists: bool = False
+    show_ratings: bool = True
     default_venue_id: int | None = None
     default_venue_name: str | None = None
     matchday_count: int = 0
@@ -197,6 +199,20 @@ class MatchdayOut(BaseModel):
     goal_mismatch: bool
 
 
+class RatingComponent(BaseModel):
+    code: str
+    contribution: float
+    rate: float
+    group_rate: float
+
+
+class PlayerRating(BaseModel):
+    note: float
+    provisional: bool
+    appearances: int
+    components: list[RatingComponent]
+
+
 class PlayerRow(BaseModel):
     player_id: int
     name: str
@@ -220,23 +236,17 @@ class PlayerRow(BaseModel):
     recent_win_rate: float | None
     title_streak: int
     best_title_streak: int
-
-
-class Record(BaseModel):
-    code: str
-    player_name: str | None
-    value: float | None
-    detail: str = ""
-    matchday_date: date | None = None
+    rating: float | None = None
+    rating_provisional: bool = False
 
 
 class StatsOut(BaseModel):
     ranking: list[PlayerRow]
-    records: list[Record]
     total_matchdays: int
     total_matches: int
     total_goals: int
     total_assists: int
+    draw_rate: float
     first_date: date | None = None
     last_date: date | None = None
 
@@ -363,28 +373,14 @@ class PlayerMatchdayRow(BaseModel):
     mvp: bool
 
 
-class SplitRow(BaseModel):
-    key: str
-    label: str
-    days: int
-    matches: int
-    wins: int
-    draws: int
-    losses: int
-    win_rate: float
-    goals: int
-    assists: int
-
-
 class PlayerDetailOut(BaseModel):
     player_id: int
     name: str
     summary: PlayerRow
+    rating: PlayerRating | None = None
     history: list[PlayerMatchdayRow]
     partners: list[PairRow]
     opponents: list[PairRow]
-    by_venue: list[SplitRow]
-    by_team: list[SplitRow]
     min_days: int
 
 
@@ -465,6 +461,7 @@ class PublicGroupOut(BaseModel):
     description: str
     track_scorers: bool = True
     track_assists: bool = False
+    show_ratings: bool = True
     stats: StatsOut
     evolution: EvolutionOut
     matchdays: list[MatchdayOut]

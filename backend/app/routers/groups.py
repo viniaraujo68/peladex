@@ -20,6 +20,7 @@ def _out(g: models.Group, matchday_counts: dict[int, int],
         visibility=g.visibility, share_token=g.share_token,
         win_points=g.win_points, draw_points=g.draw_points, loss_points=g.loss_points,
         track_scorers=g.track_scorers, track_assists=g.track_assists,
+        show_ratings=g.show_ratings,
         default_venue_id=g.default_venue_id,
         default_venue_name=venue_names.get(g.default_venue_id) if g.default_venue_id else None,
         matchday_count=matchday_counts.get(g.id, 0),
@@ -91,6 +92,8 @@ def update_group(group_id: int, body: schemas.GroupUpdate,
         data.pop(key)
     for key, value in data.items():
         setattr(group, key, value)
+    if "name" in data:
+        group.slug = services.unique_slug(db, group.name, group.id)
     db.add(group)
     db.commit()
     db.refresh(group)
