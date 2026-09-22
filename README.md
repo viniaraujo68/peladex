@@ -146,32 +146,44 @@ Em **Config** cada pelada liga ou desliga:
 - **Anotar quem deu a assistência** — cada gol pode ter no máximo uma, de alguém do
   **mesmo time**, e gol contra nunca tem. É opcional gol a gol: registrar o gol sem saber
   quem deu o passe é normal.
+- **Mostrar a nota dos jogadores** — a [nota](#a-nota). Desligada, ela some do
+  ranking, dos cards e do perfil, e nem sai na API: a página pública também não mostra.
 
-As duas opções **governam o que a interface mostra**: com artilheiro desligado somem as
-colunas de gol e assistência do ranking, os recordes de artilharia, o artilheiro do dia e
-o gráfico de gols; com assistência desligada some só a parte dela. O texto importado guarda
-o que estiver escrito de qualquer jeito — desligar a opção esconde, não apaga.
+As opções de gol e assistência **governam o que a interface mostra**: com artilheiro
+desligado somem as colunas de gol e assistência do ranking, a ordenação por gols, o
+artilheiro do dia e o item de gols da nota; com assistência desligada some só a parte dela.
+O texto importado guarda o que estiver escrito de qualquer jeito — desligar a opção
+esconde, não apaga.
 
 A pelada também escolhe um **local padrão**. Ele entra selecionado num dia novo e vale na
 importação quando a anotação não traz `@ local` — na prática, quem joga sempre no mesmo
 campo nunca mais digita o nome dele.
 
+Renomear a pelada **muda o link** (`/g/<slug>`) junto, e o link antigo para de funcionar —
+a tela de Config avisa antes de salvar.
+
 No formulário, cada gol vira uma etiqueta. **Tocar na etiqueta abre o editor daquele gol**,
 onde se escolhe a assistência e se marca gol contra — marcar move o gol de lado no placar
 sozinho.
 
-Gols e assistências aparecem com ícone, como em súmula: **bola** para o gol, **chuteira**
-para a assistência, **bola vermelha** para o gol contra. São SVG, não emoji, então seguem a
-cor do tema e não mudam de desenho entre sistemas.
+Gols aparecem como em súmula: **bola** ao lado de quem marcou, **bola vermelha** para o
+gol contra, e a assistência entre parênteses do lado de fora — `(galetti) golin ⚽` no time
+da esquerda, `⚽ golin (galetti)` no da direita. A bola é SVG, não emoji, então segue a cor
+do tema e não muda de desenho entre sistemas.
 
 ## Estatísticas
 
 Além da tabela do dia, ranking e artilharia:
 
-- **Aba Jogadores** — o índice de todo mundo, com busca e ordenação, levando à página de
-  cada um.
-- **Filtro de período** (tudo / 3 / 6 / 12 meses / intervalo) que vale para o ranking, os
-  recordes e os gráficos.
+- **Aba Estatísticas** — números da pelada, não de jogador: dias, partidas, % de empates,
+  gols, gols por partida e por dia, e assistências quando o grupo anota. Embaixo, os
+  placares mais comuns e o gráfico de gols.
+- **Aba Jogadores** — o índice de todo mundo, ordenável por aproveitamento, nota, nome,
+  gols, assistências, MVPs, títulos e dias; empatados aparecem juntos. Abre com os dez
+  primeiros e a busca só aparece ao expandir, para não empurrar os gráficos para longe.
+  Embaixo vêm a evolução, as duplas e quem passa pra quem.
+- **Filtro de período** (tudo / 3 / 6 / 12 meses / intervalo) que vale para o ranking, a
+  nota e os gráficos.
 - **Últimos 5** — aproveitamento nos cinco últimos dias jogados, e **presença** sobre os
   dias do período.
 - **Sequência** de dias como campeão, atual e a maior.
@@ -185,17 +197,43 @@ Além da tabela do dia, ranking e artilharia:
 ### Os gráficos
 
 O gráfico de linhas acumuladas troca de **métrica** — aproveitamento, gols ou assistências —
-mantendo a mesma legenda. Ele abre com os cinco primeiros, e a legenda tem **Todos** e
-**Nenhum**: para comparar duas pessoas, é um clique em Nenhum e dois nomes, em vez de
-desligar dezenove.
+mantendo a mesma legenda. Ele abre com os cinco primeiros, e a legenda tem **Mostrar
+todos** e **Esconder todos**: para comparar duas pessoas, é um clique em Esconder todos e
+dois nomes, em vez de desligar dezenove.
 
 Do lado do grupo, e não do jogador:
 
-- **Gols por dia** (barras) e **gols por partida** (linha, a média de cada dia).
 - **Placares mais comuns**, contando os dois lados juntos — `1x0` e `0x1` são o mesmo
   placar. É o gráfico que mostra o caráter da pelada: na temporada de demonstração, 47%
-  das partidas terminam 0x0.
-- Os números redondos em cima: gols por partida, gols por dia e assistências por dia.
+  das partidas terminam 0x0. Por isso não existe "maior goleada": jogo que acaba em 2 gols
+  ou 10 minutos quase nunca passa de 2x0.
+- **Gols** em barras, alternando **por dia** e **por partida** (a média de cada dia).
+
+### A nota
+
+Estilo app de futebol: parte de **6,5** e cada item soma ou tira pontos, com teto, dando
+uma nota de 3 a 10.
+
+| Item | Mede | Teto |
+|---|---|---|
+| Resultados | aproveitamento, descontando a força dos companheiros de time | ±1,25 |
+| Ataque do time | gols feitos pelo time dele, por partida | ±0,75 |
+| Defesa do time | gols sofridos pelo time dele, por partida | ±0,75 |
+| Gols e assist. | os do próprio jogador (assistência vale 0,75, gol contra tira 0,5) | ±0,5 |
+| MVP | quantas vezes foi MVP | ±0,25 |
+
+- **A fase pesa mais**: cada dia vale metade a cada 8 dias de pelada do grupo — conta o
+  calendário do grupo, então quem some vê a nota esfriar.
+- **Quem jogou pouco fica perto da média**: cada taxa é puxada para a do grupo como se o
+  jogador tivesse mais 3 dias medianos. Com menos de 3 dias a nota é **provisória** e
+  aparece como `—` no ranking.
+- **Os times dividem os números**: resultado, gols feitos e sofridos são do time, por isso
+  o item individual pesa pouco — zagueiro de time que marca não fica atrás do artilheiro
+  só por posição.
+- Sem artilharia anotada o item individual sai e os outros ocupam o espaço dele. O perfil
+  mostra quanto cada item somou, com a taxa do jogador e a do grupo.
+- A conta é feita na hora, dentro do período filtrado, em `backend/app/rating.py`. Os pesos
+  não foram calibrados com dados reais.
 
 ### A tela do jogador
 
@@ -207,7 +245,7 @@ mesmo**, não com a média do grupo:
   isso em vez de inventar um número.
 - **Contra X / sem enfrentar X** — o mesmo para adversários, usando só as partidas contra
   o time dele.
-- **Recortes** por local e por time (a cor que pegou no sorteio).
+- **Como a nota é feita** — a nota e quanto cada item somou ou tirou.
 - **Suas combinações** — o explorador de combinações já com ele fixo: é só escolher com
   quem e contra quem.
 
