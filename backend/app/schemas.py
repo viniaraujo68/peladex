@@ -245,6 +245,9 @@ class PlayerRow(BaseModel):
     assist_share: float | None
     contribution_share: float | None
     mvp_count: int
+    top_scorer_days: int
+    top_assister_days: int
+    top_contributor_days: int
     titles: int
     title_rate: float
     presence: float

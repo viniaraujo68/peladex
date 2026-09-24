@@ -276,3 +276,44 @@ def test_stats_carry_the_ranking_before_the_last_day(api, group):
 def test_a_single_day_has_no_previous_ranking(api, group):
     api.import_text(group, PELADA_TEXT)
     assert api.get(f"/api/groups/{group}/stats").json()["previous_ranking"] == []
+
+
+TWO_DAYS_WITH_ASSISTS = """2026-09-03
+BRANCO: ana, bia
+AZUL: caio, davi
+BRANCO 2x0 AZUL: ana (bia), ana (bia)
+AZUL 1x0 BRANCO: caio (davi)
+---
+2026-09-10
+BRANCO: ana, bia
+AZUL: caio, davi
+AZUL 1x0 BRANCO: davi (caio)
+BRANCO 1x0 AZUL: bia
+"""
+
+
+def test_top_scorer_of_the_day_counts_every_player_tied_at_the_top(api, group):
+    api.import_text(group, FOUR_DAYS)
+    by_name = {
+        row["name"]: row for row in api.get(f"/api/groups/{group}/stats").json()["ranking"]
+    }
+    assert by_name["ana"]["top_scorer_days"] == 4
+    assert (by_name["bia"]["top_scorer_days"], by_name["caio"]["top_scorer_days"]) == (1, 1)
+    assert by_name["davi"]["top_scorer_days"] == 0
+    assert all(row["top_assister_days"] == 0 for row in by_name.values())
+
+
+def test_day_leaders_for_assists_and_goal_contributions(api, group):
+    api.import_text(group, TWO_DAYS_WITH_ASSISTS)
+    by_name = {
+        row["name"]: row for row in api.get(f"/api/groups/{group}/stats").json()["ranking"]
+    }
+    assert {n: r["top_scorer_days"] for n, r in by_name.items()} == {
+        "ana": 1, "bia": 1, "caio": 0, "davi": 1
+    }
+    assert {n: r["top_assister_days"] for n, r in by_name.items()} == {
+        "ana": 0, "bia": 1, "caio": 1, "davi": 0
+    }
+    assert {n: r["top_contributor_days"] for n, r in by_name.items()} == {
+        "ana": 1, "bia": 2, "caio": 1, "davi": 1
+    }

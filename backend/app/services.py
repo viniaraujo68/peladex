@@ -147,6 +147,11 @@ def matchday_goals(matchday: models.Matchday) -> dict[int, int]:
     return counts
 
 
+def day_leaders(counts: dict[int, int]) -> list[int]:
+    best = max(counts.values(), default=0)
+    return [pid for pid, count in counts.items() if count == best] if best > 0 else []
+
+
 def matchday_assists(matchday: models.Matchday) -> dict[int, int]:
     counts: dict[int, int] = defaultdict(int)
     for match in matchday.matches:
@@ -276,6 +281,7 @@ def _aggregate(matchdays: list[models.Matchday], group: models.Group):
             "matchdays": 0, "matches": 0, "wins": 0, "draws": 0, "losses": 0,
             "points": 0, "goals": 0, "own_goals": 0, "assists": 0,
             "mvp_count": 0, "titles": 0, "team_goals": 0,
+            "top_scorer_days": 0, "top_assister_days": 0, "top_contributor_days": 0,
         }
     )
     history: dict[int, list[dict]] = defaultdict(list)
@@ -322,6 +328,16 @@ def _aggregate(matchdays: list[models.Matchday], group: models.Group):
                     agg[goal.assist_player_id]["assists"] += 1
         if matchday.mvp_player_id:
             agg[matchday.mvp_player_id]["mvp_count"] += 1
+
+        assists = matchday_assists(matchday)
+        contributions: dict[int, int] = defaultdict(int)
+        for source in (goals, assists):
+            for pid, count in source.items():
+                contributions[pid] += count
+        for key, counts in (("top_scorer_days", goals), ("top_assister_days", assists),
+                            ("top_contributor_days", contributions)):
+            for pid in day_leaders(counts):
+                agg[pid][key] += 1
 
     return agg, history
 
@@ -425,6 +441,9 @@ def _player_row(pid: int, name: str, bucket: dict, group: models.Group,
         assist_share=_share(bucket["assists"], team_goals),
         contribution_share=_share(contributions, team_goals),
         mvp_count=bucket["mvp_count"],
+        top_scorer_days=bucket["top_scorer_days"],
+        top_assister_days=bucket["top_assister_days"],
+        top_contributor_days=bucket["top_contributor_days"],
         titles=bucket["titles"],
         title_rate=_ratio(bucket["titles"], days),
         presence=_ratio(days, total_matchdays),
