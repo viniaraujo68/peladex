@@ -30,7 +30,7 @@
     "vite": "^5.4.21"
   },
   "dependencies": {
-    "@viniaraujo68/plinth": "github:viniaraujo68/plinth#0ecfef02b180d260fb4e8eb9c6dc5f7b07974a18",
+    "@viniaraujo68/plinth": "github:viniaraujo68/plinth#b51ef05213939502deeca81d5eb74a5dd6a28b74",
     "chart.js": "^4.5.1"
   },
   "overrides": {
