@@ -605,4 +605,6 @@ export default {
 		other: '{count} goals on the day · group average: {average} per day'
 	},
 	'summary.openDay': 'See the full day',
+	'settings.renamePlayer': 'Rename {name}',
+	'toast.playerRenamed': 'Player renamed: {from} → {to}',
 };

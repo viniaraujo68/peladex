@@ -43,6 +43,8 @@
 	let players = $state(/** @type {import('$lib/types.js').Player[]} */ ([]));
 	let venues = $state(/** @type {import('$lib/types.js').Named[]} */ ([]));
 	let newPlayer = $state('');
+	let editingId = $state(/** @type {number|null} */ (null));
+	let editingName = $state('');
 	let newVenue = $state('');
 	let loading = $state(true);
 
@@ -137,6 +139,44 @@
 		} catch (e) {
 			toast.error(errorMessage(e));
 		}
+	}
+
+	/** @param {import('$lib/types.js').Player} player */
+	function startRename(player) {
+		editingId = player.id;
+		editingName = player.name;
+	}
+
+	function cancelRename() {
+		editingId = null;
+		editingName = '';
+	}
+
+	/** @param {import('$lib/types.js').Player} player */
+	async function renamePlayer(player) {
+		if (editingId !== player.id) return;
+		const value = editingName.trim();
+		if (!value || value.toLowerCase() === player.name) {
+			cancelRename();
+			return;
+		}
+		try {
+			const updated = await patch(`/groups/${group.id}/players/${player.id}`, { name: value });
+			players = players
+				.map((p) => (p.id === player.id ? { ...p, name: updated.name } : p))
+				.sort((a, b) => a.name.localeCompare(b.name, localeTag()));
+			toast.success(t('toast.playerRenamed', { from: player.name, to: updated.name }));
+			cancelRename();
+			onchange();
+		} catch (e) {
+			toast.error(errorMessage(e));
+		}
+	}
+
+	/** @param {HTMLInputElement} node */
+	function autofocus(node) {
+		node.focus();
+		node.select();
 	}
 
 	/** @param {import('$lib/types.js').Player} player */
@@ -359,28 +399,56 @@
 		{:else}
 			<div class="names">
 				{#each players as player (player.id)}
-					<span class="nchip" class:off={!player.active}>
-						{player.name}
-						{#if player.active}
+					{#if editingId === player.id}
+						<span class="nchip editing">
+							<input
+								class="rename"
+								aria-label={t('settings.renamePlayer', { name: player.name })}
+								bind:value={editingName}
+								use:autofocus
+								onkeydown={(e) => {
+									if (e.key === 'Enter') {
+										e.preventDefault();
+										renamePlayer(player);
+									} else if (e.key === 'Escape') {
+										cancelRename();
+									}
+								}}
+								onblur={() => renamePlayer(player)}
+							/>
+						</span>
+					{:else}
+						<span class="nchip" class:off={!player.active}>
+							{player.name}
 							<button
 								type="button"
-								class="nx hit-44"
-								aria-label={t('common.remove')}
-								onclick={() => removePlayer(player)}
+								class="nx edit hit-44"
+								aria-label={t('settings.renamePlayer', { name: player.name })}
+								onclick={() => startRename(player)}
 							>
-								<Icon name="close" class="size-3" />
+								<Icon name="edit" class="size-3" />
 							</button>
-						{:else}
-							<button
-								type="button"
-								class="nx hit-44"
-								aria-label={t('settings.reactivate', { name: player.name })}
-								onclick={() => reactivate(player)}
-							>
-								<Icon name="restore" class="size-3" />
-							</button>
-						{/if}
-					</span>
+							{#if player.active}
+								<button
+									type="button"
+									class="nx hit-44"
+									aria-label={t('common.remove')}
+									onclick={() => removePlayer(player)}
+								>
+									<Icon name="close" class="size-3" />
+								</button>
+							{:else}
+								<button
+									type="button"
+									class="nx hit-44"
+									aria-label={t('settings.reactivate', { name: player.name })}
+									onclick={() => reactivate(player)}
+								>
+									<Icon name="restore" class="size-3" />
+								</button>
+							{/if}
+						</span>
+					{/if}
 				{/each}
 			</div>
 			{#if players.some((p) => !p.active)}
@@ -594,6 +662,22 @@
 	}
 	.nx:hover {
 		color: var(--color-error);
+	}
+	.nx.edit:hover {
+		color: var(--ink-primary);
+	}
+	.nchip.editing {
+		padding: 2px 4px;
+		border-color: var(--color-primary);
+	}
+	.rename {
+		width: 12ch;
+		min-height: 26px;
+		padding: 0 6px;
+		border: 0;
+		background: none;
+		font: inherit;
+		outline: none;
 	}
 	.addrow {
 		display: flex;

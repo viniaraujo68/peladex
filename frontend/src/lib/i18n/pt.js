@@ -606,4 +606,6 @@ export default {
 		other: '{count} gols no dia · média da pelada: {average} por dia'
 	},
 	'summary.openDay': 'Ver o dia completo',
+	'settings.renamePlayer': 'Renomear {name}',
+	'toast.playerRenamed': 'Jogador renomeado: {from} → {to}',
 };
