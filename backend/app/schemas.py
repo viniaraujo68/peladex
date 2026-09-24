@@ -213,6 +213,13 @@ class PlayerRating(BaseModel):
     components: list[RatingComponent]
 
 
+class FormEntry(BaseModel):
+    date: date
+    position: int
+    teams: int
+    champion: bool
+
+
 class PlayerRow(BaseModel):
     player_id: int
     name: str
@@ -245,12 +252,21 @@ class PlayerRow(BaseModel):
     recent_win_rate: float | None
     title_streak: int
     best_title_streak: int
+    matches_per_matchday: float
+    recent_form: list[FormEntry]
+    goal_streak: int
+    goal_drought: int
+    presence_streak: int
+    absent_matchdays: int
+    rank: int | None = None
+    previous_rank: int | None = None
     rating: float | None = None
     rating_provisional: bool = False
 
 
 class StatsOut(BaseModel):
     ranking: list[PlayerRow]
+    previous_ranking: list[PlayerRow]
     total_matchdays: int
     min_matchdays: int
     total_matches: int

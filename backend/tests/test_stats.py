@@ -221,3 +221,58 @@ def test_evolution_carries_the_running_matches_and_days(api, group):
     assert [(p["matches"], p["matchdays"]) for p in series["zeca"]] == [
         (None, None), (None, None), (2, 1)
     ]
+
+
+def test_ranks_follow_the_win_rate_and_report_the_rank_before_the_last_day(api, group):
+    api.import_text(group, GUEST_ON_THE_LAST_DAY)
+    by_name = {
+        row["name"]: row for row in api.get(f"/api/groups/{group}/stats").json()["ranking"]
+    }
+    assert (by_name["ana"]["rank"], by_name["ana"]["previous_rank"]) == (1, 1)
+    assert (by_name["bia"]["rank"], by_name["bia"]["previous_rank"]) == (2, 1)
+    assert (by_name["caio"]["rank"], by_name["davi"]["rank"]) == (3, 3)
+    assert (by_name["zeca"]["rank"], by_name["zeca"]["previous_rank"]) == (None, None)
+
+
+def test_recent_form_lists_the_team_position_of_each_day(api, group):
+    api.import_text(group, GUEST_ON_THE_LAST_DAY)
+    ana = next(
+        row for row in api.get(f"/api/groups/{group}/stats").json()["ranking"]
+        if row["name"] == "ana"
+    )
+    assert [(f["position"], f["teams"], f["champion"]) for f in ana["recent_form"]] == [
+        (1, 2, False), (2, 2, False), (1, 2, True)
+    ]
+    assert ana["matches_per_matchday"] == 2.0
+
+
+def test_streaks_count_goals_and_attendance_up_to_the_latest_day(api, group):
+    api.import_text(group, GUEST_ON_THE_LAST_DAY)
+    by_name = {
+        row["name"]: row for row in api.get(f"/api/groups/{group}/stats").json()["ranking"]
+    }
+    ana, bia, caio = by_name["ana"], by_name["bia"], by_name["caio"]
+    assert (ana["goal_streak"], ana["goal_drought"], ana["presence_streak"]) == (1, 0, 3)
+    assert (bia["goal_streak"], bia["presence_streak"], bia["absent_matchdays"]) == (1, 0, 1)
+    assert (caio["goal_streak"], caio["goal_drought"], caio["absent_matchdays"]) == (0, 1, 0)
+
+
+def test_the_player_detail_carries_the_rank_movement(api, group):
+    api.import_text(group, GUEST_ON_THE_LAST_DAY)
+    players = {p["name"]: p["id"] for p in api.get(f"/api/groups/{group}/players").json()}
+    summary = api.get(f"/api/groups/{group}/players/{players['bia']}/detail").json()["summary"]
+    assert (summary["rank"], summary["previous_rank"]) == (2, 1)
+
+
+def test_stats_carry_the_ranking_before_the_last_day(api, group):
+    api.import_text(group, GUEST_ON_THE_LAST_DAY)
+    stats = api.get(f"/api/groups/{group}/stats").json()
+    previous = {row["name"]: row for row in stats["previous_ranking"]}
+    assert set(previous) == {"ana", "bia", "caio", "davi"}
+    assert previous["ana"]["matchdays"] == 2
+    assert previous["ana"]["goals"] == 1
+
+
+def test_a_single_day_has_no_previous_ranking(api, group):
+    api.import_text(group, PELADA_TEXT)
+    assert api.get(f"/api/groups/{group}/stats").json()["previous_ranking"] == []

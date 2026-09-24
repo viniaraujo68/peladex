@@ -280,10 +280,14 @@ def _aggregate(matchdays: list[models.Matchday], group: models.Group):
     )
     history: dict[int, list[dict]] = defaultdict(list)
 
-    for matchday in matchdays:
+    for index, matchday in enumerate(matchdays):
         tallies = tally(matchday, group)
         champion = champion_team_id(tallies)
         goals = matchday_goals(matchday)
+        positions = {
+            row["team"].id: position
+            for position, row in enumerate(ranked_tallies(tallies), start=1)
+        }
 
         for team in matchday.teams:
             row = tallies[team.id]
@@ -300,10 +304,13 @@ def _aggregate(matchdays: list[models.Matchday], group: models.Group):
                 if is_champion:
                     bucket["titles"] += 1
                 history[member.player_id].append({
+                    "index": index,
                     "date": matchday.date,
                     "points": row["points"],
                     "played": row["played"],
                     "champion": is_champion,
+                    "position": positions[team.id],
+                    "teams": len(positions),
                     "goals": goals.get(member.player_id, 0),
                 })
 
@@ -334,6 +341,34 @@ def _streaks(entries: list[dict]) -> tuple[int, int]:
     return current, best
 
 
+def _current_run(entries: list[dict], hit) -> int:
+    run = 0
+    for entry in reversed(entries):
+        if not hit(entry):
+            break
+        run += 1
+    return run
+
+
+def _presence_streak(entries: list[dict], total_matchdays: int) -> int:
+    expected = total_matchdays - 1
+    run = 0
+    for entry in reversed(entries):
+        if entry["index"] != expected:
+            break
+        run += 1
+        expected -= 1
+    return run
+
+
+def _recent_form(entries: list[dict]) -> list[schemas.FormEntry]:
+    return [
+        schemas.FormEntry(date=e["date"], position=e["position"], teams=e["teams"],
+                          champion=e["champion"])
+        for e in entries[-RECENT_MATCHDAYS:]
+    ]
+
+
 def _recent_rate(entries: list[dict], group: models.Group) -> float | None:
     window = entries[-RECENT_MATCHDAYS:]
     played = sum(entry["played"] for entry in window)
@@ -357,7 +392,8 @@ def _share(value: int, total: int) -> float | None:
 
 def _player_row(pid: int, name: str, bucket: dict, group: models.Group,
                 entries: list[dict], total_matchdays: int,
-                rating: schemas.PlayerRating | None = None) -> schemas.PlayerRow:
+                rating: schemas.PlayerRating | None = None,
+                ranks: tuple[int | None, int | None] = (None, None)) -> schemas.PlayerRow:
     best = bucket["matches"] * group.win_points
     days = bucket["matchdays"]
     matches = bucket["matches"]
@@ -396,30 +432,70 @@ def _player_row(pid: int, name: str, bucket: dict, group: models.Group,
         recent_win_rate=_recent_rate(entries, group),
         title_streak=current_streak,
         best_title_streak=best_streak,
+        matches_per_matchday=_ratio(matches, days),
+        recent_form=_recent_form(entries),
+        goal_streak=_current_run(entries, lambda e: e["goals"] > 0),
+        goal_drought=_current_run(entries, lambda e: e["goals"] == 0),
+        presence_streak=_presence_streak(entries, total_matchdays),
+        absent_matchdays=(total_matchdays - 1 - entries[-1]["index"]) if entries else total_matchdays,
+        rank=ranks[0],
+        previous_rank=ranks[1],
         rating=rating.note if rating else None,
         rating_provisional=rating.provisional if rating else False,
     )
+
+
+def _win_rate_ranks(matchdays: list[models.Matchday], group: models.Group) -> dict[int, int]:
+    agg, _ = _aggregate(matchdays, group)
+    minimum = min_qualifying_matchdays(len(matchdays))
+    rates = []
+    for pid, bucket in agg.items():
+        best = bucket["matches"] * group.win_points
+        if bucket["matchdays"] >= minimum and best:
+            rates.append((bucket["points"] / best, pid))
+    rates.sort(reverse=True)
+    ranks: dict[int, int] = {}
+    for index, (rate, pid) in enumerate(rates):
+        tied = index > 0 and rate == rates[index - 1][0]
+        ranks[pid] = ranks[rates[index - 1][1]] if tied else index + 1
+    return ranks
+
+
+def rank_movement(matchdays: list[models.Matchday],
+                  group: models.Group) -> dict[int, tuple[int | None, int | None]]:
+    current = _win_rate_ranks(matchdays, group)
+    previous = _win_rate_ranks(matchdays[:-1], group) if len(matchdays) > 1 else {}
+    return {pid: (current.get(pid), previous.get(pid)) for pid in set(current) | set(previous)}
+
+
+def _ranking(matchdays: list[models.Matchday], group: models.Group,
+             names: dict[int, str]) -> list[schemas.PlayerRow]:
+    agg, history = _aggregate(matchdays, group)
+    total = len(matchdays)
+    ratings = rate_players(matchdays, group) if group.show_ratings else {}
+    movement = rank_movement(matchdays, group)
+    ranking = [
+        _player_row(pid, names.get(pid, "?"), bucket, group, history.get(pid, []), total,
+                    ratings.get(pid), movement.get(pid, (None, None)))
+        for pid, bucket in agg.items()
+    ]
+    ranking.sort(key=lambda r: (r.qualified, r.win_rate, r.points, r.goals), reverse=True)
+    return ranking
 
 
 def compute_stats(db: DBSession, group: models.Group, date_from=None,
                   date_to=None) -> schemas.StatsOut:
     matchdays = active_matchdays(db, group.id, date_from, date_to)
     names = player_names(db, group.id)
-    agg, history = _aggregate(matchdays, group)
     total = len(matchdays)
-    ratings = rate_players(matchdays, group) if group.show_ratings else {}
-
-    ranking = [
-        _player_row(pid, names.get(pid, "?"), bucket, group, history.get(pid, []), total,
-                    ratings.get(pid))
-        for pid, bucket in agg.items()
-    ]
-    ranking.sort(key=lambda r: (r.qualified, r.win_rate, r.points, r.goals), reverse=True)
+    ranking = _ranking(matchdays, group, names)
+    previous = _ranking(matchdays[:-1], group, names) if total > 1 else []
     matches = [match for m in matchdays for match in m.matches]
     draws = sum(1 for match in matches if match.home_score == match.away_score)
 
     return schemas.StatsOut(
         ranking=ranking,
+        previous_ranking=previous,
         total_matchdays=total,
         min_matchdays=min_qualifying_matchdays(total),
         total_matches=len(matches),
@@ -671,7 +747,8 @@ def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
     agg, history = _aggregate(matchdays, group)
     rating = rate_players(matchdays, group).get(player_id) if group.show_ratings else None
     summary = _player_row(player_id, player.name, agg[player_id], group,
-                          history.get(player_id, []), len(matchdays), rating)
+                          history.get(player_id, []), len(matchdays), rating,
+                          rank_movement(matchdays, group).get(player_id, (None, None)))
 
     rows: list[schemas.PlayerMatchdayRow] = []
     for matchday in matchdays:
