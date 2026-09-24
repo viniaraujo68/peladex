@@ -1,6 +1,8 @@
 <script>
 	import { formatRate, formatRateDelta, rateClass } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
+	import { Combobox } from '@viniaraujo68/plinth/components';
+	import { formatShortDate } from '$lib/format.svelte.js';
 	import PeriodFilter from './PeriodFilter.svelte';
 
 	/**
@@ -30,6 +32,19 @@
 	);
 
 	const effectiveTogether = $derived(locked ? [locked.id, ...together] : together);
+
+	const names = $derived(new Map(players.map((p) => [p.id, p.name])));
+
+	/** @param {number} id */
+	const nameOf = (id) => names.get(id) ?? '?';
+
+	/** @param {number[]} chosen */
+	function optionsFor(chosen) {
+		const taken = new Set([...together, ...against, ...chosen]);
+		return sorted
+			.filter((p) => !taken.has(p.id))
+			.map((p) => ({ value: String(p.id), label: p.name }));
+	}
 
 	/** @param {number[]} list @param {number} id */
 	function toggle(list, id) {
@@ -107,22 +122,34 @@
 				</button>
 			{/if}
 		</div>
-		<div class="picker">
-			{#if locked}
-				<span class="pk sel locked">{locked.name}</span>
-			{/if}
-			{#each sorted as player (player.id)}
-				<button
-					type="button"
-					class="pk"
-					class:sel={together.includes(player.id)}
-					aria-pressed={together.includes(player.id)}
-					onclick={() => pickTogether(player.id)}
-				>
-					{player.name}
-				</button>
-			{/each}
-		</div>
+		{#if locked || together.length}
+			<div class="picker">
+				{#if locked}
+					<span class="pk sel locked">{locked.name}</span>
+				{/if}
+				{#each together as id (id)}
+					<button
+						type="button"
+						class="pk sel"
+						aria-label={t('analysis.removePlayer', { name: nameOf(id) })}
+						onclick={() => pickTogether(id)}
+					>
+						{nameOf(id)} <span aria-hidden="true">✕</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
+		{#key together.join()}
+			<Combobox
+				options={optionsFor(together)}
+				value={null}
+				onchange={(value) => value && pickTogether(Number(value))}
+				placeholder={t('analysis.addPlayer')}
+				emptyLabel={t('compare.noMatch')}
+				aria-label={t('analysis.together')}
+				class="w-full max-w-sm"
+			/>
+		{/key}
 
 		<div class="pickhead">
 			<h3 class="ptitle">
@@ -130,21 +157,32 @@
 				<span class="opt">{t('analysis.againstOptional')}</span>
 			</h3>
 		</div>
-		<div class="picker">
-			{#each sorted as player (player.id)}
-				<button
-					type="button"
-					class="pk foe"
-					class:sel={against.includes(player.id)}
-					aria-pressed={against.includes(player.id)}
-					disabled={together.includes(player.id)}
-					onclick={() => pickAgainst(player.id)}
-				>
-					{player.name}
-				</button>
-			{/each}
-		</div>
-		<p class="hint">{t('analysis.pickPlayers')}</p>
+		{#if against.length}
+			<div class="picker">
+				{#each against as id (id)}
+					<button
+						type="button"
+						class="pk foe sel"
+						aria-label={t('analysis.removePlayer', { name: nameOf(id) })}
+						onclick={() => pickAgainst(id)}
+					>
+						{nameOf(id)} <span aria-hidden="true">✕</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
+		{#key against.join()}
+			<Combobox
+				options={optionsFor(against)}
+				value={null}
+				onchange={(value) => value && pickAgainst(Number(value))}
+				placeholder={t('analysis.addPlayer')}
+				emptyLabel={t('compare.noMatch')}
+				aria-label={t('analysis.against')}
+				class="w-full max-w-sm"
+			/>
+		{/key}
+		<p class="hint">{t('analysis.pickHint')}</p>
 	</section>
 
 	{#if error}
@@ -190,6 +228,20 @@
 						</span>
 					</div>
 				</div>
+				<div class="versus">
+					<span class="vlabel">{t('analysis.actual')}</span>
+					<span class="vbar"><i class="actual" style="width: {result.win_rate * 100}%"></i></span>
+					<span class="vvalue">{formatRate(result.win_rate)}</span>
+					<span class="vlabel">{t('analysis.baseline')}</span>
+					<span class="vbar"><i style="width: {result.baseline * 100}%"></i></span>
+					<span class="vvalue">{formatRate(result.baseline)}</span>
+				</div>
+				{#if result.dates.length}
+					<div class="dates">
+						<span class="tl">{t('analysis.when')}</span>
+						<span class="ts">{result.dates.map(formatShortDate).join(' · ')}</span>
+					</div>
+				{/if}
 			</section>
 		{/if}
 	{/if}
@@ -259,6 +311,38 @@
 	}
 	.busy {
 		opacity: 0.6;
+	}
+	.versus {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 6px 10px;
+	}
+	.vlabel,
+	.vvalue {
+		font-size: 0.74rem;
+		color: var(--ink-muted);
+		font-variant-numeric: tabular-nums;
+	}
+	.vbar {
+		height: 10px;
+		border-radius: 999px;
+		background: color-mix(in oklch, var(--color-base-content) 7%, transparent);
+		overflow: hidden;
+	}
+	.vbar i {
+		display: block;
+		height: 100%;
+		border-radius: 999px;
+		background: color-mix(in oklch, var(--color-base-content) 30%, transparent);
+	}
+	.vbar i.actual {
+		background: var(--color-primary);
+	}
+	.dates {
+		display: flex;
+		flex-direction: column;
+		gap: 3px;
 	}
 	.tiles {
 		display: grid;

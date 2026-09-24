@@ -4,24 +4,28 @@
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import {
 		UNITS,
+		formScore,
 		formatMetric,
 		isAverage,
 		metricById,
 		metricValue,
 		rankValue,
 		sharedRanks,
+		unitCaption,
 		unitLabel
 	} from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import ChipGroup from './ChipGroup.svelte';
+	import FormDots from './FormDots.svelte';
 	import Icon from './Icon.svelte';
+	import RankMove from './RankMove.svelte';
 
 	const tracking = getTracking();
 
 	/**
 	 * @type {{
 	 *   ranking: import('$lib/types.js').PlayerRow[],
-	 *   minMatchdays: number,
+	 *   previousRanking: import('$lib/types.js').PlayerRow[],
 	 *   playerHref?: (playerId: number) => string,
 	 *   unit: import('$lib/metrics.js').Unit,
 	 *   onUnit: (unit: import('$lib/metrics.js').Unit) => void,
@@ -29,7 +33,7 @@
 	 *   onSort: (sort: import('@viniaraujo68/plinth/table').SortState) => void
 	 * }}
 	 */
-	let { ranking, minMatchdays, playerHref, unit, onUnit, sort, onSort } = $props();
+	let { ranking, previousRanking, playerHref, unit, onUnit, sort, onSort } = $props();
 
 	/** @typedef {import('$lib/types.js').PlayerRow} Row */
 	/** @typedef {import('$lib/metrics.js').MetricId} MetricId */
@@ -63,7 +67,6 @@
 
 	/** @type {Record<string, (r: Row) => string>} */
 	const text = $derived({
-		recent_win_rate: (r) => formatRate(r.recent_win_rate),
 		title_rate: (r) => formatRate(r.title_rate),
 		presence: (r) => formatRate(r.presence),
 		matches: (r) => String(r.matches),
@@ -82,7 +85,7 @@
 		if (r.qualified) return false;
 		const metric = asMetric(key);
 		if (metric) return isAverage(metric, unit);
-		return key === 'recent_win_rate' || key === 'title_rate';
+		return key === 'title_rate';
 	}
 
 	/** @param {MetricId} id */
@@ -120,7 +123,7 @@
 			key: 'recent_win_rate',
 			label: t('ranking.form'),
 			numeric: true,
-			sortBy: (/** @type {Row} */ r) => gated(r, r.recent_win_rate),
+			sortBy: (/** @type {Row} */ r) => (r.recent_form.length ? formScore(r.recent_form) : null),
 			cell: formCell
 		},
 		{ key: 'matchdays', label: t('ranking.matchdays'), numeric: true },
@@ -179,13 +182,21 @@
 
 	const activeColumn = $derived(columns.find((c) => c.key === sort.key) ?? columns[2]);
 
-	const ranks = $derived.by(() => {
-		const ordered = sortRows(ranking, activeColumn, sort.direction, localeTag());
+	/** @param {Row[]} rows */
+	function positionsOf(rows) {
+		const ordered = sortRows(rows, activeColumn, sort.direction, localeTag());
 		const positions = sharedRanks(ordered, (r) => sortValue(activeColumn, r));
 		return new Map(ordered.map((r, i) => [r.player_id, positions[i]]));
-	});
+	}
 
-	const hasUnqualified = $derived(ranking.some((r) => !r.qualified));
+	const ranks = $derived(positionsOf(ranking));
+	const previousRanks = $derived(positionsOf(previousRanking));
+	const showMovement = $derived(previousRanking.length > 0 && activeColumn.key !== 'name');
+
+	/** @param {Row} r */
+	const rankOf = (r) => ranks.get(r.player_id) ?? null;
+	/** @param {Row} r */
+	const previousOf = (r) => previousRanks.get(r.player_id) ?? null;
 
 	/** @param {Row} r */
 	function tier(r) {
@@ -209,11 +220,14 @@
 {/snippet}
 
 {#snippet nameCell(/** @type {Row} */ r)}
-	{#if playerHref}
-		<a class="pname link-hover" class:dim={!r.qualified} href={playerHref(r.player_id)}>{r.name}</a>
-	{:else}
-		<span class="pname" class:dim={!r.qualified}>{r.name}</span>
-	{/if}
+	<span class="namecell">
+		{#if playerHref}
+			<a class="pname link-hover" class:dim={!r.qualified} href={playerHref(r.player_id)}>{r.name}</a>
+		{:else}
+			<span class="pname" class:dim={!r.qualified}>{r.name}</span>
+		{/if}
+		{#if showMovement}<RankMove rank={rankOf(r)} previous={previousOf(r)} />{/if}
+	</span>
 {/snippet}
 
 {#snippet winRateCell(/** @type {Row} */ r)}
@@ -227,7 +241,7 @@
 {/snippet}
 
 {#snippet formCell(/** @type {Row} */ r)}
-	{@render valueCell('recent_win_rate', r)}
+	<FormDots form={r.recent_form} />
 {/snippet}
 
 {#snippet presenceCell(/** @type {Row} */ r)}
@@ -264,12 +278,14 @@
 				{:else}
 					{r.name}
 				{/if}
+				{#if showMovement}<RankMove rank={rankOf(r)} previous={previousOf(r)} />{/if}
 				{#if r.mvp_count > 0}
 					<span class="rc-mvp" title={t('ranking.mvp')}>
 						<Icon name="star" class="size-3" />{r.mvp_count}
 					</span>
 				{/if}
 			</span>
+			{#if activeColumn.key !== 'recent_win_rate'}<FormDots form={r.recent_form} />{/if}
 			<span class="rc-sub">
 				{t('ranking.cardSub', {
 					count: r.matchdays,
@@ -281,9 +297,13 @@
 			</span>
 		</div>
 		<span class="rc-value">
-			<span class="rc-rate" class:dim={dimmed(activeColumn.key, r)}>
-				{display(activeColumn.key === 'name' ? 'win_rate' : activeColumn.key, r)}
-			</span>
+			{#if activeColumn.key === 'recent_win_rate'}
+				<FormDots form={r.recent_form} />
+			{:else}
+				<span class="rc-rate" class:dim={dimmed(activeColumn.key, r)}>
+					{display(activeColumn.key === 'name' ? 'win_rate' : activeColumn.key, r)}
+				</span>
+			{/if}
 			<span class="rc-label">
 				{activeColumn.key === 'name' ? t('ranking.winRate') : activeColumn.label}
 			</span>
@@ -300,7 +320,7 @@
 				options={unitOptions}
 				value={unit}
 				label={t('unit.label')}
-				caption={t('unit.caption')}
+				caption={unitCaption(tracking)}
 				onchange={(id) => onUnit(/** @type {import('$lib/metrics.js').Unit} */ (id))}
 			/>
 		{/if}
@@ -314,9 +334,6 @@
 			sortLabel={(column) => t('ranking.sortByColumn', { column: column.label })}
 			card={playerCard}
 		/>
-		{#if hasUnqualified}
-			<p class="note">{t('leaders.qualifyNote', { count: minMatchdays })}</p>
-		{/if}
 	</div>
 {/if}
 
@@ -354,6 +371,9 @@
 		color: var(--color-primary-content);
 		box-shadow: none;
 	}
+	.namecell {
+		white-space: nowrap;
+	}
 	.pname {
 		overflow-wrap: anywhere;
 	}
@@ -368,10 +388,6 @@
 	.total {
 		margin-left: 4px;
 		font-size: 0.7em;
-		color: var(--ink-muted);
-	}
-	.note {
-		font-size: 0.74rem;
 		color: var(--ink-muted);
 	}
 	.rcard {

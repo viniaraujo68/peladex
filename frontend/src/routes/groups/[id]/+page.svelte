@@ -1,5 +1,5 @@
 <script>
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { Skeleton } from '@viniaraujo68/plinth/components';
@@ -16,6 +16,7 @@
 	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
 	import PlayerComparisons from '$lib/components/PlayerComparisons.svelte';
 	import PlayerLeaders from '$lib/components/PlayerLeaders.svelte';
+	import PlayerStreaks from '$lib/components/PlayerStreaks.svelte';
 	import LastMatchdaySummary from '$lib/components/LastMatchdaySummary.svelte';
 	import TimelineCharts from '$lib/components/TimelineCharts.svelte';
 	import GroupSettings from '$lib/components/GroupSettings.svelte';
@@ -25,6 +26,7 @@
 	import TabBar from '$lib/components/TabBar.svelte';
 	import { parseUnit } from '$lib/metrics.js';
 	import { readSort, sortParams, unitParams, withParams } from '$lib/viewState.js';
+	import { revealPanelStart, scrollParent } from '$lib/scroll.js';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
 
@@ -84,7 +86,25 @@
 
 	/** @param {Record<string, string|null>} updates */
 	function setParams(updates) {
-		goto(withParams($page.url, updates), { keepFocus: true, noScroll: true, replaceState: true });
+		return goto(withParams($page.url, updates), {
+			keepFocus: true,
+			noScroll: true,
+			replaceState: true
+		});
+	}
+
+	let panel = $state(/** @type {HTMLElement|undefined} */ (undefined));
+	let boardScroll = 0;
+
+	/** @param {string|null} value */
+	async function setFocus(value) {
+		const scroller = panel ? scrollParent(panel) : null;
+		if (value && !focus && scroller) boardScroll = scroller.scrollTop;
+		await setParams({ focus: value });
+		await tick();
+		if (!panel || !scroller) return;
+		if (value) revealPanelStart(panel);
+		else scroller.scrollTop = boardScroll;
 	}
 
 	/** @param {string} id */
@@ -263,7 +283,13 @@
 		{/if}
 	{/if}
 
-	<div id="group-panel" role="tabpanel" aria-labelledby={`tab-${tab}`}>
+	<div
+		id="group-panel"
+		class="panel"
+		role="tabpanel"
+		aria-labelledby={`tab-${tab}`}
+		bind:this={panel}
+	>
 		{#if tab === 'matchdays'}
 			<MatchdaysList
 				{matchdays}
@@ -281,7 +307,7 @@
 				<div class="card bg-base-100 p-5">
 					<RankingTable
 						ranking={stats.ranking}
-						minMatchdays={stats.min_matchdays}
+						previousRanking={stats.previous_ranking}
 						{playerHref}
 						{unit}
 						onUnit={(value) => setParams(unitParams(value))}
@@ -293,15 +319,27 @@
 		{:else if tab === 'players'}
 			<div class="flex flex-col gap-4">
 				{@render periodBar()}
-				<PlayerLeaders
-					ranking={stats.ranking}
-					minMatchdays={stats.min_matchdays}
-					{playerHref}
-					{focus}
-					{unit}
-					onFocus={(value) => setParams({ focus: value })}
-					onUnit={(value) => setParams(unitParams(value))}
-				/>
+				{#if !focus?.startsWith('streak-')}
+					<PlayerLeaders
+						ranking={stats.ranking}
+						previousRanking={stats.previous_ranking}
+						minMatchdays={stats.min_matchdays}
+						{playerHref}
+						{focus}
+						{unit}
+						onFocus={setFocus}
+						onUnit={(value) => setParams(unitParams(value))}
+					/>
+				{/if}
+				{#if !focus || focus.startsWith('streak-')}
+					<PlayerStreaks
+						ranking={stats.ranking}
+						minMatchdays={stats.min_matchdays}
+						{playerHref}
+						{focus}
+						onFocus={setFocus}
+					/>
+				{/if}
 				<PlayerComparisons
 					{evolution}
 					{pairs}
@@ -332,6 +370,9 @@
 {/if}
 
 <style>
+	.panel {
+		scroll-margin-top: 80px;
+	}
 	.head {
 		margin-bottom: 20px;
 	}

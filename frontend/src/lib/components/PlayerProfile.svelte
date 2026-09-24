@@ -12,6 +12,8 @@
 	const tracking = getTracking();
 	import Icon from './Icon.svelte';
 	import ComboExplorer from './ComboExplorer.svelte';
+	import FormDots from './FormDots.svelte';
+	import RankMove from './RankMove.svelte';
 	import PairList from './PairList.svelte';
 	import PlayerCharts from './PlayerCharts.svelte';
 
@@ -23,6 +25,7 @@
 	 *   onMinDays: (value: number) => void,
 	 *   playerHref?: (playerId: number) => string,
 	 *   players?: { id: number, name: string }[],
+	 *   compareHref?: string,
 	 *   runCombo?: ((body: any) => Promise<import('$lib/types.js').ComboResult>)|null
 	 * }}
 	 */
@@ -33,6 +36,7 @@
 		onMinDays,
 		playerHref,
 		players = [],
+		compareHref = '',
 		runCombo = null
 	} = $props();
 
@@ -64,6 +68,12 @@
 			<span class="tl">{t('ranking.winRate')}</span>
 			<span class="tv primary">{formatRate(summary.win_rate)}</span>
 			<span class="ts">{summary.points} pts · {summary.matches}j</span>
+			{#if summary.rank !== null}
+				<span class="ts">
+					{t('player.rankOf', { rank: summary.rank })}
+					<RankMove rank={summary.rank} previous={summary.previous_rank} />
+				</span>
+			{/if}
 			{#if !summary.qualified}
 				<span class="ts">{t('player.notQualified')}</span>
 			{/if}
@@ -72,6 +82,9 @@
 			<span class="tl">{t('ranking.matchdays')}</span>
 			<span class="tv">{summary.matchdays}</span>
 			<span class="ts">{summary.wins}V · {summary.draws}E · {summary.losses}D</span>
+			<span class="ts">
+				{t('player.matchesPerDay', { value: formatNumber(summary.matches_per_matchday) })}
+			</span>
 		</div>
 		{#if showGoals}
 		<div class="tile">
@@ -124,6 +137,7 @@
 		<div class="tile">
 			<span class="tl">{t('ranking.form')}</span>
 			<span class="tv">{formatRate(summary.recent_win_rate)}</span>
+			<FormDots form={summary.recent_form} />
 			<span class="ts">
 				{t('ranking.presence')} {formatRate(summary.presence)}
 			</span>
@@ -137,7 +151,26 @@
 				})}
 			</span>
 		</div>
+		<div class="tile">
+			<span class="tl">{t('player.runs')}</span>
+			{#if showGoals}
+				<span class="ts strong">
+					{summary.goal_streak > 0
+						? t('player.scoringRun', { count: summary.goal_streak })
+						: t('player.droughtRun', { count: summary.goal_drought })}
+				</span>
+			{/if}
+			<span class="ts strong">
+				{summary.absent_matchdays > 0
+					? t('player.awayRun', { count: summary.absent_matchdays })
+					: t('player.presenceRun', { count: summary.presence_streak })}
+			</span>
+		</div>
 	</section>
+
+	{#if compareHref}
+		<a class="btn btn-sm self-start" href={compareHref}>{t('player.compare')}</a>
+	{/if}
 
 	{#if rating}
 		<section class="card flex flex-col gap-4 bg-base-100 p-5">
@@ -395,6 +428,11 @@
 		font-size: 0.72rem;
 		color: var(--ink-muted);
 		font-variant-numeric: tabular-nums;
+	}
+	.ts.strong {
+		font-size: 0.85rem;
+		font-weight: 600;
+		color: var(--color-base-content);
 	}
 	.pairhead {
 		display: flex;

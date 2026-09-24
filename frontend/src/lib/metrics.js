@@ -5,12 +5,12 @@ import { t } from './i18n.svelte.js';
 /** @typedef {'total'|'match'|'day'} Unit */
 /**
  * @typedef {'win_rate'|'goals'|'assists'|'contributions'|'goal_share'|'assist_share'
- *   |'titles'|'mvp_count'|'matchdays'|'rating'} MetricId
+ *   |'titles'|'mvp_count'|'matchdays'|'matches_per_matchday'|'matches'|'rating'} MetricId
  */
 /**
  * @typedef {object} Metric
  * @property {MetricId} id
- * @property {'rate'|'count'|'note'} kind
+ * @property {'rate'|'count'|'ratio'|'note'} kind
  * @property {boolean} perUnit
  * @property {'scorers'|'assists'|'ratings'|null} needs
  */
@@ -42,6 +42,8 @@ export const METRICS = [
 	{ id: 'titles', kind: 'count', perUnit: false, needs: null },
 	{ id: 'mvp_count', kind: 'count', perUnit: false, needs: null },
 	{ id: 'matchdays', kind: 'count', perUnit: false, needs: null },
+	{ id: 'matches_per_matchday', kind: 'ratio', perUnit: false, needs: null },
+	{ id: 'matches', kind: 'count', perUnit: false, needs: null },
 	{ id: 'rating', kind: 'note', perUnit: false, needs: 'ratings' }
 ];
 
@@ -67,7 +69,7 @@ export function metricById(id) {
 
 /** @param {Metric} metric @param {Unit} unit */
 export function isAverage(metric, unit) {
-	return metric.kind === 'rate' || (metric.perUnit && unit !== 'total');
+	return metric.kind === 'rate' || metric.kind === 'ratio' || (metric.perUnit && unit !== 'total');
 }
 
 /** @param {PlayerRow} row @param {Metric} metric @param {Unit} unit @returns {number|null} */
@@ -90,6 +92,7 @@ export function rankValue(row, metric, unit) {
 export function formatMetric(value, metric, unit) {
 	if (metric.kind === 'rate') return formatRate(value);
 	if (metric.kind === 'note') return formatNote(value);
+	if (metric.kind === 'ratio') return formatAverage(value);
 	if (value === null || value === undefined) return '—';
 	return metric.perUnit && unit !== 'total' ? formatAverage(value) : String(value);
 }
@@ -97,6 +100,14 @@ export function formatMetric(value, metric, unit) {
 /** @param {Metric} metric @param {Unit} unit */
 export function metricTitle(metric, unit) {
 	return t(`metric.${metric.id}`) + (metric.perUnit ? ` · ${unitLabel(unit)}` : '');
+}
+
+/** @type {MetricId[]} */
+export const MATCH_VARIANTS = ['matches_per_matchday', 'matches'];
+
+/** @param {import('./tracking.svelte.js').Tracking} tracking */
+export function unitCaption(tracking) {
+	return tracking.trackAssists ? t('unit.captionBoth') : t('unit.captionGoals');
 }
 
 /** @param {Unit} unit */
@@ -123,7 +134,18 @@ export function metricDetail(row, metric) {
 		return t('metric.detailTitles', { rate: formatRate(row.title_rate), days: row.matchdays });
 	}
 	if (metric.id === 'matchdays') return t('metric.detailPresence', { rate: formatRate(row.presence) });
+	if (metric.id === 'matches_per_matchday' || metric.id === 'matches') {
+		return t('metric.detailMatches', { count: row.matches, days: row.matchdays });
+	}
 	return t('metric.detailDays', { count: row.matchdays });
+}
+
+/** @param {import('./types.js').FormEntry[]} form */
+export function formScore(form) {
+	return form.reduce(
+		(sum, entry) => sum + entry.teams - entry.position + (entry.champion ? 1 : 0),
+		0
+	);
 }
 
 /**

@@ -1,23 +1,26 @@
 <script>
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import {
+		MATCH_VARIANTS,
 		UNITS,
 		availableMetrics,
 		formatMetric,
-		isAverage,
 		metricDetail,
 		metricTitle,
 		metricValue,
 		rankRows,
+		unitCaption,
 		unitLabel
 	} from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import ChipGroup from './ChipGroup.svelte';
 	import Icon from './Icon.svelte';
+	import RankMove from './RankMove.svelte';
 
 	/**
 	 * @type {{
 	 *   ranking: import('$lib/types.js').PlayerRow[],
+	 *   previousRanking: import('$lib/types.js').PlayerRow[],
 	 *   minMatchdays: number,
 	 *   playerHref: (playerId: number) => string,
 	 *   focus: import('$lib/metrics.js').MetricId|null,
@@ -26,7 +29,11 @@
 	 *   onUnit: (unit: import('$lib/metrics.js').Unit) => void
 	 * }}
 	 */
-	let { ranking, minMatchdays, playerHref, focus, unit, onFocus, onUnit } = $props();
+	let { ranking, previousRanking, minMatchdays, playerHref, focus, unit, onFocus, onUnit } =
+		$props();
+
+	/** @typedef {import('$lib/metrics.js').MetricId} MetricId */
+	/** @typedef {import('$lib/metrics.js').Metric} Metric */
 
 	const tracking = getTracking();
 
@@ -34,18 +41,52 @@
 
 	let query = $state('');
 
+	let matchVariant = $state(/** @type {MetricId} */ ('matches_per_matchday'));
+
 	const metrics = $derived(availableMetrics(tracking));
 	const focused = $derived(metrics.find((m) => m.id === focus) ?? null);
 	const hasUnitMetric = $derived(metrics.some((m) => m.perUnit));
+	const hasPrevious = $derived(previousRanking.length > 0);
+
+	/** @param {MetricId} id */
+	const isMatchVariant = (id) => MATCH_VARIANTS.includes(id);
+
+	const boardMetrics = $derived(
+		metrics.filter((m) => !isMatchVariant(m.id) || m.id === matchVariant)
+	);
 
 	const unitOptions = $derived(UNITS.map((id) => ({ id, label: unitLabel(id) })));
-	const metricOptions = $derived(metrics.map((m) => ({ id: m.id, label: t(`metric.${m.id}`) })));
+	const variantOptions = $derived([
+		{ id: 'matches_per_matchday', label: unitLabel('day') },
+		{ id: 'matches', label: unitLabel('total') }
+	]);
+	const shownVariant = $derived(focused && isMatchVariant(focused.id) ? focused.id : matchVariant);
+	const metricOptions = $derived(
+		metrics
+			.filter((m) => !isMatchVariant(m.id) || m.id === shownVariant)
+			.map((m) => ({
+				id: m.id,
+				label: t(`metric.${isMatchVariant(m.id) ? 'matchesGroup' : m.id}`)
+			}))
+	);
+
+	/** @param {Metric} metric */
+	function previousRanks(metric) {
+		if (!hasPrevious) return new Map();
+		const { ranked, ranks } = rankRows(previousRanking, metric, unit, localeTag());
+		return new Map(ranked.map((row, index) => [row.player_id, ranks[index]]));
+	}
 
 	const boards = $derived(
-		metrics.map((metric) => {
+		boardMetrics.map((metric) => {
 			const { ranked, ranks } = rankRows(ranking, metric, unit, localeTag());
+			const before = previousRanks(metric);
 			const scoring = ranked
-				.map((row, index) => ({ row, rank: ranks[index] }))
+				.map((row, index) => ({
+					row,
+					rank: ranks[index],
+					previous: before.get(row.player_id) ?? null
+				}))
 				.filter(({ row }) => (metricValue(row, metric, unit) ?? 0) > 0);
 			const shown = scoring.slice(0, PREVIEW_COUNT);
 			const last = shown.at(-1);
@@ -57,20 +98,26 @@
 	const full = $derived.by(() => {
 		if (!focused) return null;
 		const { ranked, ranks, unranked } = rankRows(ranking, focused, unit, localeTag());
+		const before = previousRanks(focused);
 		const term = query.trim().toLowerCase();
 		const matches = (/** @type {import('$lib/types.js').PlayerRow} */ row) =>
 			!term || row.name.toLowerCase().includes(term);
 		return {
 			ranked: ranked
-				.map((row, index) => ({ row, rank: ranks[index] }))
+				.map((row, index) => ({
+					row,
+					rank: ranks[index],
+					previous: before.get(row.player_id) ?? null
+				}))
 				.filter(({ row }) => matches(row)),
 			unranked: unranked.filter(matches)
 		};
 	});
 
-	/** @param {import('$lib/metrics.js').MetricId|null} id */
+	/** @param {MetricId|null} id */
 	function openFocus(id) {
 		query = '';
+		if (id && isMatchVariant(id)) matchVariant = id;
 		onFocus(id);
 	}
 </script>
@@ -80,13 +127,18 @@
 		options={unitOptions}
 		value={unit}
 		label={t('unit.label')}
-		caption={t('unit.caption')}
+		caption={unitCaption(tracking)}
 		onchange={(id) => onUnit(/** @type {import('$lib/metrics.js').Unit} */ (id))}
 	/>
 {/snippet}
 
-{#snippet qualifyNote()}
-	<p class="note">{t('leaders.qualifyNote', { count: minMatchdays })}</p>
+{#snippet variantBar(/** @type {MetricId} */ current)}
+	<ChipGroup
+		options={variantOptions}
+		value={current}
+		label={t('metric.matchesGroup')}
+		onchange={(id) => openFocus(/** @type {MetricId} */ (id))}
+	/>
 {/snippet}
 
 {#if ranking.length === 0}
@@ -108,9 +160,10 @@
 			options={metricOptions}
 			value={focused.id}
 			label={t('players.sortBy')}
-			onchange={(id) => onFocus(/** @type {import('$lib/metrics.js').MetricId} */ (id))}
+			onchange={(id) => openFocus(/** @type {MetricId} */ (id))}
 		/>
 		{#if focused.perUnit}{@render unitBar()}{/if}
+		{#if isMatchVariant(focused.id)}{@render variantBar(focused.id)}{/if}
 
 		<section class="card bg-base-100 p-2 sm:p-4">
 			<h3 class="ltitle px-2 pt-1">{metricTitle(focused, unit)}</h3>
@@ -125,7 +178,10 @@
 						<span class="rank" data-top={entry.rank !== null && entry.rank <= 3}>
 							{entry.rank}
 						</span>
-						<a class="lname link-hover" href={playerHref(entry.row.player_id)}>{entry.row.name}</a>
+						<span class="lname">
+							<a class="link-hover" href={playerHref(entry.row.player_id)}>{entry.row.name}</a>
+							{#if hasPrevious}<RankMove rank={entry.rank} previous={entry.previous} />{/if}
+						</span>
 						<span class="ldetail">{metricDetail(entry.row, focused)}</span>
 						<span class="lvalue">
 							{formatMetric(metricValue(entry.row, focused, unit), focused, unit)}
@@ -153,7 +209,6 @@
 				</ol>
 			{/if}
 		</section>
-		{#if isAverage(focused, unit)}{@render qualifyNote()}{/if}
 	</div>
 {:else}
 	<div class="wrap">
@@ -161,7 +216,17 @@
 		<div class="board">
 			{#each boards as board (board.metric.id)}
 				<section class="card leader bg-base-100 p-4">
-					<h3 class="ltitle">{metricTitle(board.metric, unit)}</h3>
+					<div class="lhead">
+						<h3 class="ltitle">{metricTitle(board.metric, unit)}</h3>
+						{#if isMatchVariant(board.metric.id)}
+							<ChipGroup
+								options={variantOptions}
+								value={matchVariant}
+								label={t('metric.matchesGroup')}
+								onchange={(id) => (matchVariant = /** @type {MetricId} */ (id))}
+							/>
+						{/if}
+					</div>
 					{#if board.shown.length === 0}
 						<p class="lempty">{t('leaders.empty')}</p>
 					{:else}
@@ -171,9 +236,10 @@
 									<span class="rank" data-top={entry.rank !== null && entry.rank <= 3}>
 										{entry.rank}
 									</span>
-									<a class="lname link-hover" href={playerHref(entry.row.player_id)}>
-										{entry.row.name}
-									</a>
+									<span class="lname">
+										<a class="link-hover" href={playerHref(entry.row.player_id)}>{entry.row.name}</a>
+										{#if hasPrevious}<RankMove rank={entry.rank} previous={entry.previous} />{/if}
+									</span>
 									<span class="lvalue">
 										{formatMetric(metricValue(entry.row, board.metric, unit), board.metric, unit)}
 									</span>
@@ -190,7 +256,6 @@
 				</section>
 			{/each}
 		</div>
-		{@render qualifyNote()}
 	</div>
 {/if}
 
@@ -220,6 +285,18 @@
 		display: flex;
 		flex-direction: column;
 		gap: 8px;
+	}
+	.lhead {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 6px;
+	}
+	.lhead :global(.chip) {
+		min-height: 26px;
+		padding: 2px 8px;
+		font-size: 0.7rem;
 	}
 	.ltitle {
 		font-size: 0.72rem;
@@ -286,8 +363,7 @@
 		color: var(--ink-muted);
 	}
 	.lempty,
-	.tied,
-	.note {
+	.tied {
 		font-size: 0.74rem;
 		color: var(--ink-muted);
 	}

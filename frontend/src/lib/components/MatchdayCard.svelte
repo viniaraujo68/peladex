@@ -165,7 +165,7 @@
 		aria-expanded={expanded}
 		onclick={() => (expanded = !expanded)}
 	>
-		<span>{expanded ? t('day.lineup') : t('day.matches')}</span>
+		<span>{expanded ? t('day.hideDetails') : t('day.showDetails')}</span>
 		<span class="caret" class:open={expanded}><Icon name="chevron" class="size-4" /></span>
 	</button>
 

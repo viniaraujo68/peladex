@@ -96,7 +96,8 @@
 		onMinDays={setMinDays}
 		{playerHref}
 		players={group.stats.ranking.map((r) => ({ id: r.player_id, name: r.name }))}
+		compareHref={`/g/${slug}/analise?${[tokenQuery, `a=${detail.player_id}`].filter(Boolean).join('&')}`}
 		runCombo={(body) =>
-			post(`/public/${encodeURIComponent(slug)}/combo${tokenQuery}`, body)}
+			post(`/public/${encodeURIComponent(slug)}/combo${tokenQuery ? `?${tokenQuery}` : ''}`, body)}
 	/>
 {/if}

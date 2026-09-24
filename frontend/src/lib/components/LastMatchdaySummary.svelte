@@ -3,7 +3,7 @@
 	import { t } from '$lib/i18n.svelte.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import Icon from './Icon.svelte';
-	import MatchRow from './MatchRow.svelte';
+	import StandingsTable from './StandingsTable.svelte';
 	import TeamCrest from './TeamCrest.svelte';
 
 	/**
@@ -40,21 +40,7 @@
 	const assisters = $derived(latest ? leaders(latest.top_assisters, (s) => s.assists) : []);
 
 	/** @param {Match} match */
-	const matchGoals = (match) => match.home_score + match.away_score;
-	/** @param {Match} match */
 	const margin = (match) => Math.abs(match.home_score - match.away_score);
-
-	const featured = $derived.by(() => {
-		if (!latest || latest.matches.length === 0) return null;
-		const best = [...latest.matches].sort(
-			(a, b) => matchGoals(b) - matchGoals(a) || margin(b) - margin(a) || a.sort_index - b.sort_index
-		)[0];
-		return matchGoals(best) > 0 ? best : null;
-	});
-
-	const teamColors = $derived(
-		new Map((latest?.standings ?? []).map((s) => [s.team_id, s.color ?? '']))
-	);
 
 	/** @param {Matchday} day */
 	function bestPlayerGoals(day) {
@@ -105,18 +91,6 @@
 			? ordered.reduce((sum, day) => sum + day.total_goals, 0) / ordered.length
 			: null
 	);
-
-	/** @param {Match} match @param {number} teamId */
-	function goalsOf(match, teamId) {
-		return match.goals
-			.filter((g) => g.team_id === teamId)
-			.map((g) => ({
-				key: g.id,
-				player: g.player_name,
-				assist: g.assist_name,
-				ownGoal: g.own_goal
-			}));
-	}
 </script>
 
 {#snippet people(/** @type {{ player_id: number, name: string }[]} */ rows)}
@@ -210,20 +184,13 @@
 			</div>
 		</div>
 
-		{#if featured}
-			<div class="featured">
-				<span class="hl-label">{t('summary.featured')}</span>
-				<MatchRow
-					homeName={featured.home_team_name}
-					awayName={featured.away_team_name}
-					homeScore={featured.home_score}
-					awayScore={featured.away_score}
-					homeColor={teamColors.get(featured.home_team_id) ?? ''}
-					awayColor={teamColors.get(featured.away_team_id) ?? ''}
-					homeGoals={goalsOf(featured, featured.home_team_id)}
-					awayGoals={goalsOf(featured, featured.away_team_id)}
-					showGoals={tracking.trackScorers}
-					showAssist={tracking.trackAssists}
+		{#if latest.standings.length}
+			<div class="standings">
+				<span class="hl-label">{t('summary.standings')}</span>
+				<StandingsTable
+					standings={latest.standings}
+					championTeamId={latest.champion_team_id}
+					compact
 				/>
 			</div>
 		{/if}
@@ -330,7 +297,7 @@
 		color: var(--ink-muted);
 		font-weight: 400;
 	}
-	.featured {
+	.standings {
 		display: flex;
 		flex-direction: column;
 		gap: 6px;

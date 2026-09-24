@@ -99,6 +99,7 @@
 		onMinDays={(value) => (minDays = value)}
 		{playerHref}
 		players={players.map((p) => ({ id: p.id, name: p.name }))}
+		compareHref={`/groups/${groupId}/analise?a=${detail.player_id}`}
 		runCombo={(body) => post(`/groups/${groupId}/combo`, body)}
 	/>
 {/if}

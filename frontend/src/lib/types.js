@@ -131,6 +131,14 @@
  */
 
 /**
+ * @typedef {object} FormEntry
+ * @property {string} date
+ * @property {number} position
+ * @property {number} teams
+ * @property {boolean} champion
+ */
+
+/**
  * @typedef {object} PlayerRow
  * @property {number} player_id
  * @property {string} name
@@ -163,6 +171,14 @@
  * @property {number|null} recent_win_rate
  * @property {number} title_streak
  * @property {number} best_title_streak
+ * @property {number} matches_per_matchday
+ * @property {FormEntry[]} recent_form
+ * @property {number} goal_streak
+ * @property {number} goal_drought
+ * @property {number} presence_streak
+ * @property {number} absent_matchdays
+ * @property {number|null} rank
+ * @property {number|null} previous_rank
  * @property {number|null} rating
  * @property {boolean} rating_provisional
  */
@@ -186,6 +202,7 @@
 /**
  * @typedef {object} Stats
  * @property {PlayerRow[]} ranking
+ * @property {PlayerRow[]} previous_ranking
  * @property {number} total_matchdays
  * @property {number} min_matchdays
  * @property {number} total_matches

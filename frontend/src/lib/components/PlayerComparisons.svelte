@@ -58,7 +58,6 @@
 				{#if metric === 'win_rate' || unit !== 'total'}
 					<p class="mt-1 text-xs text-base-content/65">
 						{metric === 'win_rate' ? t('stats.evolutionHint') : t('chart.runningAverageHint')}
-						{t('chart.defaultSeriesHint', { count: minMatchdays })}
 					</p>
 				{/if}
 			</div>
