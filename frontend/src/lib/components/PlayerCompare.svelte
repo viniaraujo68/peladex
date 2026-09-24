@@ -46,13 +46,16 @@
 			...(tracking.trackScorers
 				? [
 						{ id: 'goals', unit: 'match' },
-						{ id: 'goal_share', unit: 'total' }
+						{ id: 'goal_share', unit: 'total' },
+						{ id: 'top_scorer_days', unit: 'total' }
 					]
 				: []),
 			...(tracking.trackScorers && tracking.trackAssists
 				? [
 						{ id: 'assists', unit: 'match' },
-						{ id: 'assist_share', unit: 'total' }
+						{ id: 'assist_share', unit: 'total' },
+						{ id: 'top_assister_days', unit: 'total' },
+						{ id: 'top_contributor_days', unit: 'total' }
 					]
 				: []),
 			{ id: 'titles', unit: 'total' },

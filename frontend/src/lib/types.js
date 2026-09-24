@@ -164,6 +164,9 @@
  * @property {number|null} assist_share
  * @property {number|null} contribution_share
  * @property {number} mvp_count
+ * @property {number} top_scorer_days
+ * @property {number} top_assister_days
+ * @property {number} top_contributor_days
  * @property {number} titles
  * @property {number} title_rate
  * @property {number} presence

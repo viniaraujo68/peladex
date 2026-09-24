@@ -45,6 +45,9 @@
 		'assists',
 		'contributions',
 		'goal_share',
+		'top_scorer_days',
+		'top_assister_days',
+		'top_contributor_days',
 		'titles',
 		'mvp_count',
 		'matchdays',
@@ -166,6 +169,17 @@
 						numeric: true,
 						sortBy: byMetric('goal_share'),
 						cell: goalShareCell
+					},
+					{ key: 'top_scorer_days', label: t('ranking.top_scorer_days'), numeric: true }
+				]
+			: []),
+		...(showAssists
+			? [
+					{ key: 'top_assister_days', label: t('ranking.top_assister_days'), numeric: true },
+					{
+						key: 'top_contributor_days',
+						label: t('ranking.top_contributor_days'),
+						numeric: true
 					}
 				]
 			: []),

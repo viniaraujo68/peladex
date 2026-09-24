@@ -5,6 +5,7 @@ import { t } from './i18n.svelte.js';
 /** @typedef {'total'|'match'|'day'} Unit */
 /**
  * @typedef {'win_rate'|'goals'|'assists'|'contributions'|'goal_share'|'assist_share'
+ *   |'top_scorer_days'|'top_assister_days'|'top_contributor_days'
  *   |'titles'|'mvp_count'|'matchdays'|'matches_per_matchday'|'matches'|'rating'} MetricId
  */
 /**
@@ -37,6 +38,9 @@ export const METRICS = [
 	{ id: 'goals', kind: 'count', perUnit: true, needs: 'scorers' },
 	{ id: 'assists', kind: 'count', perUnit: true, needs: 'assists' },
 	{ id: 'contributions', kind: 'count', perUnit: true, needs: 'assists' },
+	{ id: 'top_scorer_days', kind: 'count', perUnit: false, needs: 'scorers' },
+	{ id: 'top_assister_days', kind: 'count', perUnit: false, needs: 'assists' },
+	{ id: 'top_contributor_days', kind: 'count', perUnit: false, needs: 'assists' },
 	{ id: 'goal_share', kind: 'rate', perUnit: false, needs: 'scorers' },
 	{ id: 'assist_share', kind: 'rate', perUnit: false, needs: 'assists' },
 	{ id: 'titles', kind: 'count', perUnit: false, needs: null },
@@ -129,6 +133,13 @@ export function metricDetail(row, metric) {
 	if (metric.perUnit) {
 		const total = /** @type {number} */ (row[UNIT_FIELDS[/** @type {'goals'} */ (metric.id)].total]);
 		return t(`metric.detail.${metric.id}`, { count: total, matches: row.matches, days: row.matchdays });
+	}
+	if (
+		metric.id === 'top_scorer_days' ||
+		metric.id === 'top_assister_days' ||
+		metric.id === 'top_contributor_days'
+	) {
+		return t('metric.detailDayLeader', { count: row[metric.id], days: row.matchdays });
 	}
 	if (metric.id === 'titles') {
 		return t('metric.detailTitles', { rate: formatRate(row.title_rate), days: row.matchdays });
