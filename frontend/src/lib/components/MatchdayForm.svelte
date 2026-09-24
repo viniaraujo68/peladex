@@ -1,6 +1,6 @@
 <script>
 	import { beforeNavigate } from '$app/navigation';
-	import { Select } from '@viniaraujo68/plinth/components';
+	import { Combobox, Select } from '@viniaraujo68/plinth/components';
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
@@ -935,10 +935,11 @@
 	<section class="card flex flex-col gap-4 bg-base-100 p-5">
 		<div class="block">
 			<span class="blabel" id="mvp-label">{t('day.mvp')}</span>
-			<Select
+			<Combobox
 				options={mvpOptions}
-				bind:value={() => mvpId, (value) => (mvpId = value ?? '')}
-				placeholder={t('day.noMvp')}
+				bind:value={() => mvpId || null, (value) => (mvpId = value ?? '')}
+				placeholder={t('day.mvpSearch')}
+				emptyLabel={t('day.mvpNoMatch')}
 				clearable={mvpId !== ''}
 				clearLabel={t('common.remove')}
 				aria-labelledby="mvp-label"

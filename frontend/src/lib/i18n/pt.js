@@ -531,4 +531,7 @@ export default {
 	'players.meta': '{days} dias · {matches} jogos · {presence} presença',
 
 	'apiError.registration_closed': 'O cadastro está fechado nesta pelada. Peça um convite ao dono.',
+
+	'day.mvpSearch': 'Sem MVP — digite para buscar',
+	'day.mvpNoMatch': 'Ninguém com esse nome jogou neste dia.',
 };

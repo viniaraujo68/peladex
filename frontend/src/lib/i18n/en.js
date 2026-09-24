@@ -530,4 +530,7 @@ export default {
 	'players.meta': '{days} days · {matches} matches · {presence} presence',
 
 	'apiError.registration_closed': 'Registration is closed on this install. Ask the owner for access.',
+
+	'day.mvpSearch': 'No MVP — type to search',
+	'day.mvpNoMatch': 'Nobody by that name played on this day.',
 };
