@@ -37,6 +37,7 @@
 	/** @typedef {import('$lib/metrics.js').MetricId} MetricId */
 
 	const PODIUM = 3;
+	const COLUMNS_STORAGE_KEY = 'peladex:ranking-columns';
 	const METRIC_COLUMNS = /** @type {MetricId[]} */ ([
 		'win_rate',
 		'goals',
@@ -100,8 +101,24 @@
 
 	/** @type {import('@viniaraujo68/plinth/table').Column<Row>[]} */
 	const columns = $derived([
-		{ key: 'rank', label: '#', sortable: false, align: 'center', class: 'w-12', cell: rankCell },
-		{ key: 'name', label: t('ranking.player'), class: 'font-semibold', cell: nameCell },
+		{
+			key: 'rank',
+			label: '#',
+			sortable: false,
+			align: 'center',
+			class: 'w-12',
+			cell: rankCell,
+			hideable: false,
+			resizable: false
+		},
+		{
+			key: 'name',
+			label: t('ranking.player'),
+			class: 'font-semibold',
+			cell: nameCell,
+			hideable: false,
+			minWidth: 80
+		},
 		{
 			key: 'win_rate',
 			label: t('ranking.winRate'),
@@ -323,19 +340,20 @@
 	</div>
 {/snippet}
 
+{#snippet unitBar()}
+	<SegmentedControl
+		options={unitChoices}
+		value={unit}
+		label={t('unit.label')}
+		caption={unitCaption(tracking)}
+		onchange={(id) => onUnit(/** @type {import('$lib/metrics.js').Unit} */ (id))}
+	/>
+{/snippet}
+
 {#if ranking.length === 0}
 	<div class="px-5 py-12 text-center text-base-content/65">{t('ranking.empty')}</div>
 {:else}
 	<div class="ranking">
-		{#if showGoals}
-			<SegmentedControl
-				options={unitChoices}
-				value={unit}
-				label={t('unit.label')}
-				caption={unitCaption(tracking)}
-				onchange={(id) => onUnit(/** @type {import('$lib/metrics.js').Unit} */ (id))}
-			/>
-		{/if}
 		<DataTable
 			rows={ranking}
 			{columns}
@@ -345,6 +363,14 @@
 			label={t('tab.ranking')}
 			sortLabel={(column) => t('ranking.sortByColumn', { column: column.label })}
 			card={playerCard}
+			toolbar={showGoals ? unitBar : undefined}
+			storageKey={COLUMNS_STORAGE_KEY}
+			resizable
+			columnsLabel={t('columns.menu')}
+			resetColumnsLabel={t('columns.reset')}
+			moveColumnLabel={(column, direction) =>
+				t(direction === 'up' ? 'columns.moveUp' : 'columns.moveDown', { column: column.label })}
+			resizeLabel={(column) => t('columns.resize', { column: column.label })}
 		/>
 	</div>
 {/if}
