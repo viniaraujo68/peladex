@@ -56,7 +56,7 @@ def get_public_group(request: Request, slug: str, t: str | None = None,
     names = services.player_names(db, group.id)
     venues = services.venue_names(db, group.id)
     matchdays = services.active_matchdays(db, group.id, date_from, date_to)
-    matchdays.sort(key=lambda m: (m.date, m.id), reverse=True)
+    newest_first = sorted(matchdays, key=lambda m: (m.date, m.id), reverse=True)
     return schemas.PublicGroupOut(
         name=group.name,
         slug=group.slug,
@@ -64,9 +64,9 @@ def get_public_group(request: Request, slug: str, t: str | None = None,
         track_scorers=group.track_scorers,
         track_assists=group.track_assists,
         show_ratings=group.show_ratings,
-        stats=services.compute_stats(db, group, date_from, date_to),
-        evolution=services.compute_evolution(db, group, date_from, date_to),
-        matchdays=[services.serialize_matchday(db, m, group, names, venues) for m in matchdays],
+        stats=services.compute_stats(db, group, matchdays=matchdays, names=names),
+        evolution=services.compute_evolution(db, group, matchdays=matchdays, names=names),
+        matchdays=[services.serialize_matchday(db, m, group, names, venues) for m in newest_first],
     )
 
 

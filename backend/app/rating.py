@@ -53,12 +53,17 @@ def _coverage(match: models.Match, team_id: int, score: int) -> float:
     return min(1.0, listed / score)
 
 
-def _match_points(match: models.Match, group: models.Group) -> tuple[int, int]:
-    if match.home_score > match.away_score:
-        return group.win_points, group.loss_points
-    if match.home_score < match.away_score:
-        return group.loss_points, group.win_points
-    return group.draw_points, group.draw_points
+def result_points(scored: int, conceded: int, group: models.Group) -> int:
+    if scored > conceded:
+        return group.win_points
+    if scored < conceded:
+        return group.loss_points
+    return group.draw_points
+
+
+def match_points(match: models.Match, group: models.Group) -> tuple[int, int]:
+    return (result_points(match.home_score, match.away_score, group),
+            result_points(match.away_score, match.home_score, group))
 
 
 def _rosters(matchday: models.Matchday) -> dict[int, list[int]]:
@@ -123,7 +128,7 @@ def rate_players(matchdays: list[models.Matchday],
             away = rosters.get(match.away_team_id, [])
             if not home or not away:
                 continue
-            home_points, away_points = _match_points(match, group)
+            home_points, away_points = match_points(match, group)
             sides = (
                 (home, home_points, match.home_score, match.away_score,
                  _coverage(match, match.home_team_id, match.home_score)),
