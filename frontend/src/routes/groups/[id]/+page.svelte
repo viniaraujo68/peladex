@@ -1,5 +1,5 @@
 <script>
-	import { tick, untrack } from 'svelte';
+	import { untrack } from 'svelte';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { Skeleton } from '@viniaraujo68/plinth/components';
@@ -10,37 +10,22 @@
 	import { formatMatchdayDate } from '$lib/format.svelte.js';
 	import { loginUrl } from '$lib/nav.js';
 	import { mismatchBadgeEnabled } from '$lib/prefs.svelte.js';
-	import { setTrackingContext } from '$lib/tracking.svelte.js';
+	import { setGroupTracking } from '$lib/tracking.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import GroupStats from '$lib/components/GroupStats.svelte';
 	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
-	import PlayerComparisons from '$lib/components/PlayerComparisons.svelte';
-	import PlayerLeaders from '$lib/components/PlayerLeaders.svelte';
-	import PlayerStreaks from '$lib/components/PlayerStreaks.svelte';
-	import LastMatchdaySummary from '$lib/components/LastMatchdaySummary.svelte';
+	import PlayersTab from '$lib/components/PlayersTab.svelte';
+	import RankingTab from '$lib/components/RankingTab.svelte';
 	import TimelineCharts from '$lib/components/TimelineCharts.svelte';
 	import GroupSettings from '$lib/components/GroupSettings.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
-	import RankingTable from '$lib/components/RankingTable.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
-	import { parseUnit } from '$lib/metrics.js';
-	import { readSort, sortParams, unitParams, withParams } from '$lib/viewState.js';
-	import { revealPanelStart, scrollParent } from '$lib/scroll.js';
+	import { createGroupView } from '$lib/groupView.svelte.js';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
 
-	setTrackingContext({
-		get trackScorers() {
-			return group?.track_scorers ?? true;
-		},
-		get trackAssists() {
-			return group?.track_assists ?? false;
-		},
-		get showRatings() {
-			return group?.show_ratings ?? true;
-		}
-	});
+	setGroupTracking(() => group);
 
 	let group = $state(/** @type {import('$lib/types.js').Group|null} */ (null));
 	let matchdays = $state(/** @type {import('$lib/types.js').Matchday[]} */ ([]));
@@ -64,11 +49,7 @@
 	);
 
 	const TAB_IDS = ['matchdays', 'ranking', 'players', 'stats', 'settings'];
-	const DEFAULT_TAB = 'matchdays';
-	const tab = $derived.by(() => {
-		const requested = $page.url.searchParams.get('tab');
-		return requested && TAB_IDS.includes(requested) ? requested : DEFAULT_TAB;
-	});
+	const view = createGroupView({ tabIds: TAB_IDS, defaultTab: 'matchdays' });
 
 	const tabs = $derived([
 		{ id: 'matchdays', label: t('tab.matchdays') },
@@ -77,44 +58,6 @@
 		{ id: 'stats', label: t('tab.stats') },
 		{ id: 'settings', label: t('tab.settings') }
 	]);
-
-	const unit = $derived(parseUnit($page.url.searchParams.get('per')));
-	const rankingSort = $derived(readSort($page.url.searchParams));
-	const focus = $derived(
-		/** @type {import('$lib/metrics.js').MetricId|null} */ ($page.url.searchParams.get('focus'))
-	);
-
-	/** @param {Record<string, string|null>} updates */
-	function setParams(updates) {
-		return goto(withParams($page.url, updates), {
-			keepFocus: true,
-			noScroll: true,
-			replaceState: true
-		});
-	}
-
-	let panel = $state(/** @type {HTMLElement|undefined} */ (undefined));
-	let boardScroll = 0;
-
-	/** @param {string|null} value */
-	async function setFocus(value) {
-		const scroller = panel ? scrollParent(panel) : null;
-		if (value && !focus && scroller) boardScroll = scroller.scrollTop;
-		await setParams({ focus: value });
-		await tick();
-		if (!panel || !scroller) return;
-		if (value) revealPanelStart(panel);
-		else scroller.scrollTop = boardScroll;
-	}
-
-	/** @param {string} id */
-	function setTab(id) {
-		if (id === tab) return;
-		const url = new URL($page.url);
-		if (id === DEFAULT_TAB) url.searchParams.delete('tab');
-		else url.searchParams.set('tab', id);
-		goto(url, { keepFocus: true, noScroll: true });
-	}
 
 	const showMismatchBadge = $derived(group ? mismatchBadgeEnabled(group.id) : false);
 	const mismatchCount = $derived(matchdays.filter((m) => m.goal_mismatch).length);
@@ -190,8 +133,7 @@
 	/** @param {import('$lib/types.js').Group} [updated] */
 	function onGroupChange(updated) {
 		if (updated) group = group ? { ...group, ...updated } : updated;
-		else refreshData();
-		if (updated) refreshData();
+		refreshData();
 	}
 
 	/** @param {import('$lib/types.js').Matchday} matchday */
@@ -263,10 +205,16 @@
 		</div>
 	</div>
 
-	<TabBar {tabs} active={tab} onChange={setTab} label={t('tab.sections')} controls="group-panel" />
+	<TabBar
+		{tabs}
+		active={view.tab}
+		onChange={view.setTab}
+		label={t('tab.sections')}
+		controls="group-panel"
+	/>
 
 	{#if showMismatchBadge && mismatchCount > 0}
-		{#if tab === 'matchdays'}
+		{#if view.tab === 'matchdays'}
 			<span class="badge badge-soft badge-warning warn">
 				<Icon name="warning" />
 				{t('group.mismatch', { count: mismatchCount })}
@@ -275,7 +223,7 @@
 			<button
 				class="badge badge-soft badge-warning warn tappable"
 				title={t('group.mismatchGoTo')}
-				onclick={() => setTab('matchdays')}
+				onclick={() => view.setTab('matchdays')}
 			>
 				<Icon name="warning" />
 				{t('group.mismatch', { count: mismatchCount })}
@@ -287,10 +235,10 @@
 		id="group-panel"
 		class="panel"
 		role="tabpanel"
-		aria-labelledby={`tab-${tab}`}
-		bind:this={panel}
+		aria-labelledby={`tab-${view.tab}`}
+		bind:this={view.panel}
 	>
-		{#if tab === 'matchdays'}
+		{#if view.tab === 'matchdays'}
 			<MatchdaysList
 				{matchdays}
 				editable
@@ -301,61 +249,22 @@
 				onEdit={(m) => goto(`/groups/${groupId}/matchdays/new?edit=${m.id}`)}
 				onDelete={deleteMatchday}
 			/>
-		{:else if tab === 'ranking'}
-			<div class="flex flex-col gap-4">
-				<LastMatchdaySummary {matchdays} {playerHref} onOpenDay={() => setTab('matchdays')} />
-				<div class="card bg-base-100 p-5">
-					<RankingTable
-						ranking={stats.ranking}
-						previousRanking={stats.previous_ranking}
-						{playerHref}
-						{unit}
-						onUnit={(value) => setParams(unitParams(value))}
-						sort={rankingSort}
-						onSort={(value) => setParams(sortParams(value))}
-					/>
-				</div>
-			</div>
-		{:else if tab === 'players'}
-			<div class="flex flex-col gap-4">
-				{@render periodBar()}
-				{#if !focus?.startsWith('streak-')}
-					<PlayerLeaders
-						ranking={stats.ranking}
-						previousRanking={stats.previous_ranking}
-						minMatchdays={stats.min_matchdays}
-						{playerHref}
-						{focus}
-						{unit}
-						onFocus={setFocus}
-						onUnit={(value) => setParams(unitParams(value))}
-					/>
-				{/if}
-				{#if !focus || focus.startsWith('streak-')}
-					<PlayerStreaks
-						ranking={stats.ranking}
-						minMatchdays={stats.min_matchdays}
-						{playerHref}
-						{focus}
-						onFocus={setFocus}
-					/>
-				{/if}
-				<PlayerComparisons
-					{evolution}
-					{pairs}
-					{network}
-					{minDays}
-					onMinDays={(value) => (minDays = value)}
-					minMatchdays={stats.min_matchdays}
-					{unit}
-					onUnit={(value) => setParams(unitParams(value))}
-					{playerHref}
-				/>
-				<a href={`/groups/${groupId}/analise`} class="btn self-start">
-					{t('stats.openAnalysis')}
-				</a>
-			</div>
-		{:else if tab === 'stats'}
+		{:else if view.tab === 'ranking'}
+			<RankingTab {stats} {matchdays} {view} {playerHref} />
+		{:else if view.tab === 'players'}
+			<PlayersTab
+				{stats}
+				{evolution}
+				{pairs}
+				{network}
+				{minDays}
+				onMinDays={(value) => (minDays = value)}
+				{view}
+				{playerHref}
+				analysisHref={`/groups/${groupId}/analise`}
+				before={periodBar}
+			/>
+		{:else if view.tab === 'stats'}
 			<div class="flex flex-col gap-4">
 				{@render periodBar()}
 				<GroupStats {stats} />
@@ -363,7 +272,7 @@
 					<TimelineCharts {timeline} />
 				{/if}
 			</div>
-		{:else if tab === 'settings'}
+		{:else if view.tab === 'settings'}
 			<GroupSettings {group} onchange={onGroupChange} />
 		{/if}
 	</div>

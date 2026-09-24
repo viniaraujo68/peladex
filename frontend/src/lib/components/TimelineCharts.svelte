@@ -1,8 +1,10 @@
 <script>
+	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { onMount } from 'svelte';
 	import { getThemeContext } from '@viniaraujo68/plinth/theme';
-	import { formatNumber, formatRate } from '$lib/format.svelte.js';
-	import { i18n, localeTag, t } from '$lib/i18n.svelte.js';
+	import { readChartTheme } from '$lib/chartTheme.js';
+	import { formatNumber, formatRate, formatShortDate } from '$lib/format.svelte.js';
+	import { i18n, t } from '$lib/i18n.svelte.js';
 
 	/** @type {{ timeline: import('$lib/types.js').Timeline }} */
 	let { timeline } = $props();
@@ -26,62 +28,19 @@
 		timeline.scorelines.reduce((m, row) => Math.max(m, row.share), 0) || 1
 	);
 
-	/** @param {HTMLElement} host */
-	function colorResolver(host) {
-		const probe = document.createElement('span');
-		probe.style.position = 'absolute';
-		probe.style.visibility = 'hidden';
-		probe.style.pointerEvents = 'none';
-		host.appendChild(probe);
-		return {
-			/** @param {string} expression @param {string} fallback */
-			read(expression, fallback) {
-				probe.style.color = '';
-				probe.style.color = expression;
-				return getComputedStyle(probe).color || fallback;
-			},
-			done() {
-				probe.remove();
-			}
-		};
-	}
-
-	/** @param {string} d */
-	function labelFor(d) {
-		return new Date(d + 'T00:00:00').toLocaleDateString(localeTag(), {
-			day: '2-digit',
-			month: 'short'
-		});
-	}
-
 	async function render() {
 		const ticket = ++renderTicket;
 		const { Chart } = await import('chart.js/auto');
 		if (ticket !== renderTicket) return;
 
 		const host = goalsCanvas?.parentElement ?? document.body;
-		const resolve = colorResolver(host);
-		const ink = (/** @type {number} */ percent, /** @type {string} */ fallback) =>
-			resolve.read(
-				`color-mix(in oklch, var(--color-base-content) ${percent}%, transparent)`,
-				fallback
-			);
-		const axisColor = ink(65, '#857da3');
-		const textColor = ink(85, '#c8cee0');
-		const gridColor = ink(10, 'rgba(127,127,127,0.12)');
-		const surface = resolve.read('var(--color-base-100)', '#ffffff');
-		const bar = resolve.read('var(--series-1)', '#2a78d6');
-
-		const tooltip = {
-			backgroundColor: surface,
-			borderColor: ink(14, 'rgba(127,127,127,0.16)'),
-			borderWidth: 1,
-			titleColor: axisColor,
-			bodyColor: textColor,
-			padding: 10,
-			cornerRadius: 8
-		};
-		const labels = points.map((p) => labelFor(p.date));
+		const theme = readChartTheme(host);
+		const axisColor = theme.axis;
+		const gridColor = theme.grid;
+		const surface = theme.surface;
+		const bar = theme.read('var(--series-1)', '#2a78d6');
+		const tooltip = theme.tooltip;
+		const labels = points.map((p) => formatShortDate(p.date));
 
 		const perMatch = scope === 'match';
 
@@ -133,7 +92,7 @@
 			});
 		}
 
-		resolve.done();
+		theme.dispose();
 	}
 
 	onMount(() => () => {
@@ -182,19 +141,12 @@
 						<p class="hint">{t('chart.goalsPerMatchHint')}</p>
 					{/if}
 				</div>
-				<div class="scopes" role="group" aria-label={t('chart.metric')}>
-					{#each scopes as option (option.id)}
-						<button
-							type="button"
-							class="schip"
-							class:sel={scope === option.id}
-							aria-pressed={scope === option.id}
-							onclick={() => (scope = /** @type {any} */ (option.id))}
-						>
-							{option.label}
-						</button>
-					{/each}
-				</div>
+				<SegmentedControl
+					options={scopes}
+					value={scope}
+					label={t('unit.label')}
+					onchange={(id) => (scope = /** @type {'matchday'|'match'} */ (id))}
+				/>
 			</div>
 			<div class="wrap"><canvas bind:this={goalsCanvas}></canvas></div>
 		</section>
@@ -203,7 +155,6 @@
 
 <style>
 	.timeline {
-		--series-1: light-dark(#2a78d6, #3987e5);
 		display: flex;
 		flex-direction: column;
 		gap: 16px;
@@ -214,27 +165,6 @@
 		align-items: flex-start;
 		justify-content: space-between;
 		gap: 10px;
-	}
-	.scopes {
-		display: flex;
-		flex-wrap: wrap;
-		gap: 5px;
-	}
-	.schip {
-		min-height: 32px;
-		padding: 4px 11px;
-		border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
-		border-radius: var(--radius-field);
-		background: var(--color-base-100);
-		color: var(--ink-muted);
-		font-size: 0.78rem;
-		cursor: pointer;
-	}
-	.schip.sel {
-		border-color: var(--color-primary);
-		background: color-mix(in oklch, var(--color-primary) 14%, transparent);
-		color: var(--ink-primary);
-		font-weight: 600;
 	}
 	.hint {
 		margin-top: 3px;

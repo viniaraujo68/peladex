@@ -67,7 +67,10 @@
 		<div class="tile">
 			<span class="tl">{t('ranking.winRate')}</span>
 			<span class="tv primary">{formatRate(summary.win_rate)}</span>
-			<span class="ts">{summary.points} pts · {summary.matches}j</span>
+			<span class="ts">
+				{t('short.points', { count: summary.points })} ·
+				{t('short.matches', { count: summary.matches })}
+			</span>
 			{#if summary.rank !== null}
 				<span class="ts">
 					{t('player.rankOf', { rank: summary.rank })}

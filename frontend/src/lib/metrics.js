@@ -1,3 +1,4 @@
+import { competitionRanks } from '@viniaraujo68/plinth/table';
 import { formatAverage, formatNote, formatRate } from './format.svelte.js';
 import { t } from './i18n.svelte.js';
 
@@ -114,6 +115,10 @@ export function unitCaption(tracking) {
 	return tracking.trackAssists ? t('unit.captionBoth') : t('unit.captionGoals');
 }
 
+export function unitOptions() {
+	return UNITS.map((id) => ({ id, label: unitLabel(id) }));
+}
+
 /** @param {Unit} unit */
 export function unitLabel(unit) {
 	return t(`unit.${unit}`);
@@ -160,27 +165,6 @@ export function formScore(form) {
 }
 
 /**
- * @template T
- * @param {T[]} ordered
- * @param {(row: T) => unknown} valueOf
- * @returns {(number|null)[]}
- */
-export function sharedRanks(ordered, valueOf) {
-	/** @type {(number|null)[]} */
-	const ranks = [];
-	ordered.forEach((row, index) => {
-		const value = valueOf(row);
-		if (value === null || value === undefined) {
-			ranks.push(null);
-			return;
-		}
-		const previous = index > 0 ? valueOf(ordered[index - 1]) : undefined;
-		ranks.push(index > 0 && previous === value ? ranks[index - 1] : index + 1);
-	});
-	return ranks;
-}
-
-/**
  * @param {PlayerRow[]} rows
  * @param {Metric} metric
  * @param {Unit} unit
@@ -196,7 +180,7 @@ export function rankRows(rows, metric, unit, locale) {
 	unranked.sort((a, b) => value(b) - value(a) || b.matches - a.matches || byName(a, b));
 	return {
 		ranked,
-		ranks: sharedRanks(ranked, (row) => rankValue(row, metric, unit)),
+		ranks: competitionRanks(ranked, (row) => rankValue(row, metric, unit), locale),
 		unranked
 	};
 }

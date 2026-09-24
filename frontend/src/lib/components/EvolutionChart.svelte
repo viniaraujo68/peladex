@@ -1,8 +1,9 @@
 <script>
 	import { onMount, untrack } from 'svelte';
 	import { getThemeContext } from '@viniaraujo68/plinth/theme';
-	import { formatAverage, formatRate } from '$lib/format.svelte.js';
-	import { i18n, localeTag, t } from '$lib/i18n.svelte.js';
+	import { readChartTheme } from '$lib/chartTheme.js';
+	import { formatAverage, formatRate, formatShortDate } from '$lib/format.svelte.js';
+	import { i18n, t } from '$lib/i18n.svelte.js';
 
 	/**
 	 * @type {{
@@ -66,26 +67,6 @@
 	const hiddenIds = $derived(hiddenOverride ?? defaultHidden);
 	const hiddenCount = $derived(series.filter((s) => hiddenIds.includes(s.id)).length);
 	const allHidden = $derived(series.length > 0 && hiddenCount === series.length);
-
-	/** @param {HTMLElement} host */
-	function colorResolver(host) {
-		const probe = document.createElement('span');
-		probe.style.position = 'absolute';
-		probe.style.visibility = 'hidden';
-		probe.style.pointerEvents = 'none';
-		host.appendChild(probe);
-		return {
-			/** @param {string} expression @param {string} fallback */
-			read(expression, fallback) {
-				probe.style.color = '';
-				probe.style.color = expression;
-				return getComputedStyle(probe).color || fallback;
-			},
-			done() {
-				probe.remove();
-			}
-		};
-	}
 
 	/**
 	 * @param {import('$lib/types.js').EvolutionSeries} s
@@ -191,14 +172,6 @@
 		chart.update();
 	}
 
-	/** @param {string} d */
-	function labelFor(d) {
-		return new Date(d + 'T00:00:00').toLocaleDateString(localeTag(), {
-			day: '2-digit',
-			month: 'short'
-		});
-	}
-
 	/**
 	 * @param {string[]} dates
 	 * @param {Series[]} entries
@@ -211,26 +184,21 @@
 		if (!canvas) return;
 
 		const host = canvas.parentElement ?? document.body;
-		const resolve = colorResolver(host);
-		const ink = (/** @type {number} */ percent, /** @type {string} */ fallback) =>
-			resolve.read(
-				`color-mix(in oklch, var(--color-base-content) ${percent}%, transparent)`,
-				fallback
-			);
-		const textColor = ink(85, '#c8cee0');
-		const axisColor = ink(65, '#857da3');
-		const gridColor = ink(10, 'rgba(127,127,127,0.12)');
-		const crosshairColor = ink(28, 'rgba(127,127,127,0.3)');
-		const surface = resolve.read('var(--color-base-100)', '#ffffff');
+		const theme = readChartTheme(host);
+		const textColor = theme.text;
+		const axisColor = theme.axis;
+		const gridColor = theme.grid;
+		const crosshairColor = theme.ink(28, 'rgba(127,127,127,0.3)');
+		const surface = theme.surface;
 		const fontFamily = getComputedStyle(host).fontFamily;
 		const labelFont = `500 11px ${fontFamily}`;
 
 		const hiddenNow = untrack(() => new Set(hiddenIds));
-		const labels = dates.map(labelFor);
+		const labels = dates.map(formatShortDate);
 		const pointRadius = dates.length <= 24 ? 4 : 0;
 
 		const datasets = entries.map((s) => {
-			const color = resolve.read(s.color, '#2a78d6');
+			const color = theme.read(s.color, '#2a78d6');
 			return {
 				label: s.label,
 				data: [...s.values],
@@ -350,13 +318,7 @@
 				plugins: {
 					legend: { display: false },
 					tooltip: {
-						backgroundColor: surface,
-						borderColor: ink(14, 'rgba(127,127,127,0.16)'),
-						borderWidth: 1,
-						titleColor: axisColor,
-						bodyColor: textColor,
-						padding: 10,
-						cornerRadius: 8,
+						...theme.tooltip,
 						boxPadding: 4,
 						usePointStyle: true,
 						filter: (item) => item.parsed.y !== null,
@@ -389,7 +351,7 @@
 			}
 		});
 
-		resolve.done();
+		theme.dispose();
 	}
 
 	onMount(() => () => chart?.destroy());
@@ -452,14 +414,6 @@
 
 <style>
 	.evolution {
-		--series-1: light-dark(#2a78d6, #3987e5);
-		--series-2: light-dark(#eb6834, #d95926);
-		--series-3: light-dark(#1baf7a, #199e70);
-		--series-4: light-dark(#eda100, #c98500);
-		--series-5: light-dark(#e87ba4, #d55181);
-		--series-6: light-dark(#008300, #008300);
-		--series-7: light-dark(#4a3aa7, #9085e9);
-		--series-8: light-dark(#e34948, #e66767);
 		display: flex;
 		flex-direction: column;
 		gap: 14px;

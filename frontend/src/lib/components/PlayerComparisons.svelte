@@ -1,9 +1,9 @@
 <script>
+	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { t } from '$lib/i18n.svelte.js';
-	import { UNITS, unitLabel } from '$lib/metrics.js';
+	import { unitLabel, unitOptions } from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import AssistNetwork from './AssistNetwork.svelte';
-	import ChipGroup from './ChipGroup.svelte';
 	import EvolutionChart from './EvolutionChart.svelte';
 	import PairLeaderboard from './PairLeaderboard.svelte';
 
@@ -39,7 +39,7 @@
 		].filter((option) => option.on)
 	);
 
-	const unitOptions = $derived(UNITS.map((id) => ({ id, label: unitLabel(id) })));
+	const unitChoices = $derived(unitOptions());
 
 	const title = $derived.by(() => {
 		if (metric === 'win_rate') return t('stats.evolution');
@@ -62,15 +62,15 @@
 				{/if}
 			</div>
 			<div class="controls">
-				<ChipGroup
+				<SegmentedControl
 					options={metrics}
 					value={metric}
 					label={t('chart.metric')}
 					onchange={(id) => (metric = /** @type {any} */ (id))}
 				/>
 				{#if metric !== 'win_rate'}
-					<ChipGroup
-						options={unitOptions}
+					<SegmentedControl
+						options={unitChoices}
 						value={unit}
 						label={t('unit.label')}
 						onchange={(id) => onUnit(/** @type {import('$lib/metrics.js').Unit} */ (id))}

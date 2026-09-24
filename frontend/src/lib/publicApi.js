@@ -1,3 +1,5 @@
+import { error } from '@sveltejs/kit';
+
 /**
  * @param {typeof globalThis.fetch} fetch
  * @param {string} path
@@ -11,4 +13,16 @@ export async function fetchPublic(fetch, path) {
 	} catch {
 		return { data: null, status: 0 };
 	}
+}
+
+/** @param {{ fetch: typeof globalThis.fetch, params: { slug?: string }, url: URL }} event */
+export async function loadPublicGroup({ fetch, params, url }) {
+	const token = url.searchParams.get('t');
+	const query = token ? `?t=${encodeURIComponent(token)}` : '';
+	const { data, status } = await fetchPublic(
+		fetch,
+		`/public/${encodeURIComponent(params.slug ?? '')}${query}`
+	);
+	if (status === 404) error(404, 'No public group with this slug.');
+	return { group: data, status };
 }

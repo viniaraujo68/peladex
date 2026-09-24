@@ -1,8 +1,8 @@
 <script>
 	import { localeTag, t } from '$lib/i18n.svelte.js';
-	import { sharedRanks } from '$lib/metrics.js';
+	import { competitionRanks } from '@viniaraujo68/plinth/table';
 	import { getTracking } from '$lib/tracking.svelte.js';
-	import Icon from './Icon.svelte';
+	import FocusBar from './FocusBar.svelte';
 
 	/**
 	 * @type {{
@@ -34,7 +34,7 @@
 				(a, b) =>
 					value(b) - value(a) || b.matches - a.matches || a.name.localeCompare(b.name, localeTag())
 			);
-		const ranks = sharedRanks(rows, value);
+		const ranks = competitionRanks(rows, value);
 		return rows.map((row, index) => ({ row, count: value(row), rank: ranks[index] }));
 	}
 
@@ -49,54 +49,58 @@
 
 	const boards = $derived(
 		[
-			tracking.trackScorers && {
-				id: 'scoring',
-				title: t('streaks.scoring'),
-				hint: t('streaks.scoringHint'),
-				unit: 'streaks.inARow',
-				...streak((r) => r.goal_streak)
-			},
-			tracking.trackScorers && {
-				id: 'drought',
-				title: t('streaks.drought'),
-				hint: t('streaks.droughtHint'),
-				unit: 'streaks.withoutScoring',
-				...streak(
-					(r) => r.goal_drought,
-					(r) => r.goals > 0
-				)
-			},
+			...(tracking.trackScorers
+				? [
+						{
+							id: 'scoring',
+							title: t('streaks.scoring'),
+							hint: t('streaks.scoringHint'),
+							phrase: 'streaks.inARow',
+							...streak((r) => r.goal_streak)
+						},
+						{
+							id: 'drought',
+							title: t('streaks.drought'),
+							hint: t('streaks.droughtHint'),
+							phrase: 'streaks.withoutScoring',
+							...streak(
+								(r) => r.goal_drought,
+								(r) => r.goals > 0
+							)
+						}
+					]
+				: []),
 			{
 				id: 'titles',
 				title: t('streaks.titles'),
 				hint: t('streaks.titlesHint'),
-				unit: 'streaks.inARow',
+				phrase: 'streaks.inARow',
 				...streak((r) => r.title_streak)
 			},
 			{
 				id: 'presence',
 				title: t('streaks.presence'),
 				hint: t('streaks.presenceHint'),
-				unit: 'streaks.inARow',
+				phrase: 'streaks.inARow',
 				...streak((r) => r.presence_streak)
 			},
 			{
 				id: 'missing',
 				title: t('streaks.missing'),
 				hint: t('streaks.missingHint', { count: minMatchdays }),
-				unit: 'streaks.away',
+				phrase: 'streaks.away',
 				...streak(
 					(r) => r.absent_matchdays,
 					(r) => r.matchdays >= minMatchdays
 				)
 			}
-		].filter((board) => !!board)
+		]
 	);
 
-	const hasAny = $derived(boards.some((board) => board && board.rows.length > 0));
+	const hasAny = $derived(boards.some((board) => board.rows.length > 0));
 
 	const focused = $derived(
-		boards.find((board) => board && `streak-${board.id}` === focus) ?? null
+		boards.find((board) => `streak-${board.id}` === focus) ?? null
 	);
 
 	const full = $derived.by(() => {
@@ -114,15 +118,7 @@
 
 {#if focused}
 	<section class="flex flex-col gap-3">
-		<div class="bar">
-			<button type="button" class="btn btn-sm btn-ghost" onclick={() => openFocus(null)}>
-				{t('streaks.back')}
-			</button>
-			<label class="input search">
-				<Icon name="search" class="size-4 opacity-55" />
-				<input placeholder={t('players.search')} bind:value={query} />
-			</label>
-		</div>
+		<FocusBar backLabel={t('streaks.back')} bind:query onBack={() => openFocus(null)} />
 		<div class="card streak bg-base-100 p-4">
 			<span class="stitle">{focused.title}</span>
 			<span class="hint">{focused.hint}</span>
@@ -136,7 +132,7 @@
 							<a class="sname link-hover" href={playerHref(entry.row.player_id)}>
 								{entry.row.name}
 							</a>
-							<span class="svalue">{t(focused.unit, { count: entry.count })}</span>
+							<span class="svalue">{t(focused.phrase, { count: entry.count })}</span>
 						</li>
 					{/each}
 				</ol>
@@ -150,34 +146,32 @@
 			<p class="hint">{t('streaks.hint')}</p>
 		</div>
 		<div class="board">
-			{#each boards as board (board && board.id)}
-				{#if board}
-					<div class="card streak bg-base-100 p-4">
-						<span class="stitle">{board.title}</span>
-						<span class="hint">{board.hint}</span>
-						{#if board.rows.length === 0}
-							<p class="hint">{t('streaks.nobody')}</p>
-						{:else}
-							<ol class="list">
-								{#each board.rows as entry (entry.row.player_id)}
-									<li class="srow">
-										<a class="sname link-hover" href={playerHref(entry.row.player_id)}>
-											{entry.row.name}
-										</a>
-										<span class="svalue">{t(board.unit, { count: entry.count })}</span>
-									</li>
-								{/each}
-							</ol>
-						{/if}
-						<button
-							type="button"
-							class="btn btn-sm btn-ghost more"
-							onclick={() => openFocus(`streak-${board.id}`)}
-						>
-							{t('leaders.seeAll')}
-						</button>
-					</div>
-				{/if}
+			{#each boards as board (board.id)}
+				<div class="card streak bg-base-100 p-4">
+					<span class="stitle">{board.title}</span>
+					<span class="hint">{board.hint}</span>
+					{#if board.rows.length === 0}
+						<p class="hint">{t('streaks.nobody')}</p>
+					{:else}
+						<ol class="list">
+							{#each board.rows as entry (entry.row.player_id)}
+								<li class="srow">
+									<a class="sname link-hover" href={playerHref(entry.row.player_id)}>
+										{entry.row.name}
+									</a>
+									<span class="svalue">{t(board.phrase, { count: entry.count })}</span>
+								</li>
+							{/each}
+						</ol>
+					{/if}
+					<button
+						type="button"
+						class="btn btn-sm btn-ghost more"
+						onclick={() => openFocus(`streak-${board.id}`)}
+					>
+						{t('leaders.seeAll')}
+					</button>
+				</div>
 			{/each}
 		</div>
 	</section>
@@ -208,17 +202,6 @@
 	.list {
 		display: flex;
 		flex-direction: column;
-	}
-	.bar {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-	}
-	.search {
-		max-width: 300px;
-		flex: 1 1 200px;
 	}
 	.more {
 		align-self: flex-start;

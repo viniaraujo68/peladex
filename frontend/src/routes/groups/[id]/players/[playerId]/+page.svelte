@@ -7,7 +7,7 @@
 	import { auth } from '$lib/stores/auth.svelte.js';
 	import { loginUrl } from '$lib/nav.js';
 	import { t } from '$lib/i18n.svelte.js';
-	import { setTrackingContext } from '$lib/tracking.svelte.js';
+	import { setGroupTracking } from '$lib/tracking.svelte.js';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
@@ -20,17 +20,7 @@
 	let minDays = $state(3);
 	let loading = $state(true);
 
-	setTrackingContext({
-		get trackScorers() {
-			return group?.track_scorers ?? true;
-		},
-		get trackAssists() {
-			return group?.track_assists ?? false;
-		},
-		get showRatings() {
-			return group?.show_ratings ?? true;
-		}
-	});
+	setGroupTracking(() => group);
 	let error = $state('');
 
 	/** @param {number} id */

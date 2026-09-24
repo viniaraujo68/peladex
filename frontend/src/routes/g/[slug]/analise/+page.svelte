@@ -1,10 +1,9 @@
 <script>
 	import { page } from '$app/stores';
-	import { goto } from '$app/navigation';
 	import { get, post } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
-	import { setTrackingContext } from '$lib/tracking.svelte.js';
-	import { withParams } from '$lib/viewState.js';
+	import { setGroupTracking } from '$lib/tracking.svelte.js';
+	import { pickParams, readIdParam, replaceParams } from '$lib/groupView.svelte.js';
 	import ComboExplorer from '$lib/components/ComboExplorer.svelte';
 	import PlayerCompare from '$lib/components/PlayerCompare.svelte';
 
@@ -16,17 +15,7 @@
 	const token = $derived($page.url.searchParams.get('t'));
 	const tokenQuery = $derived(token ? `?t=${encodeURIComponent(token)}` : '');
 
-	setTrackingContext({
-		get trackScorers() {
-			return group?.track_scorers ?? true;
-		},
-		get trackAssists() {
-			return group?.track_assists ?? false;
-		},
-		get showRatings() {
-			return group?.show_ratings ?? true;
-		}
-	});
+	setGroupTracking(() => group);
 
 	const error = $derived(
 		data.status === 200
@@ -41,19 +30,10 @@
 	);
 
 	/** @param {string} key */
-	const idParam = (key) => {
-		const value = Number($page.url.searchParams.get(key));
-		return Number.isInteger(value) && value > 0 ? value : null;
-	};
+	const idParam = (key) => readIdParam($page.url.searchParams, key);
 
 	/** @param {{ a: number|null, b: number|null }} pick */
-	function setPick(pick) {
-		const url = withParams($page.url, {
-			a: pick.a === null ? null : String(pick.a),
-			b: pick.b === null ? null : String(pick.b)
-		});
-		goto(url, { keepFocus: true, noScroll: true, replaceState: true });
-	}
+	const setPick = (pick) => replaceParams(pickParams(pick));
 
 	/** @param {number} playerId */
 	const playerHref = (playerId) => `/g/${slug}/players/${playerId}${tokenQuery}`;

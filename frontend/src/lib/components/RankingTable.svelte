@@ -1,21 +1,19 @@
 <script>
-	import { DataTable, sortRows, sortValue } from '@viniaraujo68/plinth/table';
+	import { SegmentedControl } from '@viniaraujo68/plinth/components';
+	import { DataTable, competitionRanks, sortRows, sortValue } from '@viniaraujo68/plinth/table';
 	import { formatRate } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import {
-		UNITS,
 		formScore,
 		formatMetric,
 		isAverage,
 		metricById,
 		metricValue,
 		rankValue,
-		sharedRanks,
 		unitCaption,
-		unitLabel
+		unitOptions
 	} from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
-	import ChipGroup from './ChipGroup.svelte';
 	import FormDots from './FormDots.svelte';
 	import Icon from './Icon.svelte';
 	import RankMove from './RankMove.svelte';
@@ -57,7 +55,7 @@
 	const showGoals = $derived(tracking.trackScorers);
 	const showAssists = $derived(tracking.trackScorers && tracking.trackAssists);
 
-	const unitOptions = $derived(UNITS.map((id) => ({ id, label: unitLabel(id) })));
+	const unitChoices = $derived(unitOptions());
 
 	/** @param {string} key */
 	const asMetric = (key) =>
@@ -199,7 +197,7 @@
 	/** @param {Row[]} rows */
 	function positionsOf(rows) {
 		const ordered = sortRows(rows, activeColumn, sort.direction, localeTag());
-		const positions = sharedRanks(ordered, (r) => sortValue(activeColumn, r));
+		const positions = competitionRanks(ordered, (r) => sortValue(activeColumn, r), localeTag());
 		return new Map(ordered.map((r, i) => [r.player_id, positions[i]]));
 	}
 
@@ -305,7 +303,7 @@
 					count: r.matchdays,
 					matches: r.matches,
 					goals: showAssists
-						? `${r.goals}G ${r.assists}A`
+						? t('short.goalsAssists', { goals: r.goals, assists: r.assists })
 						: t('ranking.goalCount', { count: r.goals })
 				})}
 			</span>
@@ -330,8 +328,8 @@
 {:else}
 	<div class="ranking">
 		{#if showGoals}
-			<ChipGroup
-				options={unitOptions}
+			<SegmentedControl
+				options={unitChoices}
 				value={unit}
 				label={t('unit.label')}
 				caption={unitCaption(tracking)}

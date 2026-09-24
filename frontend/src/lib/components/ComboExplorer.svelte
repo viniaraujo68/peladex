@@ -1,8 +1,7 @@
 <script>
-	import { formatRate, formatRateDelta, rateClass } from '$lib/format.svelte.js';
+	import { formatRate, formatRateDelta, formatShortDate, rateClass } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import { Combobox } from '@viniaraujo68/plinth/components';
-	import { formatShortDate } from '$lib/format.svelte.js';
 	import PeriodFilter from './PeriodFilter.svelte';
 
 	/**
@@ -232,7 +231,7 @@
 					<div class="tile">
 						<span class="tl">{t('analysis.record')}</span>
 						<span class="tv">{result.wins}·{result.draws}·{result.losses}</span>
-						<span class="ts">{result.points} pts</span>
+						<span class="ts">{t('short.points', { count: result.points })}</span>
 					</div>
 					<div class="tile">
 						<span class="tl">{t('analysis.goalsLabel')}</span>
@@ -313,10 +312,6 @@
 		color: var(--color-base-content);
 		font-size: 0.82rem;
 		cursor: pointer;
-	}
-	.pk:disabled {
-		opacity: 0.35;
-		cursor: not-allowed;
 	}
 	.pk.sel {
 		border-color: var(--color-primary);

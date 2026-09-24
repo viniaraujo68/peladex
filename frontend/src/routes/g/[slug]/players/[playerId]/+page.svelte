@@ -3,7 +3,7 @@
 	import { goto } from '$app/navigation';
 	import { post } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
-	import { setTrackingContext } from '$lib/tracking.svelte.js';
+	import { setGroupTracking } from '$lib/tracking.svelte.js';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
 
 	/**
@@ -19,17 +19,7 @@
 	const detail = $derived(data.detail);
 	const group = $derived(data.group);
 
-	setTrackingContext({
-		get trackScorers() {
-			return group?.track_scorers ?? true;
-		},
-		get trackAssists() {
-			return group?.track_assists ?? false;
-		},
-		get showRatings() {
-			return group?.show_ratings ?? true;
-		}
-	});
+	setGroupTracking(() => group);
 	const token = $derived($page.url.searchParams.get('t'));
 	const slug = $derived(/** @type {string} */ ($page.params.slug));
 

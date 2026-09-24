@@ -1,20 +1,20 @@
 <script>
+	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import {
 		MATCH_VARIANTS,
-		UNITS,
 		availableMetrics,
 		formatMetric,
 		metricDetail,
 		metricTitle,
 		metricValue,
 		rankRows,
+		unitOptions,
 		unitCaption,
 		unitLabel
 	} from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
-	import ChipGroup from './ChipGroup.svelte';
-	import Icon from './Icon.svelte';
+	import FocusBar from './FocusBar.svelte';
 	import RankMove from './RankMove.svelte';
 
 	/**
@@ -55,7 +55,7 @@
 		metrics.filter((m) => !isMatchVariant(m.id) || m.id === matchVariant)
 	);
 
-	const unitOptions = $derived(UNITS.map((id) => ({ id, label: unitLabel(id) })));
+	const unitChoices = $derived(unitOptions());
 	const variantOptions = $derived([
 		{ id: 'matches_per_matchday', label: unitLabel('day') },
 		{ id: 'matches', label: unitLabel('total') }
@@ -123,8 +123,8 @@
 </script>
 
 {#snippet unitBar()}
-	<ChipGroup
-		options={unitOptions}
+	<SegmentedControl
+		options={unitChoices}
 		value={unit}
 		label={t('unit.label')}
 		caption={unitCaption(tracking)}
@@ -133,7 +133,7 @@
 {/snippet}
 
 {#snippet variantBar(/** @type {MetricId} */ current)}
-	<ChipGroup
+	<SegmentedControl
 		options={variantOptions}
 		value={current}
 		label={t('metric.matchesGroup')}
@@ -147,16 +147,8 @@
 	</div>
 {:else if focused && full}
 	<div class="wrap">
-		<div class="bar">
-			<button type="button" class="btn btn-sm btn-ghost" onclick={() => openFocus(null)}>
-				{t('leaders.back')}
-			</button>
-			<label class="input search">
-				<Icon name="search" class="size-4 opacity-55" />
-				<input placeholder={t('players.search')} bind:value={query} />
-			</label>
-		</div>
-		<ChipGroup
+		<FocusBar backLabel={t('leaders.back')} bind:query onBack={() => openFocus(null)} />
+		<SegmentedControl
 			options={metricOptions}
 			value={focused.id}
 			label={t('players.sortBy')}
@@ -219,7 +211,8 @@
 					<div class="lhead">
 						<h3 class="ltitle">{metricTitle(board.metric, unit)}</h3>
 						{#if isMatchVariant(board.metric.id)}
-							<ChipGroup
+							<SegmentedControl
+								size="sm"
 								options={variantOptions}
 								value={matchVariant}
 								label={t('metric.matchesGroup')}
@@ -265,17 +258,6 @@
 		flex-direction: column;
 		gap: 14px;
 	}
-	.bar {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: center;
-		justify-content: space-between;
-		gap: 10px;
-	}
-	.search {
-		max-width: 300px;
-		flex: 1 1 200px;
-	}
 	.board {
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
@@ -292,11 +274,6 @@
 		align-items: center;
 		justify-content: space-between;
 		gap: 6px;
-	}
-	.lhead :global(.chip) {
-		min-height: 26px;
-		padding: 2px 8px;
-		font-size: 0.7rem;
 	}
 	.ltitle {
 		font-size: 0.72rem;
