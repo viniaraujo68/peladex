@@ -38,6 +38,24 @@
 	/** @param {number} id */
 	const nameOf = (id) => names.get(id) ?? '?';
 
+	/** @param {string[]} dates */
+	const spansYears = (dates) => dates[0].slice(0, 4) !== dates[dates.length - 1].slice(0, 4);
+
+	/** @param {string} date @param {string[]} dates */
+	function dateLabel(date, dates) {
+		return spansYears(dates) ? `${formatShortDate(date)} ${date.slice(0, 4)}` : formatShortDate(date);
+	}
+
+	/** @param {string[]} dates */
+	function whenSummary(dates) {
+		if (dates.length === 1) return t('analysis.whenOnce', { date: dateLabel(dates[0], dates) });
+		return t('analysis.whenRange', {
+			count: dates.length,
+			first: dateLabel(dates[0], dates),
+			last: dateLabel(dates[dates.length - 1], dates)
+		});
+	}
+
 	/** @param {number[]} chosen */
 	function optionsFor(chosen) {
 		const taken = new Set([...together, ...against, ...chosen]);
@@ -239,7 +257,17 @@
 				{#if result.dates.length}
 					<div class="dates">
 						<span class="tl">{t('analysis.when')}</span>
-						<span class="ts">{result.dates.map(formatShortDate).join(' · ')}</span>
+						<span class="ts">{whenSummary(result.dates)}</span>
+						{#if result.dates.length > 1}
+							<details class="datelist">
+								<summary>{t('analysis.showDates')}</summary>
+								<div class="datechips">
+									{#each [...result.dates].reverse() as date (date)}
+										<span class="datechip">{dateLabel(date, result.dates)}</span>
+									{/each}
+								</div>
+							</details>
+						{/if}
 					</div>
 				{/if}
 			</section>
@@ -343,6 +371,28 @@
 		display: flex;
 		flex-direction: column;
 		gap: 3px;
+	}
+	.datelist summary {
+		width: fit-content;
+		font-size: 0.74rem;
+		color: var(--ink-muted);
+		cursor: pointer;
+	}
+	.datechips {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 4px;
+		max-height: 9rem;
+		margin-top: 6px;
+		overflow-y: auto;
+	}
+	.datechip {
+		padding: 1px 7px;
+		border-radius: 999px;
+		background: color-mix(in oklch, var(--color-base-content) 7%, transparent);
+		font-size: 0.72rem;
+		font-variant-numeric: tabular-nums;
+		color: var(--ink-muted);
 	}
 	.tiles {
 		display: grid;

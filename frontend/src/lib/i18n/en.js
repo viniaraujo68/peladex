@@ -670,4 +670,7 @@ export default {
 	'day.hideDetails': 'Hide table, lineups and matches',
 	'settings.renamePlayer': 'Rename {name}',
 	'toast.playerRenamed': 'Player renamed: {from} → {to}',
+	'analysis.whenOnce': 'Only on {date}',
+	'analysis.whenRange': { one: '{count} day, from {first} to {last}', other: '{count} days, from {first} to {last}' },
+	'analysis.showDates': 'See the dates',
 };

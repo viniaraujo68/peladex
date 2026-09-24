@@ -671,4 +671,7 @@ export default {
 	'day.hideDetails': 'Esconder tabela, escalações e partidas',
 	'settings.renamePlayer': 'Renomear {name}',
 	'toast.playerRenamed': 'Jogador renomeado: {from} → {to}',
+	'analysis.whenOnce': 'Só em {date}',
+	'analysis.whenRange': { one: '{count} dia, de {first} a {last}', other: '{count} dias, de {first} a {last}' },
+	'analysis.showDates': 'Ver as datas',
 };
