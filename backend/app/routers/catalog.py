@@ -49,6 +49,16 @@ def update_player(group_id: int, player_id: int, body: schemas.PlayerUpdate,
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Jogador não encontrado")
     data = body.model_dump(exclude_unset=True, exclude_none=True)
     if "name" in data:
+        taken = db.exec(
+            select(models.Player).where(
+                models.Player.group_id == group_id,
+                models.Player.name == data["name"],
+                models.Player.id != player_id,
+            )
+        ).first()
+        if taken:
+            raise api_error(status.HTTP_409_CONFLICT, "player_exists",
+                            "Já existe um jogador com esse nome nesta pelada")
         player.name = data["name"]
     if "active" in data:
         player.active = data["active"]

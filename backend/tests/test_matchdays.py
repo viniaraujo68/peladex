@@ -134,6 +134,17 @@ def test_player_names_are_stored_lowercase(api, group):
     assert r.json()["name"] == "golin"
 
 
+
+def test_renaming_a_player_to_a_taken_name_is_a_conflict(api, group):
+    first = api.post(f"/api/groups/{group}/players", json={"name": "golin"}).json()
+    second = api.post(f"/api/groups/{group}/players", json={"name": "galo"}).json()
+    r = api.patch(f"/api/groups/{group}/players/{second['id']}", json={"name": "Golin"})
+    assert r.status_code == 409, r.text
+    assert r.json()["detail"]["code"] == "player_exists"
+    r = api.patch(f"/api/groups/{group}/players/{first['id']}", json={"name": "golin"})
+    assert r.status_code == 200, r.text
+
+
 def test_venue_names_keep_the_original_case(api, group):
     r = api.post(f"/api/groups/{group}/venues", json={"name": "Campo do Zé"})
     assert r.status_code == 201, r.text
