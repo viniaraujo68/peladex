@@ -1,0 +1,169 @@
+import { formatAverage, formatNote, formatRate } from './format.svelte.js';
+import { t } from './i18n.svelte.js';
+
+/** @typedef {import('./types.js').PlayerRow} PlayerRow */
+/** @typedef {'total'|'match'|'day'} Unit */
+/**
+ * @typedef {'win_rate'|'goals'|'assists'|'contributions'|'goal_share'|'assist_share'
+ *   |'titles'|'mvp_count'|'matchdays'|'rating'} MetricId
+ */
+/**
+ * @typedef {object} Metric
+ * @property {MetricId} id
+ * @property {'rate'|'count'|'note'} kind
+ * @property {boolean} perUnit
+ * @property {'scorers'|'assists'|'ratings'|null} needs
+ */
+
+/** @type {Unit[]} */
+export const UNITS = ['total', 'match', 'day'];
+/** @type {Unit} */
+export const DEFAULT_UNIT = 'match';
+
+/** @type {Record<'goals'|'assists'|'contributions', Record<Unit, keyof PlayerRow>>} */
+const UNIT_FIELDS = {
+	goals: { total: 'goals', match: 'goals_per_match', day: 'goals_per_matchday' },
+	assists: { total: 'assists', match: 'assists_per_match', day: 'assists_per_matchday' },
+	contributions: {
+		total: 'contributions',
+		match: 'contributions_per_match',
+		day: 'contributions_per_matchday'
+	}
+};
+
+/** @type {Metric[]} */
+export const METRICS = [
+	{ id: 'win_rate', kind: 'rate', perUnit: false, needs: null },
+	{ id: 'goals', kind: 'count', perUnit: true, needs: 'scorers' },
+	{ id: 'assists', kind: 'count', perUnit: true, needs: 'assists' },
+	{ id: 'contributions', kind: 'count', perUnit: true, needs: 'assists' },
+	{ id: 'goal_share', kind: 'rate', perUnit: false, needs: 'scorers' },
+	{ id: 'assist_share', kind: 'rate', perUnit: false, needs: 'assists' },
+	{ id: 'titles', kind: 'count', perUnit: false, needs: null },
+	{ id: 'mvp_count', kind: 'count', perUnit: false, needs: null },
+	{ id: 'matchdays', kind: 'count', perUnit: false, needs: null },
+	{ id: 'rating', kind: 'note', perUnit: false, needs: 'ratings' }
+];
+
+/** @param {string|null|undefined} value @returns {Unit} */
+export function parseUnit(value) {
+	return UNITS.includes(/** @type {Unit} */ (value)) ? /** @type {Unit} */ (value) : DEFAULT_UNIT;
+}
+
+/** @param {import('./tracking.svelte.js').Tracking} tracking */
+export function availableMetrics(tracking) {
+	return METRICS.filter((metric) => {
+		if (metric.needs === 'scorers') return tracking.trackScorers;
+		if (metric.needs === 'assists') return tracking.trackScorers && tracking.trackAssists;
+		if (metric.needs === 'ratings') return tracking.showRatings;
+		return true;
+	});
+}
+
+/** @param {MetricId} id */
+export function metricById(id) {
+	return METRICS.find((metric) => metric.id === id) ?? METRICS[0];
+}
+
+/** @param {Metric} metric @param {Unit} unit */
+export function isAverage(metric, unit) {
+	return metric.kind === 'rate' || (metric.perUnit && unit !== 'total');
+}
+
+/** @param {PlayerRow} row @param {Metric} metric @param {Unit} unit @returns {number|null} */
+export function metricValue(row, metric, unit) {
+	if (metric.id === 'rating') return row.rating_provisional ? null : row.rating;
+	if (metric.perUnit) {
+		const field = UNIT_FIELDS[/** @type {'goals'|'assists'|'contributions'} */ (metric.id)][unit];
+		return /** @type {number} */ (row[field]);
+	}
+	return /** @type {number|null} */ (row[metric.id]);
+}
+
+/** @param {PlayerRow} row @param {Metric} metric @param {Unit} unit */
+export function rankValue(row, metric, unit) {
+	if (isAverage(metric, unit) && !row.qualified) return null;
+	return metricValue(row, metric, unit);
+}
+
+/** @param {number|null} value @param {Metric} metric @param {Unit} unit */
+export function formatMetric(value, metric, unit) {
+	if (metric.kind === 'rate') return formatRate(value);
+	if (metric.kind === 'note') return formatNote(value);
+	if (value === null || value === undefined) return '—';
+	return metric.perUnit && unit !== 'total' ? formatAverage(value) : String(value);
+}
+
+/** @param {Metric} metric @param {Unit} unit */
+export function metricTitle(metric, unit) {
+	return t(`metric.${metric.id}`) + (metric.perUnit ? ` · ${unitLabel(unit)}` : '');
+}
+
+/** @param {Unit} unit */
+export function unitLabel(unit) {
+	return t(`unit.${unit}`);
+}
+
+/** @param {PlayerRow} row @param {Metric} metric */
+export function metricDetail(row, metric) {
+	if (metric.id === 'win_rate') {
+		return t('metric.detailRate', { wins: row.wins, draws: row.draws, losses: row.losses });
+	}
+	if (metric.id === 'goal_share') {
+		return t('metric.detailShare', { value: row.goals, total: row.team_goals });
+	}
+	if (metric.id === 'assist_share') {
+		return t('metric.detailShare', { value: row.assists, total: row.team_goals });
+	}
+	if (metric.perUnit) {
+		const total = /** @type {number} */ (row[UNIT_FIELDS[/** @type {'goals'} */ (metric.id)].total]);
+		return t(`metric.detail.${metric.id}`, { count: total, matches: row.matches, days: row.matchdays });
+	}
+	if (metric.id === 'titles') {
+		return t('metric.detailTitles', { rate: formatRate(row.title_rate), days: row.matchdays });
+	}
+	if (metric.id === 'matchdays') return t('metric.detailPresence', { rate: formatRate(row.presence) });
+	return t('metric.detailDays', { count: row.matchdays });
+}
+
+/**
+ * @template T
+ * @param {T[]} ordered
+ * @param {(row: T) => unknown} valueOf
+ * @returns {(number|null)[]}
+ */
+export function sharedRanks(ordered, valueOf) {
+	/** @type {(number|null)[]} */
+	const ranks = [];
+	ordered.forEach((row, index) => {
+		const value = valueOf(row);
+		if (value === null || value === undefined) {
+			ranks.push(null);
+			return;
+		}
+		const previous = index > 0 ? valueOf(ordered[index - 1]) : undefined;
+		ranks.push(index > 0 && previous === value ? ranks[index - 1] : index + 1);
+	});
+	return ranks;
+}
+
+/**
+ * @param {PlayerRow[]} rows
+ * @param {Metric} metric
+ * @param {Unit} unit
+ * @param {string} locale
+ */
+export function rankRows(rows, metric, unit, locale) {
+	const byName = (/** @type {PlayerRow} */ a, /** @type {PlayerRow} */ b) =>
+		a.name.localeCompare(b.name, locale);
+	const ranked = rows.filter((row) => rankValue(row, metric, unit) !== null);
+	const unranked = rows.filter((row) => rankValue(row, metric, unit) === null);
+	const value = (/** @type {PlayerRow} */ row) => metricValue(row, metric, unit) ?? -1;
+	ranked.sort((a, b) => value(b) - value(a) || b.matches - a.matches || byName(a, b));
+	unranked.sort((a, b) => value(b) - value(a) || b.matches - a.matches || byName(a, b));
+	return {
+		ranked,
+		ranks: sharedRanks(ranked, (row) => rankValue(row, metric, unit)),
+		unranked
+	};
+}

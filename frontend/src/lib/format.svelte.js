@@ -97,6 +97,12 @@ export function formatNote(value) {
 	return fixedFormat(1, false).format(value);
 }
 
+/** @param {number|null|undefined} value */
+export function formatAverage(value) {
+	if (value === null || value === undefined) return '—';
+	return fixedFormat(2, false).format(value);
+}
+
 /** @param {number} value */
 export function formatContribution(value) {
 	return fixedFormat(2, true).format(value);

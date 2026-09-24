@@ -6,12 +6,15 @@
 	import { setTrackingContext } from '$lib/tracking.svelte.js';
 	import GroupStats from '$lib/components/GroupStats.svelte';
 	import PlayerComparisons from '$lib/components/PlayerComparisons.svelte';
-	import PlayersGrid from '$lib/components/PlayersGrid.svelte';
+	import PlayerLeaders from '$lib/components/PlayerLeaders.svelte';
+	import LastMatchdaySummary from '$lib/components/LastMatchdaySummary.svelte';
 	import TimelineCharts from '$lib/components/TimelineCharts.svelte';
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
 	import RankingTable from '$lib/components/RankingTable.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
+	import { parseUnit } from '$lib/metrics.js';
+	import { readSort, sortParams, unitParams, withParams } from '$lib/viewState.js';
 
 	/** @type {{ data: { group: import('$lib/types.js').PublicGroup|null, status: number } }} */
 	let { data } = $props();
@@ -55,6 +58,17 @@
 		{ id: 'stats', label: t('tab.stats') },
 		{ id: 'matchdays', label: t('tab.matchdays') }
 	]);
+
+	const unit = $derived(parseUnit($page.url.searchParams.get('per')));
+	const rankingSort = $derived(readSort($page.url.searchParams));
+	const focus = $derived(
+		/** @type {import('$lib/metrics.js').MetricId|null} */ ($page.url.searchParams.get('focus'))
+	);
+
+	/** @param {Record<string, string|null>} updates */
+	function setParams(updates) {
+		goto(withParams($page.url, updates), { keepFocus: true, noScroll: true, replaceState: true });
+	}
 
 	/** @param {string} id */
 	function setTab(id) {
@@ -150,18 +164,44 @@
 
 	<div id="public-panel" role="tabpanel" aria-labelledby={`ptab-${tab}`}>
 		{#if tab === 'ranking'}
-			<div class="card bg-base-100 p-5">
-				<RankingTable ranking={group.stats.ranking} {playerHref} />
+			<div class="flex flex-col gap-4">
+				<LastMatchdaySummary
+					matchdays={group.matchdays}
+					{playerHref}
+					onOpenDay={() => setTab('matchdays')}
+				/>
+				<div class="card bg-base-100 p-5">
+					<RankingTable
+						ranking={group.stats.ranking}
+						minMatchdays={group.stats.min_matchdays}
+						{playerHref}
+						{unit}
+						onUnit={(value) => setParams(unitParams(value))}
+						sort={rankingSort}
+						onSort={(value) => setParams(sortParams(value))}
+					/>
+				</div>
 			</div>
 		{:else if tab === 'players'}
 			<div class="flex flex-col gap-4">
-				<PlayersGrid ranking={group.stats.ranking} {playerHref} />
+				<PlayerLeaders
+					ranking={group.stats.ranking}
+					minMatchdays={group.stats.min_matchdays}
+					{playerHref}
+					{focus}
+					{unit}
+					onFocus={(value) => setParams({ focus: value })}
+					onUnit={(value) => setParams(unitParams(value))}
+				/>
 				<PlayerComparisons
 					evolution={group.evolution}
 					{pairs}
 					{network}
 					{minDays}
 					onMinDays={(value) => (minDays = value)}
+					minMatchdays={group.stats.min_matchdays}
+					{unit}
+					onUnit={(value) => setParams(unitParams(value))}
 					{playerHref}
 				/>
 				<a

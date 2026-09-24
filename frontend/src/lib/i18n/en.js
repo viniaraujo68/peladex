@@ -240,7 +240,6 @@ export default {
 	'player.mvpBadge': 'MVP',
 	'player.goalsChart': 'Goals per matchday',
 	'player.groupAverage': 'Group average',
-	'player.goalsPerDay': '{value} per day',
 	'player.positionOf': '{position} of {teams}',
 
 	'import.title': 'Import from your notes',
@@ -524,13 +523,86 @@ export default {
 	'tab.players': 'Players',
 	'players.search': 'Search player…',
 	'players.noResults': 'No player found for “{query}”.',
-	'players.showAll': 'See all {count} players',
-	'players.showLess': 'Show less',
 	'players.sortBy': 'Sort by',
-	'players.meta': '{days} days · {matches} matches · {presence} presence',
 
 	'apiError.registration_closed': 'Registration is closed on this install. Ask the owner for access.',
 
+	'metric.win_rate': 'Win rate',
+	'metric.goals': 'Top scorers',
+	'metric.assists': 'Top assisters',
+	'metric.contributions': 'Goals + assists',
+	'metric.goal_share': 'Share of team goals',
+	'metric.assist_share': 'Assists on team goals',
+	'metric.titles': 'Most titles',
+	'metric.mvp_count': 'MVPs',
+	'metric.matchdays': 'Most present',
+	'metric.rating': 'Rating',
+	'metric.detailRate': '{wins}W {draws}D {losses}L',
+	'metric.detailShare': '{value} of {total} team goals',
+	'metric.detail.goals': { one: '{count} goal in {matches} matches', other: '{count} goals in {matches} matches' },
+	'metric.detail.assists': {
+		one: '{count} assist in {matches} matches',
+		other: '{count} assists in {matches} matches'
+	},
+	'metric.detail.contributions': { one: '{count} G+A in {matches} matches', other: '{count} G+A in {matches} matches' },
+	'metric.detailTitles': 'champion on {rate} of {days} days',
+	'metric.detailPresence': '{rate} of the days',
+	'metric.detailDays': { one: '{count} day', other: '{count} days' },
+	'unit.total': 'Total',
+	'unit.match': 'Per match',
+	'unit.day': 'Per day',
+	'unit.label': 'Unit',
+	'unit.caption': 'Goals and assists:',
+	'unit.short.match': 'match',
+	'unit.short.day': 'day',
+	'leaders.qualifyNote': {
+		one: 'Win rate and averages only rank players with at least {count} day (40% of the days, at most 3). Everyone else is listed last, without a position.',
+		other: 'Win rate and averages only rank players with at least {count} days (40% of the days, at most 3). Everyone else is listed last, without a position.'
+	},
+	'leaders.back': '← All leaders',
+	'leaders.provisional': 'Provisional rating — too few days to count',
+	'leaders.fewDays': {
+		one: 'Too few matches — under {count} day',
+		other: 'Too few matches — under {count} days'
+	},
+	'leaders.empty': 'Nobody yet.',
+	'leaders.tiedOut': { one: '+{count} tied', other: '+{count} tied' },
+	'leaders.seeAll': 'See all',
+	'ranking.goal_share': 'Goal share',
+	'chart.runningAverage': 'running average',
+	'chart.runningAverageHint': 'Running total divided by the matches (or days) up to each date.',
+	'chart.defaultSeriesHint': {
+		one: 'At first, only players with at least {count} day are shown.',
+		other: 'At first, only players with at least {count} days are shown.'
+	},
+	'player.goalsInDay': 'On the day',
+	'player.goalsPerMatchChart': 'Goals per match on each day',
+	'player.notQualified': 'Out of the averages ranking: too few days',
+	'player.perMatch': '{value} per match',
+	'player.perDay': '{value} per day',
+	'player.goalEvery': '1 goal every {value} matches',
+	'player.goalShare': 'Share of team goals',
+	'player.assistShare': 'Assists on team goals',
+	'player.shareOf': '{value} of {total} team goals',
 	'day.mvpSearch': 'No MVP — type to search',
 	'day.mvpNoMatch': 'Nobody by that name played on this day.',
+	'summary.title': 'Last matchday',
+	'summary.champion': 'Champion',
+	'summary.record': '{wins}W {draws}D {losses}L · {points} pts',
+	'summary.noChampion': 'No champion — tie at the top of the table.',
+	'summary.featured': 'Match of the day',
+	'summary.recordDayGoals': 'Record: {count} goals, the highest-scoring day so far',
+	'summary.recordPlayerGoals': {
+		one: 'Record: {name} scored {count} goal, the most by a player in one day',
+		other: 'Record: {name} scored {count} goals, the most by a player in one day'
+	},
+	'summary.recordMargin': {
+		one: 'Record: biggest win so far, by {count} goal',
+		other: 'Record: biggest win so far, by {count} goals'
+	},
+	'summary.averageGoals': {
+		one: '{count} goal on the day · group average: {average} per day',
+		other: '{count} goals on the day · group average: {average} per day'
+	},
+	'summary.openDay': 'See the full day',
 };

@@ -146,11 +146,20 @@
  * @property {number} assists
  * @property {number} contributions
  * @property {number} goals_per_matchday
+ * @property {number} assists_per_matchday
  * @property {number} contributions_per_matchday
+ * @property {number} goals_per_match
+ * @property {number} assists_per_match
+ * @property {number} contributions_per_match
+ * @property {number} team_goals
+ * @property {number|null} goal_share
+ * @property {number|null} assist_share
+ * @property {number|null} contribution_share
  * @property {number} mvp_count
  * @property {number} titles
  * @property {number} title_rate
  * @property {number} presence
+ * @property {boolean} qualified
  * @property {number|null} recent_win_rate
  * @property {number} title_streak
  * @property {number} best_title_streak
@@ -178,6 +187,7 @@
  * @typedef {object} Stats
  * @property {PlayerRow[]} ranking
  * @property {number} total_matchdays
+ * @property {number} min_matchdays
  * @property {number} total_matches
  * @property {number} total_goals
  * @property {number} total_assists
@@ -244,6 +254,8 @@
  * @property {number|null} points
  * @property {number|null} goals
  * @property {number|null} assists
+ * @property {number|null} matches
+ * @property {number|null} matchdays
  */
 
 /**

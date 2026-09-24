@@ -240,7 +240,6 @@ export default {
 	'player.mvpBadge': 'MVP',
 	'player.goalsChart': 'Gols por dia',
 	'player.groupAverage': 'Média do grupo',
-	'player.goalsPerDay': '{value} por dia',
 	'player.positionOf': '{position}º de {teams}',
 
 	'import.title': 'Importar do bloco de notas',
@@ -525,13 +524,86 @@ export default {
 	'tab.players': 'Jogadores',
 	'players.search': 'Buscar jogador…',
 	'players.noResults': 'Nenhum jogador encontrado para “{query}”.',
-	'players.showAll': 'Ver todos os {count} jogadores',
-	'players.showLess': 'Mostrar menos',
 	'players.sortBy': 'Ordenar por',
-	'players.meta': '{days} dias · {matches} jogos · {presence} presença',
 
 	'apiError.registration_closed': 'O cadastro está fechado nesta pelada. Peça um convite ao dono.',
 
+	'metric.win_rate': 'Aproveitamento',
+	'metric.goals': 'Artilharia',
+	'metric.assists': 'Garçons',
+	'metric.contributions': 'Gols + assistências',
+	'metric.goal_share': 'Parte nos gols do time',
+	'metric.assist_share': 'Assist. nos gols do time',
+	'metric.titles': 'Mais títulos',
+	'metric.mvp_count': 'MVPs',
+	'metric.matchdays': 'Mais presentes',
+	'metric.rating': 'Nota',
+	'metric.detailRate': '{wins}V {draws}E {losses}D',
+	'metric.detailShare': '{value} de {total} gols do time',
+	'metric.detail.goals': { one: '{count} gol em {matches} jogos', other: '{count} gols em {matches} jogos' },
+	'metric.detail.assists': {
+		one: '{count} assist. em {matches} jogos',
+		other: '{count} assist. em {matches} jogos'
+	},
+	'metric.detail.contributions': { one: '{count} G+A em {matches} jogos', other: '{count} G+A em {matches} jogos' },
+	'metric.detailTitles': 'campeão em {rate} dos {days} dias',
+	'metric.detailPresence': '{rate} dos dias',
+	'metric.detailDays': { one: '{count} dia', other: '{count} dias' },
+	'unit.total': 'Total',
+	'unit.match': 'Por jogo',
+	'unit.day': 'Por dia',
+	'unit.label': 'Unidade',
+	'unit.caption': 'Gols e assist.:',
+	'unit.short.match': 'jogo',
+	'unit.short.day': 'dia',
+	'leaders.qualifyNote': {
+		one: 'Aproveitamento e médias só ranqueiam quem jogou pelo menos {count} dia (40% dos dias, no máximo 3). Quem tem menos aparece no fim, sem posição.',
+		other: 'Aproveitamento e médias só ranqueiam quem jogou pelo menos {count} dias (40% dos dias, no máximo 3). Quem tem menos aparece no fim, sem posição.'
+	},
+	'leaders.back': '← Todos os líderes',
+	'leaders.provisional': 'Nota provisória — poucos dias para valer',
+	'leaders.fewDays': {
+		one: 'Poucos jogos — menos de {count} dia',
+		other: 'Poucos jogos — menos de {count} dias'
+	},
+	'leaders.empty': 'Ninguém ainda.',
+	'leaders.tiedOut': { one: '+{count} empatado', other: '+{count} empatados' },
+	'leaders.seeAll': 'Ver todos',
+	'ranking.goal_share': 'Part. gols',
+	'chart.runningAverage': 'média acumulada',
+	'chart.runningAverageHint': 'Total acumulado dividido pelos jogos (ou dias) até cada data.',
+	'chart.defaultSeriesHint': {
+		one: 'De início, mostra só quem tem pelo menos {count} dia.',
+		other: 'De início, mostra só quem tem pelo menos {count} dias.'
+	},
+	'player.goalsInDay': 'No dia',
+	'player.goalsPerMatchChart': 'Gols por jogo em cada dia',
+	'player.notQualified': 'Fora do ranking de médias: poucos dias',
+	'player.perMatch': '{value} por jogo',
+	'player.perDay': '{value} por dia',
+	'player.goalEvery': '1 gol a cada {value} jogos',
+	'player.goalShare': 'Parte nos gols do time',
+	'player.assistShare': 'Assist. nos gols do time',
+	'player.shareOf': '{value} de {total} gols do time',
 	'day.mvpSearch': 'Sem MVP — digite para buscar',
 	'day.mvpNoMatch': 'Ninguém com esse nome jogou neste dia.',
+	'summary.title': 'Última pelada',
+	'summary.champion': 'Campeão',
+	'summary.record': '{wins}V {draws}E {losses}D · {points} pts',
+	'summary.noChampion': 'Sem campeão — empate no topo da tabela.',
+	'summary.featured': 'Jogo do dia',
+	'summary.recordDayGoals': 'Recorde: {count} gols, o dia com mais gols até agora',
+	'summary.recordPlayerGoals': {
+		one: 'Recorde: {name} fez {count} gol, o máximo de um jogador num dia',
+		other: 'Recorde: {name} fez {count} gols, o máximo de um jogador num dia'
+	},
+	'summary.recordMargin': {
+		one: 'Recorde: maior goleada até agora, {count} gol de diferença',
+		other: 'Recorde: maior goleada até agora, {count} gols de diferença'
+	},
+	'summary.averageGoals': {
+		one: '{count} gol no dia · média da pelada: {average} por dia',
+		other: '{count} gols no dia · média da pelada: {average} por dia'
+	},
+	'summary.openDay': 'Ver o dia completo',
 };

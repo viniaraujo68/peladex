@@ -1,9 +1,11 @@
 <script>
 	import { onMount } from 'svelte';
 	import { getThemeContext } from '@viniaraujo68/plinth/theme';
-	import { formatRate } from '$lib/format.svelte.js';
+	import { formatNumber, formatRate } from '$lib/format.svelte.js';
 	import { i18n, localeTag, t } from '$lib/i18n.svelte.js';
+	import { unitLabel } from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
+	import ChipGroup from './ChipGroup.svelte';
 
 	const tracking = getTracking();
 
@@ -26,6 +28,12 @@
 	/** @type {import('chart.js').Chart | null} */
 	let goalsChart = null;
 	let renderTicket = 0;
+	let goalsUnit = $state(/** @type {'total'|'match'} */ ('total'));
+
+	const goalsUnits = $derived([
+		{ id: 'total', label: t('player.goalsInDay') },
+		{ id: 'match', label: unitLabel('match') }
+	]);
 
 	const own = $derived(evolution.series.find((s) => s.player_id === playerId) ?? null);
 
@@ -179,7 +187,9 @@
 					datasets: [
 						{
 							label: t('player.goalsChart'),
-							data: goalsSeries.map((row) => row.goals),
+							data: goalsSeries.map((row) =>
+								goalsUnit === 'match' ? (row.played ? row.goals / row.played : 0) : row.goals
+							),
 							backgroundColor: accent,
 							borderRadius: 4,
 							borderSkipped: 'bottom',
@@ -197,7 +207,14 @@
 						tooltip: {
 							...tooltipBase,
 							callbacks: {
-								label: (ctx) => t('records.goals', { count: ctx.parsed.y })
+								label: (ctx) => {
+									const row = goalsSeries[ctx.dataIndex];
+									const goals = t('records.goals', { count: row.goals });
+									const matches = t('analysis.matches', { count: row.played });
+									return goalsUnit === 'match'
+										? `${formatNumber(ctx.parsed.y)} · ${goals} · ${matches}`
+										: `${goals} · ${matches}`;
+								}
 							}
 						}
 					},
@@ -206,7 +223,10 @@
 						y: {
 							beginAtZero: true,
 							grid: { color: gridColor },
-							ticks: { color: axisColor, precision: 0, stepSize: 1 }
+							ticks:
+								goalsUnit === 'match'
+									? { color: axisColor }
+									: { color: axisColor, precision: 0, stepSize: 1 }
 						}
 					}
 				}
@@ -224,6 +244,7 @@
 	$effect(() => {
 		evolution;
 		history;
+		goalsUnit;
 		i18n.locale;
 		theme.preference;
 		theme.dark;
@@ -249,7 +270,17 @@
 
 	{#if hasGoals}
 		<section class="card flex flex-col gap-3 bg-base-100 p-5">
-			<h3 class="font-semibold">{t('player.goalsChart')}</h3>
+			<div class="goalshead">
+				<h3 class="font-semibold">
+					{goalsUnit === 'match' ? t('player.goalsPerMatchChart') : t('player.goalsChart')}
+				</h3>
+				<ChipGroup
+					options={goalsUnits}
+					value={goalsUnit}
+					label={t('unit.label')}
+					onchange={(id) => (goalsUnit = /** @type {'total'|'match'} */ (id))}
+				/>
+			</div>
 			<div class="chart-wrap short"><canvas bind:this={goalsCanvas}></canvas></div>
 		</section>
 	{/if}
@@ -267,6 +298,13 @@
 		position: relative;
 		height: 280px;
 		width: 100%;
+	}
+	.goalshead {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
 	}
 	.chart-wrap.short {
 		height: 190px;

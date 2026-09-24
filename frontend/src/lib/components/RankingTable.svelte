@@ -1,8 +1,19 @@
 <script>
-	import { DataTable } from '@viniaraujo68/plinth/table';
-	import { formatNote, formatRate } from '$lib/format.svelte.js';
+	import { DataTable, sortRows, sortValue } from '@viniaraujo68/plinth/table';
+	import { formatRate } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
+	import {
+		UNITS,
+		formatMetric,
+		isAverage,
+		metricById,
+		metricValue,
+		rankValue,
+		sharedRanks,
+		unitLabel
+	} from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
+	import ChipGroup from './ChipGroup.svelte';
 	import Icon from './Icon.svelte';
 
 	const tracking = getTracking();
@@ -10,97 +21,244 @@
 	/**
 	 * @type {{
 	 *   ranking: import('$lib/types.js').PlayerRow[],
-	 *   playerHref?: (playerId: number) => string
+	 *   minMatchdays: number,
+	 *   playerHref?: (playerId: number) => string,
+	 *   unit: import('$lib/metrics.js').Unit,
+	 *   onUnit: (unit: import('$lib/metrics.js').Unit) => void,
+	 *   sort: import('@viniaraujo68/plinth/table').SortState,
+	 *   onSort: (sort: import('@viniaraujo68/plinth/table').SortState) => void
 	 * }}
 	 */
-	let { ranking, playerHref } = $props();
+	let { ranking, minMatchdays, playerHref, unit, onUnit, sort, onSort } = $props();
 
 	/** @typedef {import('$lib/types.js').PlayerRow} Row */
+	/** @typedef {import('$lib/metrics.js').MetricId} MetricId */
 
 	const PODIUM = 3;
-
-	/** @type {import('@viniaraujo68/plinth/table').SortState} */
-	let sort = $state({ key: 'win_rate', direction: 'desc' });
+	const METRIC_COLUMNS = /** @type {MetricId[]} */ ([
+		'win_rate',
+		'goals',
+		'assists',
+		'contributions',
+		'goal_share',
+		'titles',
+		'mvp_count',
+		'matchdays',
+		'rating'
+	]);
 
 	const showGoals = $derived(tracking.trackScorers);
 	const showAssists = $derived(tracking.trackScorers && tracking.trackAssists);
 
-	/** @param {Row} r */
-	const ratingValue = (r) => (r.rating_provisional ? null : r.rating);
+	const unitOptions = $derived(UNITS.map((id) => ({ id, label: unitLabel(id) })));
+
+	/** @param {string} key */
+	const asMetric = (key) =>
+		METRIC_COLUMNS.includes(/** @type {MetricId} */ (key))
+			? metricById(/** @type {MetricId} */ (key))
+			: null;
+
+	/** @param {Row} r @param {number|null} value */
+	const gated = (r, value) => (r.qualified ? value : null);
+
+	/** @type {Record<string, (r: Row) => string>} */
+	const text = $derived({
+		recent_win_rate: (r) => formatRate(r.recent_win_rate),
+		title_rate: (r) => formatRate(r.title_rate),
+		presence: (r) => formatRate(r.presence),
+		matches: (r) => String(r.matches),
+		name: (r) => r.name
+	});
+
+	/** @param {string} key @param {Row} r */
+	function display(key, r) {
+		const metric = asMetric(key);
+		if (metric) return formatMetric(metricValue(r, metric, unit), metric, unit);
+		return (text[key] ?? text.name)(r);
+	}
+
+	/** @param {string} key @param {Row} r */
+	function dimmed(key, r) {
+		if (r.qualified) return false;
+		const metric = asMetric(key);
+		if (metric) return isAverage(metric, unit);
+		return key === 'recent_win_rate' || key === 'title_rate';
+	}
+
+	/** @param {MetricId} id */
+	function perUnitLabel(id) {
+		const base = t(`ranking.${id}`);
+		return unit === 'total' ? base : `${base}/${t(`unit.short.${unit}`)}`;
+	}
+
+	/** @param {MetricId} id @returns {(r: Row) => number|null} */
+	const byMetric = (id) => (r) => rankValue(r, metricById(id), unit);
 
 	/** @type {import('@viniaraujo68/plinth/table').Column<Row>[]} */
 	const columns = $derived([
 		{ key: 'rank', label: '#', sortable: false, align: 'center', class: 'w-12', cell: rankCell },
 		{ key: 'name', label: t('ranking.player'), class: 'font-semibold', cell: nameCell },
-		{ key: 'win_rate', label: t('ranking.winRate'), numeric: true, cell: rateCell },
+		{
+			key: 'win_rate',
+			label: t('ranking.winRate'),
+			numeric: true,
+			sortBy: byMetric('win_rate'),
+			cell: winRateCell
+		},
 		...(tracking.showRatings
 			? [
 					{
 						key: 'rating',
 						label: t('ranking.rating'),
 						numeric: true,
-						sortBy: ratingValue,
+						sortBy: byMetric('rating'),
 						cell: ratingCell
 					}
 				]
 			: []),
-		{ key: 'recent_win_rate', label: t('ranking.form'), numeric: true, cell: formCell },
+		{
+			key: 'recent_win_rate',
+			label: t('ranking.form'),
+			numeric: true,
+			sortBy: (/** @type {Row} */ r) => gated(r, r.recent_win_rate),
+			cell: formCell
+		},
 		{ key: 'matchdays', label: t('ranking.matchdays'), numeric: true },
+		{ key: 'matches', label: t('ranking.matches'), numeric: true },
 		{ key: 'presence', label: t('ranking.presence'), numeric: true, cell: presenceCell },
-		...(showGoals ? [{ key: 'goals', label: t('ranking.goals'), numeric: true }] : []),
+		...(showGoals
+			? [
+					{
+						key: 'goals',
+						label: perUnitLabel('goals'),
+						numeric: true,
+						sortBy: byMetric('goals'),
+						cell: goalsCell
+					}
+				]
+			: []),
 		...(showAssists
-			? [{ key: 'assists', label: t('ranking.assists'), numeric: true }]
+			? [
+					{
+						key: 'assists',
+						label: perUnitLabel('assists'),
+						numeric: true,
+						sortBy: byMetric('assists'),
+						cell: assistsCell
+					},
+					{
+						key: 'contributions',
+						label: perUnitLabel('contributions'),
+						numeric: true,
+						sortBy: byMetric('contributions'),
+						cell: contributionsCell
+					}
+				]
+			: []),
+		...(showGoals
+			? [
+					{
+						key: 'goal_share',
+						label: t('ranking.goal_share'),
+						numeric: true,
+						sortBy: byMetric('goal_share'),
+						cell: goalShareCell
+					}
+				]
 			: []),
 		{ key: 'titles', label: t('ranking.titles'), numeric: true },
-		{ key: 'title_rate', label: t('ranking.titleRate'), numeric: true, cell: titleRateCell },
+		{
+			key: 'title_rate',
+			label: t('ranking.titleRate'),
+			numeric: true,
+			sortBy: (/** @type {Row} */ r) => gated(r, r.title_rate),
+			cell: titleRateCell
+		},
 		{ key: 'mvp_count', label: t('ranking.mvp'), numeric: true }
 	]);
 
-	/** @param {number} index */
-	const tier = (index) => (index < PODIUM ? String(index + 1) : undefined);
+	const activeColumn = $derived(columns.find((c) => c.key === sort.key) ?? columns[2]);
+
+	const ranks = $derived.by(() => {
+		const ordered = sortRows(ranking, activeColumn, sort.direction, localeTag());
+		const positions = sharedRanks(ordered, (r) => sortValue(activeColumn, r));
+		return new Map(ordered.map((r, i) => [r.player_id, positions[i]]));
+	});
+
+	const hasUnqualified = $derived(ranking.some((r) => !r.qualified));
+
+	/** @param {Row} r */
+	function tier(r) {
+		const rank = ranks.get(r.player_id);
+		return rank !== null && rank !== undefined && rank <= PODIUM ? String(rank) : undefined;
+	}
 </script>
 
-{#snippet rankCell(/** @type {Row} */ _r, /** @type {number} */ index)}
-	<span class="rank" data-tier={tier(index)}>{index + 1}</span>
+{#snippet valueCell(/** @type {string} */ key, /** @type {Row} */ r)}
+	{@const metric = asMetric(key)}
+	<span class:dim={dimmed(key, r)}>
+		{display(key, r)}
+		{#if metric?.perUnit && unit !== 'total'}
+			<small class="total">{metricValue(r, metric, 'total')}</small>
+		{/if}
+	</span>
+{/snippet}
+
+{#snippet rankCell(/** @type {Row} */ r)}
+	<span class="rank" data-tier={tier(r)}>{ranks.get(r.player_id) ?? '—'}</span>
 {/snippet}
 
 {#snippet nameCell(/** @type {Row} */ r)}
 	{#if playerHref}
-		<a class="pname link-hover" href={playerHref(r.player_id)}>{r.name}</a>
+		<a class="pname link-hover" class:dim={!r.qualified} href={playerHref(r.player_id)}>{r.name}</a>
 	{:else}
-		<span class="pname">{r.name}</span>
+		<span class="pname" class:dim={!r.qualified}>{r.name}</span>
 	{/if}
 {/snippet}
 
-{#snippet rateCell(/** @type {Row} */ r)}
-	<span class="rate">{formatRate(r.win_rate)}</span>
+{#snippet winRateCell(/** @type {Row} */ r)}
+	<span class="rate">{@render valueCell('win_rate', r)}</span>
 {/snippet}
 
 {#snippet ratingCell(/** @type {Row} */ r)}
-	<span class={ratingValue(r) === null ? 'text-base-content/50' : ''}>
-		{formatNote(ratingValue(r))}
+	<span class:dim={metricValue(r, metricById('rating'), unit) === null}>
+		{display('rating', r)}
 	</span>
 {/snippet}
 
 {#snippet formCell(/** @type {Row} */ r)}
-	<span class={r.recent_win_rate === null ? 'text-base-content/50' : ''}>
-		{formatRate(r.recent_win_rate)}
-	</span>
+	{@render valueCell('recent_win_rate', r)}
 {/snippet}
 
 {#snippet presenceCell(/** @type {Row} */ r)}
-	<span>{formatRate(r.presence)}</span>
+	{@render valueCell('presence', r)}
+{/snippet}
+
+{#snippet goalsCell(/** @type {Row} */ r)}
+	{@render valueCell('goals', r)}
+{/snippet}
+
+{#snippet assistsCell(/** @type {Row} */ r)}
+	{@render valueCell('assists', r)}
+{/snippet}
+
+{#snippet contributionsCell(/** @type {Row} */ r)}
+	{@render valueCell('contributions', r)}
+{/snippet}
+
+{#snippet goalShareCell(/** @type {Row} */ r)}
+	{@render valueCell('goal_share', r)}
 {/snippet}
 
 {#snippet titleRateCell(/** @type {Row} */ r)}
-	<span>{formatRate(r.title_rate)}</span>
+	{@render valueCell('title_rate', r)}
 {/snippet}
 
-{#snippet playerCard(/** @type {Row} */ r, /** @type {number} */ index)}
+{#snippet playerCard(/** @type {Row} */ r)}
 	<div class="rcard">
-		<span class="rank rc-rank" data-tier={tier(index)}>{index + 1}</span>
+		<span class="rank rc-rank" data-tier={tier(r)}>{ranks.get(r.player_id) ?? '—'}</span>
 		<div class="rc-mid">
-			<span class="rc-name">
+			<span class="rc-name" class:dim={!r.qualified}>
 				{#if playerHref}
 					<a class="link-hover" href={playerHref(r.player_id)}>{r.name}</a>
 				{:else}
@@ -122,7 +280,14 @@
 				})}
 			</span>
 		</div>
-		<span class="rc-rate">{formatRate(r.win_rate)}</span>
+		<span class="rc-value">
+			<span class="rc-rate" class:dim={dimmed(activeColumn.key, r)}>
+				{display(activeColumn.key === 'name' ? 'win_rate' : activeColumn.key, r)}
+			</span>
+			<span class="rc-label">
+				{activeColumn.key === 'name' ? t('ranking.winRate') : activeColumn.label}
+			</span>
+		</span>
 	</div>
 {/snippet}
 
@@ -130,20 +295,37 @@
 	<div class="px-5 py-12 text-center text-base-content/65">{t('ranking.empty')}</div>
 {:else}
 	<div class="ranking">
+		{#if showGoals}
+			<ChipGroup
+				options={unitOptions}
+				value={unit}
+				label={t('unit.label')}
+				caption={t('unit.caption')}
+				onchange={(id) => onUnit(/** @type {import('$lib/metrics.js').Unit} */ (id))}
+			/>
+		{/if}
 		<DataTable
 			rows={ranking}
 			{columns}
 			rowKey={(r) => r.player_id}
-			bind:sort
+			bind:sort={() => sort, (value) => value && onSort(value)}
 			locale={localeTag()}
 			label={t('tab.ranking')}
 			sortLabel={(column) => t('ranking.sortByColumn', { column: column.label })}
 			card={playerCard}
 		/>
+		{#if hasUnqualified}
+			<p class="note">{t('leaders.qualifyNote', { count: minMatchdays })}</p>
+		{/if}
 	</div>
 {/if}
 
 <style>
+	.ranking {
+		display: flex;
+		flex-direction: column;
+		gap: 12px;
+	}
 	.ranking :global(.table) {
 		--table-ink-muted: var(--ink-muted);
 	}
@@ -178,6 +360,19 @@
 	.rate {
 		font-weight: 600;
 		color: var(--ink-primary);
+	}
+	.dim {
+		color: var(--ink-muted);
+		font-weight: 400;
+	}
+	.total {
+		margin-left: 4px;
+		font-size: 0.7em;
+		color: var(--ink-muted);
+	}
+	.note {
+		font-size: 0.74rem;
+		color: var(--ink-muted);
 	}
 	.rcard {
 		display: flex;
@@ -214,11 +409,26 @@
 		font-size: 0.74rem;
 		color: var(--ink-muted);
 	}
+	.rc-value {
+		display: flex;
+		flex-direction: column;
+		align-items: flex-end;
+		gap: 1px;
+	}
 	.rc-rate {
 		font-size: 1.05rem;
 		font-weight: 700;
 		font-variant-numeric: tabular-nums;
 		white-space: nowrap;
 		color: var(--ink-primary);
+	}
+	.rc-rate.dim {
+		color: var(--ink-muted);
+		font-weight: 500;
+	}
+	.rc-label {
+		font-size: 0.66rem;
+		color: var(--ink-muted);
+		white-space: nowrap;
 	}
 </style>

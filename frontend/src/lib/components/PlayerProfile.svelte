@@ -64,6 +64,9 @@
 			<span class="tl">{t('ranking.winRate')}</span>
 			<span class="tv primary">{formatRate(summary.win_rate)}</span>
 			<span class="ts">{summary.points} pts · {summary.matches}j</span>
+			{#if !summary.qualified}
+				<span class="ts">{t('player.notQualified')}</span>
+			{/if}
 		</div>
 		<div class="tile">
 			<span class="tl">{t('ranking.matchdays')}</span>
@@ -75,7 +78,20 @@
 			<span class="tl">{t('ranking.goals')}</span>
 			<span class="tv">{summary.goals}</span>
 			<span class="ts">
-				{t('player.goalsPerDay', { value: formatNumber(summary.goals_per_matchday) })}
+				{t('player.perMatch', { value: formatNumber(summary.goals_per_match) })}
+				· {t('player.perDay', { value: formatNumber(summary.goals_per_matchday) })}
+			</span>
+			{#if summary.goals > 0}
+				<span class="ts">
+					{t('player.goalEvery', { value: formatNumber(summary.matches / summary.goals) })}
+				</span>
+			{/if}
+		</div>
+		<div class="tile">
+			<span class="tl">{t('player.goalShare')}</span>
+			<span class="tv">{formatRate(summary.goal_share)}</span>
+			<span class="ts">
+				{t('player.shareOf', { value: summary.goals, total: summary.team_goals })}
 			</span>
 		</div>
 		{/if}
@@ -83,7 +99,17 @@
 			<div class="tile">
 				<span class="tl">{t('ranking.assists')}</span>
 				<span class="tv">{summary.assists}</span>
-				<span class="ts">{t('player.contributions')}: {summary.contributions}</span>
+				<span class="ts">
+					{t('player.perMatch', { value: formatNumber(summary.assists_per_match) })}
+					· {t('player.contributions')}: {summary.contributions}
+				</span>
+			</div>
+			<div class="tile">
+				<span class="tl">{t('player.assistShare')}</span>
+				<span class="tv">{formatRate(summary.assist_share)}</span>
+				<span class="ts">
+					{t('player.shareOf', { value: summary.assists, total: summary.team_goals })}
+				</span>
 			</div>
 		{/if}
 		<div class="tile">

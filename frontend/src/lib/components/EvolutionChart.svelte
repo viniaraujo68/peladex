@@ -1,23 +1,27 @@
 <script>
 	import { onMount, untrack } from 'svelte';
 	import { getThemeContext } from '@viniaraujo68/plinth/theme';
-	import { formatRate } from '$lib/format.svelte.js';
+	import { formatAverage, formatRate } from '$lib/format.svelte.js';
 	import { i18n, localeTag, t } from '$lib/i18n.svelte.js';
 
 	/**
 	 * @type {{
 	 *   evolution: import('$lib/types.js').Evolution,
-	 *   metric?: 'win_rate'|'goals'|'assists'
+	 *   metric?: 'win_rate'|'goals'|'assists',
+	 *   unit?: import('$lib/metrics.js').Unit,
+	 *   minMatchdays?: number
 	 * }}
 	 */
-	let { evolution, metric = 'win_rate' } = $props();
+	let { evolution, metric = 'win_rate', unit = 'total', minMatchdays = 0 } = $props();
 
 	const isRate = $derived(metric === 'win_rate');
+	const isAverage = $derived(!isRate && unit !== 'total');
 
 	/** @param {number|null|undefined} value */
 	function formatValue(value) {
 		if (value === null || value === undefined) return '—';
-		return isRate ? formatRate(value / 100) : String(value);
+		if (isRate) return formatRate(value / 100);
+		return isAverage ? formatAverage(value) : String(value);
 	}
 
 	const theme = getThemeContext();
@@ -30,6 +34,7 @@
 	 * @property {number[]} dash
 	 * @property {string} fill
 	 * @property {(number|null)[]} values
+	 * @property {number} matchdays
 	 */
 
 	const HUE_COUNT = 8;
@@ -48,11 +53,14 @@
 
 	let hiddenOverride = $state(/** @type {string[]|null} */ (null));
 
-	const series = $derived(buildSeries(evolution, metric));
+	const series = $derived(buildSeries(evolution, metric, unit));
 	const defaultHidden = $derived.by(() => {
 		if (series.length <= MAX_DEFAULT_SERIES) return [];
 		const ranked = [...series].sort((a, b) => (currentValue(b) ?? 0) - (currentValue(a) ?? 0));
-		const keep = new Set(ranked.slice(0, MAX_DEFAULT_SERIES).map((s) => s.id));
+		const eligible = ranked.filter(
+			(s) => (!isRate && !isAverage) || s.matchdays >= minMatchdays
+		);
+		const keep = new Set(eligible.slice(0, MAX_DEFAULT_SERIES).map((s) => s.id));
 		return series.filter((s) => !keep.has(s.id)).map((s) => s.id);
 	});
 	const hiddenIds = $derived(hiddenOverride ?? defaultHidden);
@@ -83,17 +91,23 @@
 	 * @param {import('$lib/types.js').EvolutionSeries} s
 	 * @param {number} length
 	 * @param {'win_rate'|'goals'|'assists'} kind
+	 * @param {import('$lib/metrics.js').Unit} per
 	 * @returns {(number|null)[]}
 	 */
-	function valuesOf(s, length, kind) {
+	function valuesOf(s, length, kind, per) {
 		return Array.from({ length }, (_, i) => {
 			const point = s.points[i];
 			if (!point) return null;
-			if (kind === 'goals') return point.goals ?? null;
-			if (kind === 'assists') return point.assists ?? null;
-			return point.win_rate === null || point.win_rate === undefined
-				? null
-				: point.win_rate * 100;
+			if (kind === 'win_rate') {
+				return point.win_rate === null || point.win_rate === undefined
+					? null
+					: point.win_rate * 100;
+			}
+			const count = kind === 'goals' ? point.goals : point.assists;
+			if (count === null || count === undefined) return null;
+			if (per === 'total') return count;
+			const divisor = per === 'match' ? point.matches : point.matchdays;
+			return divisor ? count / divisor : null;
 		});
 	}
 
@@ -113,9 +127,10 @@
 	/**
 	 * @param {import('$lib/types.js').Evolution|undefined} data
 	 * @param {'win_rate'|'goals'|'assists'} kind
+	 * @param {import('$lib/metrics.js').Unit} per
 	 * @returns {Series[]}
 	 */
-	function buildSeries(data, kind) {
+	function buildSeries(data, kind, per) {
 		const incoming = data?.series ?? [];
 		const length = data?.dates?.length ?? 0;
 		/** @type {Map<number, number>} */
@@ -133,7 +148,8 @@
 				color: `var(--series-${(slot % HUE_COUNT) + 1})`,
 				dash,
 				fill: swatchFill(dash),
-				values: valuesOf(s, length, kind)
+				values: valuesOf(s, length, kind, per),
+				matchdays: s.points.at(-1)?.matchdays ?? 0
 			};
 		});
 	}
@@ -367,7 +383,7 @@
 						: {
 								beginAtZero: true,
 								grid: { color: gridColor },
-								ticks: { color: axisColor, precision: 0 }
+								ticks: isAverage ? { color: axisColor } : { color: axisColor, precision: 0 }
 							}
 				}
 			}
@@ -382,6 +398,7 @@
 		const dates = evolution?.dates;
 		const entries = series;
 		metric;
+		unit;
 		i18n.locale;
 		theme.preference;
 		theme.dark;
