@@ -1,3 +1,6 @@
+import pytest
+
+from app.services import min_qualifying_matchdays
 from tests.conftest import PELADA_TEXT
 
 FOUR_DAYS = """2026-09-03
@@ -23,6 +26,25 @@ BRANCO: ana, bia, fabio
 AZUL: caio, davi, edu
 AZUL 1x0 BRANCO: caio
 BRANCO 1x0 AZUL: ana
+"""
+
+GUEST_ON_THE_LAST_DAY = """2026-09-03
+BRANCO: ana, bia
+AZUL: caio, davi
+BRANCO 1x0 AZUL: ana
+AZUL 1x0 BRANCO: caio
+---
+2026-09-10
+BRANCO: ana, bia
+AZUL: caio, davi
+BRANCO 1x0 AZUL: bia
+AZUL 2x0 BRANCO: caio, davi
+---
+2026-09-17
+BRANCO: ana, zeca
+AZUL: caio, davi
+BRANCO 1x0 AZUL: zeca
+BRANCO 2x0 AZUL: zeca, ana
 """
 
 
@@ -129,3 +151,73 @@ def test_a_group_with_no_matchdays_reports_empty_stats(api, group):
     assert stats["ranking"] == []
     assert stats["total_matchdays"] == 0
     assert stats["draw_rate"] == 0
+
+
+@pytest.mark.parametrize(
+    ("total", "expected"),
+    [(0, 0), (1, 1), (2, 1), (3, 2), (5, 2), (8, 3), (40, 3)],
+)
+def test_the_qualifying_minimum_is_forty_percent_of_the_days_capped_at_three(total, expected):
+    assert min_qualifying_matchdays(total) == expected
+
+
+def test_players_below_the_minimum_rank_after_the_qualified_ones(api, group):
+    api.import_text(group, GUEST_ON_THE_LAST_DAY)
+    stats = api.get(f"/api/groups/{group}/stats").json()
+    assert stats["min_matchdays"] == 2
+
+    by_name = {row["name"]: row for row in stats["ranking"]}
+    assert by_name["zeca"]["win_rate"] == 1.0
+    assert by_name["zeca"]["qualified"] is False
+    assert all(by_name[name]["qualified"] for name in ("ana", "bia", "caio", "davi"))
+    assert stats["ranking"][-1]["name"] == "zeca"
+
+
+def test_goal_rates_are_reported_per_match_and_per_day(api, group):
+    api.import_text(group, FOUR_DAYS)
+    ana = next(
+        row for row in api.get(f"/api/groups/{group}/stats").json()["ranking"]
+        if row["name"] == "ana"
+    )
+    assert (ana["goals"], ana["matches"], ana["matchdays"]) == (7, 8, 4)
+    assert ana["goals_per_match"] == pytest.approx(7 / 8)
+    assert ana["goals_per_matchday"] == pytest.approx(7 / 4)
+    assert ana["contributions_per_match"] == pytest.approx(7 / 8)
+    assert ana["assists_per_match"] == 0
+
+
+def test_goal_share_is_measured_against_the_goals_of_the_players_teams(api, group):
+    api.import_text(group, FOUR_DAYS)
+    by_name = {
+        row["name"]: row for row in api.get(f"/api/groups/{group}/stats").json()["ranking"]
+    }
+    assert by_name["ana"]["team_goals"] == 11
+    assert by_name["ana"]["goal_share"] == pytest.approx(7 / 11)
+    assert by_name["ana"]["contribution_share"] == pytest.approx(7 / 11)
+    assert by_name["fabio"]["team_goals"] == 2
+    assert by_name["fabio"]["goal_share"] == 0
+
+
+def test_goal_share_is_empty_when_the_players_teams_never_scored(api, group):
+    api.import_text(group, """2026-09-24
+BRANCO: ana, bia
+AZUL: caio, gil
+AZUL 1x0 BRANCO: caio
+""")
+    by_name = {
+        row["name"]: row for row in api.get(f"/api/groups/{group}/stats").json()["ranking"]
+    }
+    assert by_name["ana"]["team_goals"] == 0
+    assert by_name["ana"]["goal_share"] is None
+    assert by_name["gil"]["team_goals"] == 1
+    assert by_name["gil"]["goal_share"] == 0
+
+
+def test_evolution_carries_the_running_matches_and_days(api, group):
+    api.import_text(group, GUEST_ON_THE_LAST_DAY)
+    evolution = api.get(f"/api/groups/{group}/evolution").json()
+    series = {s["name"]: s["points"] for s in evolution["series"]}
+    assert [(p["matches"], p["matchdays"]) for p in series["bia"]] == [(2, 1), (4, 2), (4, 2)]
+    assert [(p["matches"], p["matchdays"]) for p in series["zeca"]] == [
+        (None, None), (None, None), (2, 1)
+    ]

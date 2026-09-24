@@ -228,11 +228,20 @@ class PlayerRow(BaseModel):
     assists: int
     contributions: int
     goals_per_matchday: float
+    assists_per_matchday: float
     contributions_per_matchday: float
+    goals_per_match: float
+    assists_per_match: float
+    contributions_per_match: float
+    team_goals: int
+    goal_share: float | None
+    assist_share: float | None
+    contribution_share: float | None
     mvp_count: int
     titles: int
     title_rate: float
     presence: float
+    qualified: bool
     recent_win_rate: float | None
     title_streak: int
     best_title_streak: int
@@ -243,6 +252,7 @@ class PlayerRow(BaseModel):
 class StatsOut(BaseModel):
     ranking: list[PlayerRow]
     total_matchdays: int
+    min_matchdays: int
     total_matches: int
     total_goals: int
     total_assists: int
@@ -333,6 +343,8 @@ class EvolutionPoint(BaseModel):
     points: int | None
     goals: int | None = None
     assists: int | None = None
+    matches: int | None = None
+    matchdays: int | None = None
 
 
 class EvolutionSeries(BaseModel):

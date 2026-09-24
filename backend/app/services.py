@@ -1,3 +1,4 @@
+import math
 from collections import defaultdict
 from collections.abc import Iterable
 
@@ -12,6 +13,8 @@ from .security import new_token
 
 MIN_PAIR_DAYS = 3
 RECENT_MATCHDAYS = 5
+QUALIFYING_SHARE = 0.4
+QUALIFYING_MAX_MATCHDAYS = 3
 
 
 def unique_slug(db: DBSession, name: str, group_id: int | None = None) -> str:
@@ -272,7 +275,7 @@ def _aggregate(matchdays: list[models.Matchday], group: models.Group):
         lambda: {
             "matchdays": 0, "matches": 0, "wins": 0, "draws": 0, "losses": 0,
             "points": 0, "goals": 0, "own_goals": 0, "assists": 0,
-            "mvp_count": 0, "titles": 0,
+            "mvp_count": 0, "titles": 0, "team_goals": 0,
         }
     )
     history: dict[int, list[dict]] = defaultdict(list)
@@ -293,6 +296,7 @@ def _aggregate(matchdays: list[models.Matchday], group: models.Group):
                 bucket["draws"] += row["draws"]
                 bucket["losses"] += row["losses"]
                 bucket["points"] += row["points"]
+                bucket["team_goals"] += row["goals_for"]
                 if is_champion:
                     bucket["titles"] += 1
                 history[member.player_id].append({
@@ -339,18 +343,32 @@ def _recent_rate(entries: list[dict], group: models.Group) -> float | None:
     return sum(entry["points"] for entry in window) / best
 
 
+def min_qualifying_matchdays(total_matchdays: int) -> int:
+    return min(QUALIFYING_MAX_MATCHDAYS, math.ceil(total_matchdays * QUALIFYING_SHARE))
+
+
+def _ratio(value: int, total: int) -> float:
+    return (value / total) if total else 0.0
+
+
+def _share(value: int, total: int) -> float | None:
+    return (value / total) if total else None
+
+
 def _player_row(pid: int, name: str, bucket: dict, group: models.Group,
                 entries: list[dict], total_matchdays: int,
                 rating: schemas.PlayerRating | None = None) -> schemas.PlayerRow:
     best = bucket["matches"] * group.win_points
     days = bucket["matchdays"]
+    matches = bucket["matches"]
+    team_goals = bucket["team_goals"]
     contributions = bucket["goals"] + bucket["assists"]
     current_streak, best_streak = _streaks(entries)
     return schemas.PlayerRow(
         player_id=pid,
         name=name,
         matchdays=days,
-        matches=bucket["matches"],
+        matches=matches,
         wins=bucket["wins"],
         draws=bucket["draws"],
         losses=bucket["losses"],
@@ -360,12 +378,21 @@ def _player_row(pid: int, name: str, bucket: dict, group: models.Group,
         own_goals=bucket["own_goals"],
         assists=bucket["assists"],
         contributions=contributions,
-        goals_per_matchday=(bucket["goals"] / days) if days else 0.0,
-        contributions_per_matchday=(contributions / days) if days else 0.0,
+        goals_per_matchday=_ratio(bucket["goals"], days),
+        assists_per_matchday=_ratio(bucket["assists"], days),
+        contributions_per_matchday=_ratio(contributions, days),
+        goals_per_match=_ratio(bucket["goals"], matches),
+        assists_per_match=_ratio(bucket["assists"], matches),
+        contributions_per_match=_ratio(contributions, matches),
+        team_goals=team_goals,
+        goal_share=_share(bucket["goals"], team_goals),
+        assist_share=_share(bucket["assists"], team_goals),
+        contribution_share=_share(contributions, team_goals),
         mvp_count=bucket["mvp_count"],
         titles=bucket["titles"],
-        title_rate=(bucket["titles"] / days) if days else 0.0,
-        presence=(days / total_matchdays) if total_matchdays else 0.0,
+        title_rate=_ratio(bucket["titles"], days),
+        presence=_ratio(days, total_matchdays),
+        qualified=days >= min_qualifying_matchdays(total_matchdays),
         recent_win_rate=_recent_rate(entries, group),
         title_streak=current_streak,
         best_title_streak=best_streak,
@@ -387,13 +414,14 @@ def compute_stats(db: DBSession, group: models.Group, date_from=None,
                     ratings.get(pid))
         for pid, bucket in agg.items()
     ]
-    ranking.sort(key=lambda r: (r.win_rate, r.points, r.goals), reverse=True)
+    ranking.sort(key=lambda r: (r.qualified, r.win_rate, r.points, r.goals), reverse=True)
     matches = [match for m in matchdays for match in m.matches]
     draws = sum(1 for match in matches if match.home_score == match.away_score)
 
     return schemas.StatsOut(
         ranking=ranking,
         total_matchdays=total,
+        min_matchdays=min_qualifying_matchdays(total),
         total_matches=len(matches),
         total_goals=sum(match.home_score + match.away_score for match in matches),
         total_assists=sum(
@@ -412,7 +440,7 @@ def compute_evolution(db: DBSession, group: models.Group, date_from=None,
     dates = [m.date for m in matchdays]
 
     running: dict[int, dict] = defaultdict(
-        lambda: {"points": 0, "matches": 0, "goals": 0, "assists": 0}
+        lambda: {"points": 0, "matches": 0, "matchdays": 0, "goals": 0, "assists": 0}
     )
     seen: set[int] = set()
     series: dict[int, list[schemas.EvolutionPoint]] = defaultdict(list)
@@ -431,13 +459,15 @@ def compute_evolution(db: DBSession, group: models.Group, date_from=None,
                 seen.add(pid)
                 series[pid] = [
                     schemas.EvolutionPoint(date=d, win_rate=None, points=None,
-                                           goals=None, assists=None)
+                                           goals=None, assists=None,
+                                           matches=None, matchdays=None)
                     for d in dates[:index]
                 ]
         for pid in seen:
             points, played = present.get(pid, (0, 0))
             running[pid]["points"] += points
             running[pid]["matches"] += played
+            running[pid]["matchdays"] += 1 if pid in present else 0
             running[pid]["goals"] += goals.get(pid, 0)
             running[pid]["assists"] += assists.get(pid, 0)
             best = running[pid]["matches"] * group.win_points
@@ -448,6 +478,8 @@ def compute_evolution(db: DBSession, group: models.Group, date_from=None,
                     points=running[pid]["points"],
                     goals=running[pid]["goals"],
                     assists=running[pid]["assists"],
+                    matches=running[pid]["matches"],
+                    matchdays=running[pid]["matchdays"],
                 )
             )
 
