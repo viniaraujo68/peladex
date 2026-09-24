@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { t } from './i18n.svelte.js';
 
 /**
  * @param {typeof globalThis.fetch} fetch
@@ -25,4 +26,12 @@ export async function loadPublicGroup({ fetch, params, url }) {
 	);
 	if (status === 404) error(404, 'No public group with this slug.');
 	return { group: data, status };
+}
+
+/** @param {number} status */
+export function publicErrorMessage(status) {
+	if (status === 200) return '';
+	if (status === 403) return t('public.errorPrivate');
+	if (status === 0) return t('error.body');
+	return t('error.http', { status });
 }

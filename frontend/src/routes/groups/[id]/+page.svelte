@@ -89,36 +89,62 @@
 		}
 	}
 
-	/** @param {string} query @param {number} days */
-	async function fetchAnalysis(query, days) {
+	/** @param {string} query */
+	function fetchPeriod(query) {
 		const suffix = query ? `?${query}` : '';
-		const pairSuffix = query ? `?min_days=${days}&${query}` : `?min_days=${days}`;
 		return Promise.all([
 			get(`/groups/${groupId}/stats${suffix}`),
 			get(`/groups/${groupId}/evolution${suffix}`),
-			get(`/groups/${groupId}/pairs${pairSuffix}`),
 			get(`/groups/${groupId}/assist-network${suffix}`),
 			get(`/groups/${groupId}/timeline${suffix}`)
 		]);
 	}
 
-	async function loadAnalysis() {
-		[stats, evolution, pairs, network, timeline] = await fetchAnalysis(periodQuery, minDays);
+	/** @param {string} query @param {number} days */
+	function fetchPairs(query, days) {
+		return get(`/groups/${groupId}/pairs?${[`min_days=${days}`, query].filter(Boolean).join('&')}`);
 	}
+
+	async function loadAnalysis() {
+		const [[s, e, n, tl], p] = await Promise.all([
+			fetchPeriod(periodQuery),
+			fetchPairs(periodQuery, minDays)
+		]);
+		[stats, evolution, network, timeline, pairs] = [s, e, n, tl, p];
+	}
+
+	/** @param {unknown} e */
+	const refreshFailed = (e) =>
+		toast.error(t('group.refreshFailed', { message: errorMessage(e) }));
+
+	const ready = () => Boolean(groupId && auth.user) && untrack(() => stats !== null);
+
+	$effect(() => {
+		const query = periodQuery;
+		if (!ready()) return;
+		let current = true;
+		fetchPeriod(query)
+			.then(([s, e, n, tl]) => {
+				if (!current) return;
+				[stats, evolution, network, timeline] = [s, e, n, tl];
+			})
+			.catch((e) => current && refreshFailed(e));
+		return () => {
+			current = false;
+		};
+	});
 
 	$effect(() => {
 		const query = periodQuery;
 		const days = minDays;
-		if (!groupId || !auth.user || untrack(() => stats === null)) return;
-		fetchAnalysis(query, days)
-			.then(([s, e, p, n, tl]) => {
-				stats = s;
-				evolution = e;
-				pairs = p;
-				network = n;
-				timeline = tl;
-			})
-			.catch((e) => toast.error(t('group.refreshFailed', { message: errorMessage(e) })));
+		if (!ready()) return;
+		let current = true;
+		fetchPairs(query, days)
+			.then((p) => current && (pairs = p))
+			.catch((e) => current && refreshFailed(e));
+		return () => {
+			current = false;
+		};
 	});
 
 	async function refreshData() {

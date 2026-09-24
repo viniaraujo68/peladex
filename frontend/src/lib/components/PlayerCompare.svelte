@@ -1,4 +1,5 @@
 <script>
+	import { untrack } from 'svelte';
 	import { Combobox } from '@viniaraujo68/plinth/components';
 	import { formatRate, formatRateDelta, rateClass } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
@@ -120,13 +121,29 @@
 		};
 	});
 
+	/** @type {number[]} */
+	let requested = [];
+	let failed = $state(/** @type {Record<number, boolean>} */ ({}));
+
+	/** @param {number} id */
+	function request(id) {
+		requested = [...requested, id];
+		failed = { ...failed, [id]: false };
+		loadDetail(id)
+			.then((detail) => (details = { ...details, [id]: detail }))
+			.catch(() => {
+				requested = requested.filter((other) => other !== id);
+				failed = { ...failed, [id]: true };
+			});
+	}
+
 	$effect(() => {
-		for (const id of [a, b]) {
-			if (id === null || details[id]) continue;
-			loadDetail(id)
-				.then((detail) => (details = { ...details, [id]: detail }))
-				.catch(() => {});
-		}
+		const ids = [a, b];
+		untrack(() => {
+			for (const id of ids) {
+				if (id !== null && !requested.includes(id)) request(id);
+			}
+		});
 	});
 
 	/** @param {number|null} id */
@@ -323,6 +340,8 @@
 								{#if view.preys.length === 0 && view.nemeses.length === 0}
 									<span class="hint">{t('compare.noRivals', { count: view.minDays })}</span>
 								{/if}
+							{:else if id !== null && failed[id]}
+								<span class="hint">{t('compare.rivalsFailed')}</span>
 							{:else}
 								<span class="hint">{t('analysis.running')}</span>
 							{/if}

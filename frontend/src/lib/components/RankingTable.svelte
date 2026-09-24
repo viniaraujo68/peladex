@@ -227,8 +227,14 @@
 	/** @param {Row} r */
 	const previousOf = (r) => previousRanks.get(r.player_id) ?? null;
 
+	const bestFirst = $derived(
+		activeColumn.numeric === true &&
+			sort.direction === (activeColumn.defaultSortDirection ?? 'desc')
+	);
+
 	/** @param {Row} r */
 	function tier(r) {
+		if (!bestFirst) return undefined;
 		const rank = ranks.get(r.player_id);
 		return rank !== null && rank !== undefined && rank <= PODIUM ? String(rank) : undefined;
 	}

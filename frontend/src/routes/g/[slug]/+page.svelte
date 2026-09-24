@@ -1,4 +1,5 @@
 <script>
+	import { publicErrorMessage } from '$lib/publicApi.js';
 	import { page } from '$app/stores';
 	import { get } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
@@ -21,15 +22,7 @@
 	setGroupTracking(() => group);
 	const slug = $derived(/** @type {string} */ ($page.params.slug));
 
-	const error = $derived(
-		data.status === 200
-			? ''
-			: data.status === 403
-				? t('public.errorPrivate')
-				: data.status === 0
-					? t('error.body')
-					: t('error.http', { status: data.status })
-	);
+	const error = $derived(publicErrorMessage(data.status));
 
 	const view = createGroupView({
 		tabIds: ['ranking', 'players', 'stats', 'matchdays'],
@@ -54,27 +47,42 @@
 	let timeline = $state(/** @type {import('$lib/types.js').Timeline|null} */ (null));
 	let minDays = $state(3);
 
+	const base = $derived(`/public/${encodeURIComponent(slug)}`);
+	const tokenSuffix = $derived(tokenQuery ? `?${tokenQuery}` : '');
+
 	$effect(() => {
-		const days = minDays;
-		const base = `/public/${encodeURIComponent(slug)}`;
-		/** @param {string} extra */
-		const join = (extra) => [tokenQuery, extra].filter(Boolean).join('&');
+		const root = base;
+		const suffix = tokenSuffix;
 		if (!group) return;
-		Promise.all([
-			get(`${base}/pairs?${join(`min_days=${days}`)}`),
-			get(`${base}/assist-network${tokenQuery ? `?${tokenQuery}` : ''}`),
-			get(`${base}/timeline${tokenQuery ? `?${tokenQuery}` : ''}`)
-		])
-			.then(([p, n, tl]) => {
-				pairs = p;
+		let current = true;
+		Promise.all([get(`${root}/assist-network${suffix}`), get(`${root}/timeline${suffix}`)])
+			.then(([n, tl]) => {
+				if (!current) return;
 				network = n;
 				timeline = tl;
 			})
 			.catch(() => {
-				pairs = null;
+				if (!current) return;
 				network = null;
 				timeline = null;
 			});
+		return () => {
+			current = false;
+		};
+	});
+
+	$effect(() => {
+		const root = base;
+		const days = minDays;
+		const query = [tokenQuery, `min_days=${days}`].filter(Boolean).join('&');
+		if (!group) return;
+		let current = true;
+		get(`${root}/pairs?${query}`)
+			.then((p) => current && (pairs = p))
+			.catch(() => current && (pairs = null));
+		return () => {
+			current = false;
+		};
 	});
 
 	const title = $derived(group ? t('title.public', { name: group.name }) : t('title.home'));

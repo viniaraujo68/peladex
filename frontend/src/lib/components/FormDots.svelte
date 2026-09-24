@@ -27,7 +27,7 @@
 	<span class="none">—</span>
 {:else}
 	<span class="dots" role="img" aria-label={label} title={label}>
-		{#each form as entry (entry.date)}
+		{#each form as entry, index (index)}
 			<span class="dot" data-tone={tone(entry)}>{entry.champion ? '' : entry.position}</span>
 		{/each}
 	</span>

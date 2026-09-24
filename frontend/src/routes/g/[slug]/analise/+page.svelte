@@ -1,4 +1,5 @@
 <script>
+	import { publicErrorMessage } from '$lib/publicApi.js';
 	import { page } from '$app/stores';
 	import { get, post } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
@@ -17,13 +18,7 @@
 
 	setGroupTracking(() => group);
 
-	const error = $derived(
-		data.status === 200
-			? ''
-			: data.status === 403
-				? t('public.errorPrivate')
-				: t('error.body')
-	);
+	const error = $derived(publicErrorMessage(data.status));
 
 	const players = $derived(
 		(group?.stats.ranking ?? []).map((r) => ({ id: r.player_id, name: r.name }))

@@ -356,6 +356,9 @@ export default {
 	'apiError.same_team_twice': 'A team cannot play itself.',
 	'apiError.unknown_team': 'The match points at a team that does not exist that day.',
 	'apiError.scorer_not_playing': 'A scorer is not lined up that day.',
+	'apiError.own_goal_assist': 'An own goal cannot have an assist.',
+	'apiError.self_assist': 'A player cannot assist their own goal.',
+	'apiError.assist_other_team': 'The assist has to come from someone on the same team.',
 	'apiError.integrity_conflict': 'The operation conflicts with existing data.',
 	'apiError.rate_limited': 'Too many attempts. Wait a moment and try again.',
 	'apiError.group_private': 'This group is private. You need a link with a valid token.',
@@ -667,4 +670,5 @@ export default {
 	'short.points': '{count} pts',
 	'short.matches': '{count}m',
 	'short.goalsAssists': '{goals}G {assists}A',
+	'compare.rivalsFailed': 'Could not load this player’s head-to-heads.',
 };

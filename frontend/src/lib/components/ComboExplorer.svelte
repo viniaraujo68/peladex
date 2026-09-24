@@ -97,10 +97,12 @@
 		if (body.together.length === 0) {
 			result = null;
 			error = '';
+			busy = false;
 			return;
 		}
 		let cancelled = false;
 		busy = true;
+		error = '';
 		const timer = setTimeout(() => {
 			run(body)
 				.then((data) => {
@@ -261,7 +263,7 @@
 							<details class="datelist">
 								<summary>{t('analysis.showDates')}</summary>
 								<div class="datechips">
-									{#each [...result.dates].reverse() as date (date)}
+									{#each [...result.dates].reverse() as date, index (index)}
 										<span class="datechip">{dateLabel(date, result.dates)}</span>
 									{/each}
 								</div>

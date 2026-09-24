@@ -357,6 +357,9 @@ export default {
 	'apiError.same_team_twice': 'Um time não pode jogar contra ele mesmo.',
 	'apiError.unknown_team': 'A partida aponta para um time que não existe neste dia.',
 	'apiError.scorer_not_playing': 'Um artilheiro não está escalado neste dia.',
+	'apiError.own_goal_assist': 'Gol contra não pode ter assistência.',
+	'apiError.self_assist': 'Um jogador não pode dar assistência para si mesmo.',
+	'apiError.assist_other_team': 'A assistência tem que ser de alguém do mesmo time.',
 	'apiError.integrity_conflict': 'A operação conflita com dados que já existem.',
 	'apiError.rate_limited': 'Muitas tentativas. Aguarde um momento e tente de novo.',
 	'apiError.group_private': 'Esta pelada é privada. Você precisa de um link com token válido.',
@@ -668,4 +671,5 @@ export default {
 	'short.points': '{count} pts',
 	'short.matches': '{count}j',
 	'short.goalsAssists': '{goals}G {assists}A',
+	'compare.rivalsFailed': 'Não deu para carregar os confrontos deste jogador.',
 };

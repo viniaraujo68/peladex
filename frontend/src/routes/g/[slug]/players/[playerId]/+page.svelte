@@ -1,4 +1,5 @@
 <script>
+	import { publicErrorMessage } from '$lib/publicApi.js';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
 	import { post } from '$lib/http.js';
@@ -23,15 +24,7 @@
 	const token = $derived($page.url.searchParams.get('t'));
 	const slug = $derived(/** @type {string} */ ($page.params.slug));
 
-	const error = $derived(
-		data.status === 200
-			? ''
-			: data.status === 403
-				? t('public.errorPrivate')
-				: data.status === 0
-					? t('error.body')
-					: t('error.http', { status: data.status })
-	);
+	const error = $derived(publicErrorMessage(data.status));
 
 	const tokenQuery = $derived(token ? `t=${encodeURIComponent(token)}` : '');
 
