@@ -74,7 +74,7 @@
 								<a class="pl" href={playerHref(member.player_id)}>{member.name}</a>
 							{:else}
 								<span class="pl">{member.name}</span>
-							{/if}{#if i < row.members.length - 1}<span class="sep">·</span>{/if}
+							{/if}{#if i < row.members.length - 1}<span class="sep">·</span><wbr />{/if}
 						{/each}
 					</span>
 				</div>

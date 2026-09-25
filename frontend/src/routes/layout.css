@@ -92,6 +92,14 @@
 	outline-offset: 2px;
 }
 
+@supports (-webkit-touch-callout: none) {
+	input,
+	select,
+	textarea {
+		font-size: max(16px, 1em) !important;
+	}
+}
+
 @media (prefers-reduced-motion: reduce) {
 	*,
 	*::before,

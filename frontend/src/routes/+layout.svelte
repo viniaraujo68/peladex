@@ -323,5 +323,6 @@
 	.page {
 		padding-top: 32px;
 		padding-bottom: 64px;
+		overflow-x: clip;
 	}
 </style>
