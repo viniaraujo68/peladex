@@ -115,6 +115,28 @@ def test_a_tie_at_the_top_leaves_the_day_without_a_champion(api, group):
     assert day["champion_team_id"] is None
 
 
+def test_the_table_ranks_by_points_unless_the_group_picks_win_rate(api, group):
+    a, b, c = api.player(group), api.player(group), api.player(group)
+    assert api.get(f"/api/groups/{group}").json()["standings_order"] == "points"
+    day = api.matchday(
+        group, "2026-09-16",
+        teams(("BRANCO", [a]), ("AZUL", [b]), ("VERDE", [c])),
+        [{"home_team_index": 0, "away_team_index": 2, "home_score": 1, "away_score": 0},
+         {"home_team_index": 0, "away_team_index": 2, "home_score": 1, "away_score": 0},
+         {"home_team_index": 1, "away_team_index": 0, "home_score": 1, "away_score": 0}],
+    )
+    assert [s["name"] for s in day["standings"]] == ["branco", "azul", "verde"]
+    assert day["champion_team_id"] == day["standings"][0]["team_id"]
+
+    updated = api.patch(f"/api/groups/{group}", json={"standings_order": "win_rate"})
+    assert updated.json()["standings_order"] == "win_rate"
+    day = api.get(f"/api/groups/{group}/matchdays/{day['id']}").json()
+    assert [s["name"] for s in day["standings"]] == ["azul", "branco", "verde"]
+    assert day["champion_team_id"] == day["standings"][0]["team_id"]
+
+    assert api.patch(f"/api/groups/{group}", json={"standings_order": "goals"}).status_code == 422
+
+
 def test_deleting_a_player_with_history_only_deactivates_them(api, group):
     a, b = api.player(group), api.player(group)
     api.matchday(group, "2026-09-16", teams(("BRANCO", [a]), ("AZUL", [b])), [])

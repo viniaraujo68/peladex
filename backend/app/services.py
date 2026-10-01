@@ -130,19 +130,20 @@ def tally(matchday: models.Matchday, group: models.Group) -> dict[int, dict]:
     return tallies
 
 
-def _standing_key(row: dict) -> tuple:
-    return (row["win_rate"], row["goal_diff"], row["goals_for"], -row["goals_against"])
+def _standing_key(row: dict, group: models.Group) -> tuple:
+    primary = row["win_rate"] if group.standings_order == "win_rate" else row["points"]
+    return (primary, row["goal_diff"], row["goals_for"], -row["goals_against"])
 
 
-def ranked_tallies(tallies: dict[int, dict]) -> list[dict]:
-    return sorted(tallies.values(), key=_standing_key, reverse=True)
+def ranked_tallies(tallies: dict[int, dict], group: models.Group) -> list[dict]:
+    return sorted(tallies.values(), key=lambda row: _standing_key(row, group), reverse=True)
 
 
-def champion_team_id(tallies: dict[int, dict]) -> int | None:
-    order = ranked_tallies(tallies)
+def champion_team_id(tallies: dict[int, dict], group: models.Group) -> int | None:
+    order = ranked_tallies(tallies, group)
     if not order or order[0]["played"] == 0:
         return None
-    if len(order) > 1 and _standing_key(order[0]) == _standing_key(order[1]):
+    if len(order) > 1 and _standing_key(order[0], group) == _standing_key(order[1], group):
         return None
     return order[0]["team"].id
 
@@ -196,7 +197,7 @@ def serialize_matchday(
         venues = venue_names(db, matchday.group_id)
 
     tallies = tally(matchday, group)
-    order = ranked_tallies(tallies)
+    order = ranked_tallies(tallies, group)
     team_names = {team.id: team.name for team in matchday.teams}
 
     standings = [
@@ -265,7 +266,7 @@ def serialize_matchday(
         notes=matchday.notes,
         standings=standings,
         matches=matches,
-        champion_team_id=champion_team_id(tallies),
+        champion_team_id=champion_team_id(tallies, group),
         top_scorers=[
             schemas.ScorerOut(player_id=pid, name=names.get(pid, "?"), goals=count)
             for pid, count in top
@@ -297,10 +298,10 @@ def _credit_teams(agg: dict[int, dict], history: dict[int, list[dict]], index: i
                   matchday: models.Matchday, group: models.Group,
                   goals: dict[int, int], assists: dict[int, int]) -> None:
     tallies = tally(matchday, group)
-    champion = champion_team_id(tallies)
+    champion = champion_team_id(tallies, group)
     positions = {
         row["team"].id: position
-        for position, row in enumerate(ranked_tallies(tallies), start=1)
+        for position, row in enumerate(ranked_tallies(tallies, group), start=1)
     }
     for team in matchday.teams:
         row = tallies[team.id]

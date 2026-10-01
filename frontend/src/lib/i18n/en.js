@@ -268,6 +268,11 @@ export default {
 	'settings.drawPoints': 'Draw',
 	'settings.lossPoints': 'Loss',
 	'settings.pointsHint': 'Changes the table and every win rate, including already recorded days.',
+	'settings.standingsOrder': 'Matchday table order',
+	'settings.orderByPoints': 'Points',
+	'settings.orderByPointsHint': 'Most points on top, even after playing more matches.',
+	'settings.orderByWinRate': 'Win rate',
+	'settings.orderByWinRateHint': 'Highest share of the possible points on top.',
 	'settings.publicLink': 'Public link',
 	'settings.publicLinkHint': 'Anyone with this link can see the table (read only).',
 	'settings.privateLinkHint':

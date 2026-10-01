@@ -18,6 +18,7 @@
  * @property {boolean} track_scorers
  * @property {boolean} track_assists
  * @property {boolean} show_ratings
+ * @property {'points'|'win_rate'} standings_order
  * @property {number|null} default_venue_id
  * @property {string|null} default_venue_name
  * @property {number} matchday_count

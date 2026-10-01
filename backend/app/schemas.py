@@ -1,10 +1,13 @@
 from datetime import date
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
 from .parser import display_name
 
 MAX_SCORE = 99
+
+StandingsOrder = Literal["points", "win_rate"]
 
 
 class Credentials(BaseModel):
@@ -38,6 +41,7 @@ class GroupUpdate(BaseModel):
     track_scorers: bool | None = None
     track_assists: bool | None = None
     show_ratings: bool | None = None
+    standings_order: StandingsOrder | None = None
     default_venue_id: int | None = None
 
 
@@ -54,6 +58,7 @@ class GroupOut(BaseModel):
     track_scorers: bool = True
     track_assists: bool = False
     show_ratings: bool = True
+    standings_order: StandingsOrder = "points"
     default_venue_id: int | None = None
     default_venue_name: str | None = None
     matchday_count: int = 0

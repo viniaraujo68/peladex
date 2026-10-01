@@ -269,6 +269,11 @@ export default {
 	'settings.lossPoints': 'Derrota',
 	'settings.pointsHint':
 		'Muda a tabela e todo o aproveitamento, inclusive dos dias já registrados.',
+	'settings.standingsOrder': 'Ordem da tabela do dia',
+	'settings.orderByPoints': 'Pontos',
+	'settings.orderByPointsHint': 'Quem somou mais pontos fica na frente, mesmo tendo jogado mais partidas.',
+	'settings.orderByWinRate': 'Aproveitamento',
+	'settings.orderByWinRateHint': 'Quem tem o maior percentual dos pontos possíveis fica na frente.',
 	'settings.publicLink': 'Link público',
 	'settings.publicLinkHint': 'Qualquer pessoa com este link vê a tabela (somente leitura).',
 	'settings.privateLinkHint':

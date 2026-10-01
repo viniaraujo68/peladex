@@ -42,6 +42,7 @@ class Group(SQLModel, table=True):
     track_scorers: bool = True
     track_assists: bool = False
     show_ratings: bool = True
+    standings_order: str = "points"
     default_venue_id: int | None = Field(default=None, foreign_key="venue.id")
     created_at: datetime = Field(default_factory=utcnow)
 

@@ -36,6 +36,8 @@
 	// svelte-ignore state_referenced_locally
 	let showRatings = $state(group.show_ratings);
 	// svelte-ignore state_referenced_locally
+	let standingsOrder = $state(group.standings_order);
+	// svelte-ignore state_referenced_locally
 	let defaultVenueId = $state(String(group.default_venue_id ?? ''));
 	let saving = $state(false);
 	let error = $state('');
@@ -67,6 +69,7 @@
 			trackScorers !== group.track_scorers ||
 			trackAssists !== group.track_assists ||
 			showRatings !== group.show_ratings ||
+			standingsOrder !== group.standings_order ||
 			defaultVenueId !== String(group.default_venue_id ?? '')
 	);
 
@@ -105,6 +108,7 @@
 				track_scorers: trackScorers,
 				track_assists: trackAssists && trackScorers,
 				show_ratings: showRatings,
+				standings_order: standingsOrder,
 				default_venue_id: defaultVenueId ? Number(defaultVenueId) : null
 			});
 			toast.success(t('toast.settingsSaved'));
@@ -335,6 +339,30 @@
 				</label>
 			</div>
 			<p class="hint">{t('settings.pointsHint')}</p>
+		</div>
+
+		<div class="block">
+			<span class="blabel">{t('settings.standingsOrder')}</span>
+			<div class="vis">
+				<button
+					type="button"
+					class="vis-opt"
+					class:sel={standingsOrder === 'points'}
+					onclick={() => (standingsOrder = 'points')}
+				>
+					<span class="font-semibold">{t('settings.orderByPoints')}</span>
+					<span class="vis-d">{t('settings.orderByPointsHint')}</span>
+				</button>
+				<button
+					type="button"
+					class="vis-opt"
+					class:sel={standingsOrder === 'win_rate'}
+					onclick={() => (standingsOrder = 'win_rate')}
+				>
+					<span class="font-semibold">{t('settings.orderByWinRate')}</span>
+					<span class="vis-d">{t('settings.orderByWinRateHint')}</span>
+				</button>
+			</div>
 		</div>
 
 		<button class="btn btn-primary self-start" disabled={saving || !dirty} onclick={save}>
