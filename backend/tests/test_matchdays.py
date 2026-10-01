@@ -137,6 +137,20 @@ def test_the_table_ranks_by_points_unless_the_group_picks_win_rate(api, group):
     assert api.patch(f"/api/groups/{group}", json={"standings_order": "goals"}).status_code == 422
 
 
+def test_head_to_head_breaks_a_tie_on_points_goal_diff_and_goals(api, group):
+    a, b, c = api.player(group), api.player(group), api.player(group)
+    day = api.matchday(
+        group, "2026-09-16",
+        teams(("AZUL", [a]), ("BRANCO", [b]), ("VERDE", [c])),
+        [{"home_team_index": 1, "away_team_index": 0, "home_score": 2, "away_score": 1},
+         {"home_team_index": 2, "away_team_index": 1, "home_score": 1, "away_score": 0},
+         {"home_team_index": 0, "away_team_index": 2, "home_score": 1, "away_score": 0}],
+    )
+    rows = [(s["name"], s["points"], s["goal_diff"], s["goals_for"]) for s in day["standings"]]
+    assert rows == [("branco", 3, 0, 2), ("azul", 3, 0, 2), ("verde", 3, 0, 1)]
+    assert day["champion_team_id"] == day["standings"][0]["team_id"]
+
+
 def test_deleting_a_player_with_history_only_deactivates_them(api, group):
     a, b = api.player(group), api.player(group)
     api.matchday(group, "2026-09-16", teams(("BRANCO", [a]), ("AZUL", [b])), [])

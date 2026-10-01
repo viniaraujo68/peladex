@@ -1,6 +1,7 @@
 import math
 from collections import defaultdict
 from collections.abc import Iterable
+from itertools import groupby
 from typing import NamedTuple
 
 from slugify import slugify
@@ -98,7 +99,15 @@ def _blank_tally(team: models.Team) -> dict:
     return {
         "team": team, "played": 0, "wins": 0, "draws": 0, "losses": 0,
         "goals_for": 0, "goals_against": 0, "points": 0, "win_rate": 0.0,
+        "head_to_head": {},
     }
+
+
+def _credit_head_to_head(row: dict, opponent_id: int, scored: int, conceded: int,
+                         group: models.Group) -> None:
+    record = row["head_to_head"].setdefault(opponent_id, [0, 0])
+    record[0] += result_points(scored, conceded, group)
+    record[1] += scored - conceded
 
 
 def tally(matchday: models.Matchday, group: models.Group) -> dict[int, dict]:
@@ -123,6 +132,8 @@ def tally(matchday: models.Matchday, group: models.Group) -> dict[int, dict]:
         else:
             home["draws"] += 1
             away["draws"] += 1
+        _credit_head_to_head(home, match.away_team_id, match.home_score, match.away_score, group)
+        _credit_head_to_head(away, match.home_team_id, match.away_score, match.home_score, group)
     for row in tallies.values():
         row["points"] = _record_points(row, group)
         row["goal_diff"] = row["goals_for"] - row["goals_against"]
@@ -132,20 +143,41 @@ def tally(matchday: models.Matchday, group: models.Group) -> dict[int, dict]:
 
 def _standing_key(row: dict, group: models.Group) -> tuple:
     primary = row["win_rate"] if group.standings_order == "win_rate" else row["points"]
-    return (primary, row["goal_diff"], row["goals_for"], -row["goals_against"])
+    return (primary, row["goal_diff"], row["goals_for"])
+
+
+def _head_to_head(row: dict, opponent: dict) -> tuple[int, int]:
+    return tuple(row["head_to_head"].get(opponent["team"].id, (0, 0)))
+
+
+def _ranked_blocks(tallies: dict[int, dict], group: models.Group) -> list[list[dict]]:
+    order = sorted(tallies.values(), key=lambda row: _standing_key(row, group), reverse=True)
+    blocks = [list(block) for _, block in groupby(order, key=lambda row: _standing_key(row, group))]
+    for block in blocks:
+        if len(block) != 2:
+            continue
+        first, second = block
+        if _head_to_head(second, first) > _head_to_head(first, second):
+            block.reverse()
+    return blocks
 
 
 def ranked_tallies(tallies: dict[int, dict], group: models.Group) -> list[dict]:
-    return sorted(tallies.values(), key=lambda row: _standing_key(row, group), reverse=True)
+    return [row for block in _ranked_blocks(tallies, group) for row in block]
 
 
 def champion_team_id(tallies: dict[int, dict], group: models.Group) -> int | None:
-    order = ranked_tallies(tallies, group)
-    if not order or order[0]["played"] == 0:
+    blocks = _ranked_blocks(tallies, group)
+    if not blocks or blocks[0][0]["played"] == 0:
         return None
-    if len(order) > 1 and _standing_key(order[0], group) == _standing_key(order[1], group):
+    leaders = blocks[0]
+    if len(leaders) > 2:
         return None
-    return order[0]["team"].id
+    if len(leaders) == 2:
+        first, second = leaders
+        if _head_to_head(first, second) == _head_to_head(second, first):
+            return None
+    return leaders[0]["team"].id
 
 
 def matchday_goals(matchday: models.Matchday) -> dict[int, int]:
