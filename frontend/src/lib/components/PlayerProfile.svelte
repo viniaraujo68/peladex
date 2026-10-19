@@ -305,6 +305,11 @@
 											<Icon name="star" class="size-3" />
 										</span>
 									{/if}
+									{#if row.single_game}
+										<span class="badge badge-soft badge-primary badge-xs">
+											{t('player.singleGameBadge')}
+										</span>
+									{/if}
 								</td>
 								<td class="font-medium">
 									{row.team_name}

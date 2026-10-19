@@ -1,4 +1,5 @@
 import { error } from '@sveltejs/kit';
+import { dayTypeParam, dayTypeQuery } from './dayType.js';
 import { t } from './i18n.svelte.js';
 
 /**
@@ -19,10 +20,15 @@ export async function fetchPublic(fetch, path) {
 /** @param {{ fetch: typeof globalThis.fetch, params: { slug?: string }, url: URL }} event */
 export async function loadPublicGroup({ fetch, params, url }) {
 	const token = url.searchParams.get('t');
-	const query = token ? `?t=${encodeURIComponent(token)}` : '';
+	const filters = [
+		token ? `t=${encodeURIComponent(token)}` : '',
+		dayTypeQuery(dayTypeParam(url.searchParams))
+	]
+		.filter(Boolean)
+		.join('&');
 	const { data, status } = await fetchPublic(
 		fetch,
-		`/public/${encodeURIComponent(params.slug ?? '')}${query}`
+		`/public/${encodeURIComponent(params.slug ?? '')}${filters ? `?${filters}` : ''}`
 	);
 	if (status === 404) error(404, 'No public group with this slug.');
 	return { group: data, status };

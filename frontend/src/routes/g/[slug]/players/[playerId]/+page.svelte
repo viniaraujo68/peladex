@@ -5,7 +5,10 @@
 	import { post } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import { setGroupTracking } from '$lib/tracking.svelte.js';
+	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
+	import { dayTypeParam, dayTypeQuery, setDayTypeContext } from '$lib/dayType.js';
+	import { replaceParams } from '$lib/groupView.svelte.js';
 
 	/**
 	 * @type {{ data: {
@@ -21,18 +24,21 @@
 	const group = $derived(data.group);
 
 	setGroupTracking(() => group);
+	setDayTypeContext(() => detail?.days);
 	const token = $derived($page.url.searchParams.get('t'));
 	const slug = $derived(/** @type {string} */ ($page.params.slug));
 
 	const error = $derived(publicErrorMessage(data.status));
 
 	const tokenQuery = $derived(token ? `t=${encodeURIComponent(token)}` : '');
+	const dayType = $derived(dayTypeParam($page.url.searchParams));
+	const filterQuery = $derived([tokenQuery, dayTypeQuery(dayType)].filter(Boolean).join('&'));
 
 	/** @param {number} playerId */
 	const playerHref = (playerId) =>
-		`/g/${slug}/players/${playerId}${tokenQuery ? `?${tokenQuery}` : ''}`;
+		`/g/${slug}/players/${playerId}${filterQuery ? `?${filterQuery}` : ''}`;
 
-	const backHref = $derived(`/g/${slug}${tokenQuery ? `?${tokenQuery}` : ''}`);
+	const backHref = $derived(`/g/${slug}${filterQuery ? `?${filterQuery}` : ''}`);
 
 	/** @param {number} value */
 	function setMinDays(value) {
@@ -72,15 +78,23 @@
 		<p class="mt-1 text-base-content/80">{group.name}</p>
 	</div>
 
-	<PlayerProfile
-		{detail}
-		evolution={group.evolution}
-		minDays={data.minDays}
-		onMinDays={setMinDays}
-		{playerHref}
-		players={group.stats.ranking.map((r) => ({ id: r.player_id, name: r.name }))}
-		compareHref={`/g/${slug}/analise?${[tokenQuery, `a=${detail.player_id}`].filter(Boolean).join('&')}`}
-		runCombo={(body) =>
-			post(`/public/${encodeURIComponent(slug)}/combo${tokenQuery ? `?${tokenQuery}` : ''}`, body)}
-	/>
+	<div class="mb-4">
+		<DayTypeFilter days={detail.days} onchange={(value) => replaceParams({ day_type: value })} />
+	</div>
+	{#key dayType}
+		<PlayerProfile
+			{detail}
+			evolution={group.evolution}
+			minDays={data.minDays}
+			onMinDays={setMinDays}
+			{playerHref}
+			players={group.stats.ranking.map((r) => ({ id: r.player_id, name: r.name }))}
+			compareHref={`/g/${slug}/analise?${[filterQuery, `a=${detail.player_id}`].filter(Boolean).join('&')}`}
+			runCombo={(body) =>
+				post(`/public/${encodeURIComponent(slug)}/combo${tokenQuery ? `?${tokenQuery}` : ''}`, {
+					...body,
+					day_type: dayType
+				})}
+		/>
+	{/key}
 {/if}

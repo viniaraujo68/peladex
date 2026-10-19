@@ -31,6 +31,24 @@ pontos, que premiaria quem calhou de jogar mais. Empate total na liderança deix
 
 A pontuação é configurável por pelada (padrão 3/1/0) e vale para todo o histórico.
 
+### Rodízio e jogo único
+
+Nem todo dia é rodízio. Com só dois times, o dia vira **uma partida grande** — 12x10 em
+noventa minutos não se compara com um 1x0 de dez. Por isso o Peladex separa os dias em dois
+tipos, sem nenhum campo a mais no cadastro:
+
+- **Jogo único** — o dia tem **uma partida só**;
+- **Rodízio** — todo o resto, inclusive dois times jogando várias partidas curtas.
+
+Ranking, jogadores, estatísticas, duplas, gráficos e combinações têm o seletor
+**Rodízio · Jogo único · Todos**, e cada visão é calculada só com os dias daquele tipo — as
+mesmas contas de sempre, sem regra especial. "Todos" mistura os dois, como antes, e avisa
+que ali aproveitamento e médias por partida comparam jogos de tamanhos diferentes. O padrão
+é Rodízio; uma pelada que nunca teve rodízio abre em Todos, e o seletor só aparece quando
+existem os dois tipos. A escolha fica na URL (`?day_type=single`) e na API pelo mesmo
+parâmetro (`rotation`, `single` ou `all`). A lista de dias mostra todos, com um selo no
+jogo único.
+
 ### O que as estatísticas de dupla medem — e o que não medem
 
 Os times são **fixos o dia inteiro**. Para dois jogadores do mesmo time, a "winrate jogando

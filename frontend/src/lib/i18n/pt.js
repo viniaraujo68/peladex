@@ -139,6 +139,27 @@ export default {
 	'day.deleteTitle': 'Excluir o dia {date}?',
 	'day.deleteBody': 'O dia e todos os resultados dele são apagados, e as estatísticas são recalculadas.',
 	'day.deleteFailed': 'Não foi possível excluir o dia: {message}',
+	'dayType.label': 'Tipo de dia',
+	'dayType.caption': 'Dias:',
+	'dayType.rotation': 'Rodízio',
+	'dayType.single': 'Jogo único',
+	'dayType.all': 'Todos',
+	'dayType.hint.rotation': {
+		one: 'Só dias com várias partidas. {single} jogo único fica de fora.',
+		other: 'Só dias com várias partidas. {single} jogos únicos ficam de fora.'
+	},
+	'dayType.hint.single': {
+		one: 'Só dias de uma partida só. {rotation} dia de rodízio fica de fora.',
+		other: 'Só dias de uma partida só. {rotation} dias de rodízio ficam de fora.'
+	},
+	'dayType.hint.all':
+		'Rodízio e jogo único misturados: aproveitamento e médias por partida comparam jogos de tamanhos diferentes.',
+	'day.singleGame': 'Jogo único',
+	'player.singleGameBadge': 'jogo único',
+	'summary.averageSingleGameGoals': {
+		one: '{count} gol no jogo · média dos jogos únicos: {average}',
+		other: '{count} gols no jogo · média dos jogos únicos: {average}'
+	},
 	'day.champion': 'Campeão do dia',
 	'day.noChampion': 'Empate na liderança',
 	'day.topScorer': 'Artilheiro do dia',

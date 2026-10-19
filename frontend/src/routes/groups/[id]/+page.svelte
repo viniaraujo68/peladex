@@ -21,11 +21,14 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
-	import { createGroupView } from '$lib/groupView.svelte.js';
+	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
+	import { dayTypeParam, dayTypeQuery, withDayType, setDayTypeContext } from '$lib/dayType.js';
+	import { createGroupView, replaceParams } from '$lib/groupView.svelte.js';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
 
 	setGroupTracking(() => group);
+	setDayTypeContext(() => stats?.days);
 
 	let group = $state(/** @type {import('$lib/types.js').Group|null} */ (null));
 	let matchdays = $state(/** @type {import('$lib/types.js').Matchday[]} */ ([]));
@@ -39,10 +42,13 @@
 	let period = $state({ from: '', to: '' });
 	let minDays = $state(3);
 
+	const dayType = $derived(dayTypeParam($page.url.searchParams));
+
 	const periodQuery = $derived(
 		[
 			period.from ? `date_from=${period.from}` : '',
-			period.to ? `date_to=${period.to}` : ''
+			period.to ? `date_to=${period.to}` : '',
+			dayTypeQuery(dayType)
 		]
 			.filter(Boolean)
 			.join('&')
@@ -63,7 +69,7 @@
 	const mismatchCount = $derived(matchdays.filter((m) => m.goal_mismatch).length);
 
 	/** @param {number} playerId */
-	const playerHref = (playerId) => `/groups/${groupId}/players/${playerId}`;
+	const playerHref = (playerId) => withDayType(`/groups/${groupId}/players/${playerId}`, dayType);
 
 	$effect(() => {
 		if (auth.ready && !auth.user) goto(loginUrl($page.url));
@@ -182,7 +188,14 @@
 	}
 </script>
 
+{#snippet dayTypeBar()}
+	{#if stats}
+		<DayTypeFilter days={stats.days} onchange={(value) => replaceParams({ day_type: value })} />
+	{/if}
+{/snippet}
+
 {#snippet periodBar()}
+	{@render dayTypeBar()}
 	<div class="card bg-base-100 p-4">
 		<PeriodFilter from={period.from} to={period.to} onchange={(range) => (period = range)} />
 	</div>
@@ -276,7 +289,7 @@
 				onDelete={deleteMatchday}
 			/>
 		{:else if view.tab === 'ranking'}
-			<RankingTab {stats} {matchdays} {view} {playerHref} />
+			<RankingTab {stats} {matchdays} {view} {playerHref} before={dayTypeBar} />
 		{:else if view.tab === 'players'}
 			<PlayersTab
 				{stats}
@@ -287,7 +300,7 @@
 				onMinDays={(value) => (minDays = value)}
 				{view}
 				{playerHref}
-				analysisHref={`/groups/${groupId}/analise`}
+				analysisHref={withDayType(`/groups/${groupId}/analise`, dayType)}
 				before={periodBar}
 			/>
 		{:else if view.tab === 'stats'}

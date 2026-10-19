@@ -11,7 +11,9 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
-	import { createGroupView } from '$lib/groupView.svelte.js';
+	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
+	import { dayTypeParam, dayTypeQuery, withDayType, setDayTypeContext } from '$lib/dayType.js';
+	import { createGroupView, replaceParams } from '$lib/groupView.svelte.js';
 
 	/** @type {{ data: { group: import('$lib/types.js').PublicGroup|null, status: number } }} */
 	let { data } = $props();
@@ -20,6 +22,7 @@
 	const token = $derived($page.url.searchParams.get('t'));
 
 	setGroupTracking(() => group);
+	setDayTypeContext(() => group?.stats.days);
 	const slug = $derived(/** @type {string} */ ($page.params.slug));
 
 	const error = $derived(publicErrorMessage(data.status));
@@ -36,11 +39,17 @@
 		{ id: 'matchdays', label: t('tab.matchdays') }
 	]);
 
+	const dayType = $derived(dayTypeParam($page.url.searchParams));
+
 	/** @param {number} playerId */
 	const playerHref = (playerId) =>
-		`/g/${slug}/players/${playerId}${token ? `?t=${encodeURIComponent(token)}` : ''}`;
+		withDayType(
+			`/g/${slug}/players/${playerId}${token ? `?t=${encodeURIComponent(token)}` : ''}`,
+			dayType
+		);
 
 	const tokenQuery = $derived(token ? `t=${encodeURIComponent(token)}` : '');
+	const filterQuery = $derived([tokenQuery, dayTypeQuery(dayType)].filter(Boolean).join('&'));
 
 	let pairs = $state(/** @type {import('$lib/types.js').PairLeaderboard|null} */ (null));
 	let network = $state(/** @type {import('$lib/types.js').AssistNetwork|null} */ (null));
@@ -48,11 +57,11 @@
 	let minDays = $state(3);
 
 	const base = $derived(`/public/${encodeURIComponent(slug)}`);
-	const tokenSuffix = $derived(tokenQuery ? `?${tokenQuery}` : '');
+	const filterSuffix = $derived(filterQuery ? `?${filterQuery}` : '');
 
 	$effect(() => {
 		const root = base;
-		const suffix = tokenSuffix;
+		const suffix = filterSuffix;
 		if (!group) return;
 		let current = true;
 		Promise.all([get(`${root}/assist-network${suffix}`), get(`${root}/timeline${suffix}`)])
@@ -74,7 +83,7 @@
 	$effect(() => {
 		const root = base;
 		const days = minDays;
-		const query = [tokenQuery, `min_days=${days}`].filter(Boolean).join('&');
+		const query = [filterQuery, `min_days=${days}`].filter(Boolean).join('&');
 		if (!group) return;
 		let current = true;
 		get(`${root}/pairs?${query}`)
@@ -89,13 +98,22 @@
 	const metaDescription = $derived.by(() => {
 		if (!group) return '';
 		const counts = t('public.metaCounts', {
-			matchdays: t('group.matchdayCount', { count: group.stats.total_matchdays }),
+			matchdays: t('group.matchdayCount', { count: group.matchdays.length }),
 			players: t('group.playerCount', { count: group.stats.ranking.length })
 		});
 		return [group.description, counts, t('public.metaTagline')].filter(Boolean).join(' · ');
 	});
 	const shareUrl = $derived($page.url.origin + $page.url.pathname);
 </script>
+
+{#snippet dayTypeBar()}
+	{#if group}
+		<DayTypeFilter
+			days={group.stats.days}
+			onchange={(value) => replaceParams({ day_type: value })}
+		/>
+	{/if}
+{/snippet}
 
 <svelte:head>
 	<title>{title}</title>
@@ -142,7 +160,13 @@
 		bind:this={view.panel}
 	>
 		{#if view.tab === 'ranking'}
-			<RankingTab stats={group.stats} matchdays={group.matchdays} {view} {playerHref} />
+			<RankingTab
+				stats={group.stats}
+				matchdays={group.matchdays}
+				{view}
+				{playerHref}
+				before={dayTypeBar}
+			/>
 		{:else if view.tab === 'players'}
 			<PlayersTab
 				stats={group.stats}
@@ -153,10 +177,12 @@
 				onMinDays={(value) => (minDays = value)}
 				{view}
 				{playerHref}
-				analysisHref={`/g/${slug}/analise${tokenQuery ? `?${tokenQuery}` : ''}`}
+				analysisHref={`/g/${slug}/analise${filterSuffix}`}
+				before={dayTypeBar}
 			/>
 		{:else if view.tab === 'stats'}
 			<div class="flex flex-col gap-4">
+				{@render dayTypeBar()}
 				<GroupStats stats={group.stats} />
 				{#if timeline}
 					<TimelineCharts {timeline} />

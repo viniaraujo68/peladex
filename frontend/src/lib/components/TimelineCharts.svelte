@@ -1,4 +1,5 @@
 <script>
+	import { getDayTypeView } from '$lib/dayType.js';
 	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { onMount } from 'svelte';
 	import { getThemeContext } from '@viniaraujo68/plinth/theme';
@@ -10,6 +11,7 @@
 	let { timeline } = $props();
 
 	const theme = getThemeContext();
+	const dayView = getDayTypeView();
 
 	let goalsCanvas = $state(/** @type {HTMLCanvasElement|undefined} */ (undefined));
 	/** @type {import('chart.js').Chart | null} */
@@ -39,6 +41,7 @@
 		const gridColor = theme.grid;
 		const surface = theme.surface;
 		const bar = theme.read('var(--series-1)', '#2a78d6');
+		const singleBar = theme.read('var(--series-2)', '#eb6834');
 		const tooltip = theme.tooltip;
 		const labels = points.map((p) => formatShortDate(p.date));
 
@@ -54,7 +57,7 @@
 						{
 							label: perMatch ? t('chart.goalsPerMatch') : t('chart.goalsPerMatchday'),
 							data: points.map((p) => (perMatch ? p.goals_per_match : p.goals)),
-							backgroundColor: bar,
+							backgroundColor: points.map((p) => (p.single_game ? singleBar : bar)),
 							borderRadius: 4,
 							borderSkipped: 'bottom',
 							borderWidth: 2,
@@ -74,8 +77,11 @@
 								label: (ctx) => {
 									const point = points[ctx.dataIndex];
 									const matches = t('analysis.matches', { count: point.matches });
-									if (perMatch) return `${formatNumber(point.goals_per_match)} · ${matches}`;
-									return `${t('records.goals', { count: point.goals })} · ${matches}`;
+									const kind = point.single_game ? ` · ${t('day.singleGame')}` : '';
+									if (perMatch) {
+										return `${formatNumber(point.goals_per_match)} · ${matches}${kind}`;
+									}
+									return `${t('records.goals', { count: point.goals })} · ${matches}${kind}`;
 								}
 							}
 						}
@@ -141,12 +147,14 @@
 						<p class="hint">{t('chart.goalsPerMatchHint')}</p>
 					{/if}
 				</div>
-				<SegmentedControl
-					options={scopes}
-					value={scope}
-					label={t('unit.label')}
-					onchange={(id) => (scope = /** @type {'matchday'|'match'} */ (id))}
-				/>
+				{#if !dayView.single}
+					<SegmentedControl
+						options={scopes}
+						value={scope}
+						label={t('unit.label')}
+						onchange={(id) => (scope = /** @type {'matchday'|'match'} */ (id))}
+					/>
+				{/if}
 			</div>
 			<div class="wrap"><canvas bind:this={goalsCanvas}></canvas></div>
 		</section>

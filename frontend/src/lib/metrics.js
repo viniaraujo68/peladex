@@ -115,8 +115,9 @@ export function unitCaption(tracking) {
 	return tracking.trackAssists ? t('unit.captionBoth') : t('unit.captionGoals');
 }
 
-export function unitOptions() {
-	return UNITS.map((id) => ({ id, label: unitLabel(id) }));
+/** @param {Unit[]} [units] */
+export function unitOptions(units = UNITS) {
+	return units.map((id) => ({ id, label: unitLabel(id) }));
 }
 
 /** @param {Unit} unit */

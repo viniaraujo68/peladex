@@ -10,6 +10,8 @@
 	import { pickParams, readIdParam, replaceParams } from '$lib/groupView.svelte.js';
 	import ComboExplorer from '$lib/components/ComboExplorer.svelte';
 	import PlayerCompare from '$lib/components/PlayerCompare.svelte';
+	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
+	import { dayTypeParam, dayTypeQuery, withDayType } from '$lib/dayType.js';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
 
@@ -25,17 +27,22 @@
 		if (auth.ready && !auth.user) goto(loginUrl($page.url));
 	});
 
+	const dayType = $derived(dayTypeParam($page.url.searchParams));
+	const query = $derived(dayTypeQuery(dayType));
+
 	$effect(() => {
-		if (groupId && auth.user) load();
+		const suffix = query ? `?${query}` : '';
+		if (groupId && auth.user) load(suffix);
 	});
 
-	async function load() {
-		loading = true;
+	/** @param {string} suffix */
+	async function load(suffix) {
+		loading = stats === null;
 		try {
 			[group, players, stats] = await Promise.all([
 				get(`/groups/${groupId}`),
 				get(`/groups/${groupId}/players`),
-				get(`/groups/${groupId}/stats`)
+				get(`/groups/${groupId}/stats${suffix}`)
 			]);
 		} catch (e) {
 			error = errorMessage(e);
@@ -45,13 +52,14 @@
 	}
 
 	/** @param {any} body */
-	const run = (body) => post(`/groups/${groupId}/combo`, body);
+	const run = (body) => post(`/groups/${groupId}/combo`, { ...body, day_type: dayType });
 
 	/** @param {number} id */
-	const loadDetail = (id) => get(`/groups/${groupId}/players/${id}/detail`);
+	const loadDetail = (id) =>
+		get(withDayType(`/groups/${groupId}/players/${id}/detail`, dayType));
 
 	/** @param {number} playerId */
-	const playerHref = (playerId) => `/groups/${groupId}/players/${playerId}`;
+	const playerHref = (playerId) => withDayType(`/groups/${groupId}/players/${playerId}`, dayType);
 
 	/** @param {string} key */
 	const idParam = (key) => readIdParam($page.url.searchParams, key);
@@ -64,7 +72,7 @@
 
 <div class="head mb-5">
 	<a
-		href={`/groups/${groupId}?tab=players`}
+		href={withDayType(`/groups/${groupId}?tab=players`, dayType)}
 		class="mb-2 inline-block text-sm text-base-content/80 hover:text-base-content"
 	>
 		{t('day.backToGroup')}
@@ -82,21 +90,27 @@
 {:else if error}
 	<div class="alert alert-soft alert-error">{error}</div>
 {:else}
-	<div class="flex flex-col gap-8">
-		{#if stats}
-			<PlayerCompare
-				ranking={stats.ranking}
-				a={idParam('a')}
-				b={idParam('b')}
-				onPick={setPick}
-				{loadDetail}
-				runCombo={run}
-				{playerHref}
-			/>
-		{/if}
-		<div class="flex flex-col gap-3">
-			<h2 class="font-semibold">{t('analysis.combosTitle')}</h2>
-			<ComboExplorer players={players.map((p) => ({ id: p.id, name: p.name }))} {run} />
+	{#key dayType}
+		<div class="flex flex-col gap-8">
+			{#if stats}
+				<DayTypeFilter
+					days={stats.days}
+					onchange={(value) => replaceParams({ day_type: value })}
+				/>
+				<PlayerCompare
+					ranking={stats.ranking}
+					a={idParam('a')}
+					b={idParam('b')}
+					onPick={setPick}
+					{loadDetail}
+					runCombo={run}
+					{playerHref}
+				/>
+			{/if}
+			<div class="flex flex-col gap-3">
+				<h2 class="font-semibold">{t('analysis.combosTitle')}</h2>
+				<ComboExplorer players={players.map((p) => ({ id: p.id, name: p.name }))} {run} />
+			</div>
 		</div>
-	</div>
+	{/key}
 {/if}

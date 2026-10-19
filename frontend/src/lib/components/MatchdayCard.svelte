@@ -77,9 +77,13 @@
 						{matchday.venue_name}
 					</span>
 				{/if}
-				<span class="badge badge-soft badge-sm">
-					{t('day.matchCount', { count: matchday.matches.length })}
-				</span>
+				{#if matchday.single_game}
+					<span class="badge badge-soft badge-primary badge-sm">{t('day.singleGame')}</span>
+				{:else}
+					<span class="badge badge-soft badge-sm">
+						{t('day.matchCount', { count: matchday.matches.length })}
+					</span>
+				{/if}
 				<span class="badge badge-soft badge-sm">
 					{t('day.totalGoals', { count: matchday.total_goals })}
 				</span>

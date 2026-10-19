@@ -24,7 +24,9 @@
 		[...matchdays].sort((a, b) => b.date.localeCompare(a.date) || b.id - a.id)
 	);
 	const latest = $derived(ordered[0] ?? null);
-	const earlier = $derived(ordered.slice(1));
+	const earlier = $derived(
+		ordered.slice(1).filter((day) => day.single_game === ordered[0].single_game)
+	);
 
 	const champion = $derived(
 		latest?.standings.find((s) => s.team_id === latest.champion_team_id) ?? null
@@ -87,8 +89,9 @@
 	});
 
 	const averageGoals = $derived(
-		ordered.length > 1
-			? ordered.reduce((sum, day) => sum + day.total_goals, 0) / ordered.length
+		latest && earlier.length
+			? (latest.total_goals + earlier.reduce((sum, day) => sum + day.total_goals, 0)) /
+					(earlier.length + 1)
 			: null
 	);
 </script>
@@ -115,9 +118,13 @@
 				{#if latest.venue_name}
 					<span class="badge badge-soft badge-sm"><Icon name="venue" />{latest.venue_name}</span>
 				{/if}
-				<span class="badge badge-soft badge-sm">
-					{t('day.matchCount', { count: latest.matches.length })}
-				</span>
+				{#if latest.single_game}
+					<span class="badge badge-soft badge-primary badge-sm">{t('day.singleGame')}</span>
+				{:else}
+					<span class="badge badge-soft badge-sm">
+						{t('day.matchCount', { count: latest.matches.length })}
+					</span>
+				{/if}
 				<span class="badge badge-soft badge-sm">
 					{t('day.totalGoals', { count: latest.total_goals })}
 				</span>
@@ -202,7 +209,7 @@
 				{/each}
 				{#if averageGoals !== null}
 					<li class="fact">
-						{t('summary.averageGoals', {
+						{t(latest.single_game ? 'summary.averageSingleGameGoals' : 'summary.averageGoals', {
 							count: latest.total_goals,
 							average: formatNumber(averageGoals)
 						})}

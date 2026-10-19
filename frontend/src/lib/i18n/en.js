@@ -139,6 +139,27 @@ export default {
 	'day.deleteTitle': 'Delete the {date} matchday?',
 	'day.deleteBody': 'The matchday and all its results are deleted, and the stats are recomputed.',
 	'day.deleteFailed': 'Could not delete the matchday: {message}',
+	'dayType.label': 'Day type',
+	'dayType.caption': 'Days:',
+	'dayType.rotation': 'Rotation',
+	'dayType.single': 'Single game',
+	'dayType.all': 'All',
+	'dayType.hint.rotation': {
+		one: 'Only days with several matches. {single} single game is left out.',
+		other: 'Only days with several matches. {single} single games are left out.'
+	},
+	'dayType.hint.single': {
+		one: 'Only one-match days. {rotation} rotation day is left out.',
+		other: 'Only one-match days. {rotation} rotation days are left out.'
+	},
+	'dayType.hint.all':
+		'Rotation and single games mixed: win rate and per-match averages compare games of different lengths.',
+	'day.singleGame': 'Single game',
+	'player.singleGameBadge': 'single game',
+	'summary.averageSingleGameGoals': {
+		one: '{count} goal in the game · single game average: {average}',
+		other: '{count} goals in the game · single game average: {average}'
+	},
 	'day.champion': 'Winner of the day',
 	'day.noChampion': 'Tied at the top',
 	'day.topScorer': 'Top scorer of the day',

@@ -1,4 +1,5 @@
 <script>
+	import { SINGLE_GAME_UNITS, getDayTypeView, visibleUnit } from '$lib/dayType.js';
 	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { t } from '$lib/i18n.svelte.js';
 	import { unitLabel, unitOptions } from '$lib/metrics.js';
@@ -20,7 +21,7 @@
 	 *   playerHref: (playerId: number) => string
 	 * }}
 	 */
-	let { evolution, pairs, network, minDays, onMinDays, minMatchdays, unit, onUnit, playerHref } =
+	let { evolution, pairs, network, minDays, onMinDays, minMatchdays, unit: requestedUnit, onUnit, playerHref } =
 		$props();
 
 	const tracking = getTracking();
@@ -39,7 +40,9 @@
 		].filter((option) => option.on)
 	);
 
-	const unitChoices = $derived(unitOptions());
+	const dayView = getDayTypeView();
+	const unit = $derived(visibleUnit(requestedUnit, dayView.single));
+	const unitChoices = $derived(unitOptions(dayView.single ? SINGLE_GAME_UNITS : undefined));
 
 	const title = $derived.by(() => {
 		if (metric === 'win_rate') return t('stats.evolution');

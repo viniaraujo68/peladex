@@ -1,4 +1,5 @@
 <script>
+	import { SINGLE_GAME_UNITS, getDayTypeView, visibleUnit } from '$lib/dayType.js';
 	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import {
@@ -29,7 +30,7 @@
 	 *   onUnit: (unit: import('$lib/metrics.js').Unit) => void
 	 * }}
 	 */
-	let { ranking, previousRanking, minMatchdays, playerHref, focus, unit, onFocus, onUnit } =
+	let { ranking, previousRanking, minMatchdays, playerHref, focus, unit: requestedUnit, onFocus, onUnit } =
 		$props();
 
 	/** @typedef {import('$lib/metrics.js').MetricId} MetricId */
@@ -55,7 +56,9 @@
 		metrics.filter((m) => !isMatchVariant(m.id) || m.id === matchVariant)
 	);
 
-	const unitChoices = $derived(unitOptions());
+	const dayView = getDayTypeView();
+	const unit = $derived(visibleUnit(requestedUnit, dayView.single));
+	const unitChoices = $derived(unitOptions(dayView.single ? SINGLE_GAME_UNITS : undefined));
 	const variantOptions = $derived([
 		{ id: 'matches_per_matchday', label: unitLabel('day') },
 		{ id: 'matches', label: unitLabel('total') }

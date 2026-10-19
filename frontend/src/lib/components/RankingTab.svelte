@@ -7,14 +7,16 @@
 	 *   stats: import('$lib/types.js').Stats,
 	 *   matchdays: import('$lib/types.js').Matchday[],
 	 *   view: ReturnType<typeof import('$lib/groupView.svelte.js').createGroupView<any>>,
-	 *   playerHref: (playerId: number) => string
+	 *   playerHref: (playerId: number) => string,
+	 *   before?: import('svelte').Snippet
 	 * }}
 	 */
-	let { stats, matchdays, view, playerHref } = $props();
+	let { stats, matchdays, view, playerHref, before } = $props();
 </script>
 
 <div class="flex flex-col gap-4">
 	<LastMatchdaySummary {matchdays} {playerHref} onOpenDay={() => view.setTab('matchdays')} />
+	{@render before?.()}
 	<div class="card bg-base-100 p-5">
 		<RankingTable
 			ranking={stats.ranking}

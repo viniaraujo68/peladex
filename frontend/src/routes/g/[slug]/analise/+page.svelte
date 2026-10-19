@@ -7,6 +7,8 @@
 	import { pickParams, readIdParam, replaceParams } from '$lib/groupView.svelte.js';
 	import ComboExplorer from '$lib/components/ComboExplorer.svelte';
 	import PlayerCompare from '$lib/components/PlayerCompare.svelte';
+	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
+	import { dayTypeParam, withDayType } from '$lib/dayType.js';
 
 	/** @type {{ data: { group: import('$lib/types.js').PublicGroup|null, status: number } }} */
 	let { data } = $props();
@@ -30,14 +32,18 @@
 	/** @param {{ a: number|null, b: number|null }} pick */
 	const setPick = (pick) => replaceParams(pickParams(pick));
 
+	const dayType = $derived(dayTypeParam($page.url.searchParams));
+
 	/** @param {number} playerId */
-	const playerHref = (playerId) => `/g/${slug}/players/${playerId}${tokenQuery}`;
+	const playerHref = (playerId) => withDayType(`/g/${slug}/players/${playerId}${tokenQuery}`, dayType);
 
 	/** @param {any} body */
-	const run = (body) => post(`/public/${encodeURIComponent(slug)}/combo${tokenQuery}`, body);
+	const run = (body) =>
+		post(`/public/${encodeURIComponent(slug)}/combo${tokenQuery}`, { ...body, day_type: dayType });
 
 	/** @param {number} id */
-	const loadDetail = (id) => get(`/public/${encodeURIComponent(slug)}/players/${id}${tokenQuery}`);
+	const loadDetail = (id) =>
+		get(withDayType(`/public/${encodeURIComponent(slug)}/players/${id}${tokenQuery}`, dayType));
 </script>
 
 <svelte:head>
@@ -47,7 +53,7 @@
 
 <div class="head mb-5">
 	<a
-		href={`/g/${slug}${tokenQuery}`}
+		href={withDayType(`/g/${slug}${tokenQuery}`, dayType)}
 		class="mb-2 inline-block text-sm text-base-content/80 hover:text-base-content"
 	>
 		{t('player.backToGroup')}
@@ -59,19 +65,25 @@
 {#if error}
 	<div class="card bg-base-100 px-5 py-12 text-center text-base-content/65">{error}</div>
 {:else if group}
-	<div class="flex flex-col gap-8">
-		<PlayerCompare
-			ranking={group.stats.ranking}
-			a={idParam('a')}
-			b={idParam('b')}
-			onPick={setPick}
-			{loadDetail}
-			runCombo={run}
-			{playerHref}
-		/>
-		<div class="flex flex-col gap-3">
-			<h2 class="font-semibold">{t('analysis.combosTitle')}</h2>
-			<ComboExplorer {players} {run} />
+	{#key dayType}
+		<div class="flex flex-col gap-8">
+			<DayTypeFilter
+				days={group.stats.days}
+				onchange={(value) => replaceParams({ day_type: value })}
+			/>
+			<PlayerCompare
+				ranking={group.stats.ranking}
+				a={idParam('a')}
+				b={idParam('b')}
+				onPick={setPick}
+				{loadDetail}
+				runCombo={run}
+				{playerHref}
+			/>
+			<div class="flex flex-col gap-3">
+				<h2 class="font-semibold">{t('analysis.combosTitle')}</h2>
+				<ComboExplorer {players} {run} />
+			</div>
 		</div>
-	</div>
+	{/key}
 {/if}

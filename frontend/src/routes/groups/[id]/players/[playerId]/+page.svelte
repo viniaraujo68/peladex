@@ -8,7 +8,10 @@
 	import { loginUrl } from '$lib/nav.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import { setGroupTracking } from '$lib/tracking.svelte.js';
+	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
+	import { dayTypeParam, dayTypeQuery, withDayType, setDayTypeContext } from '$lib/dayType.js';
+	import { replaceParams } from '$lib/groupView.svelte.js';
 
 	const groupId = $derived(/** @type {string} */ ($page.params.id));
 	const playerId = $derived(/** @type {string} */ ($page.params.playerId));
@@ -21,10 +24,13 @@
 	let loading = $state(true);
 
 	setGroupTracking(() => group);
+	setDayTypeContext(() => detail?.days);
 	let error = $state('');
 
+	const dayType = $derived(dayTypeParam($page.url.searchParams));
+
 	/** @param {number} id */
-	const playerHref = (id) => `/groups/${groupId}/players/${id}`;
+	const playerHref = (id) => withDayType(`/groups/${groupId}/players/${id}`, dayType);
 
 	$effect(() => {
 		if (auth.ready && !auth.user) goto(loginUrl($page.url));
@@ -32,20 +38,21 @@
 
 	$effect(() => {
 		const days = minDays;
+		const query = dayTypeQuery(dayType);
 		const group_ = groupId;
 		const player_ = playerId;
-		if (group_ && player_ && auth.user) load(days);
+		if (group_ && player_ && auth.user) load(days, query);
 	});
 
-	/** @param {number} days */
-	async function load(days) {
+	/** @param {number} days @param {string} query */
+	async function load(days, query) {
 		loading = untrack(() => detail === null);
 		error = '';
 		try {
 			[group, detail, evolution, players] = await Promise.all([
 				get(`/groups/${groupId}`),
-				get(`/groups/${groupId}/players/${playerId}/detail?min_days=${days}`),
-				get(`/groups/${groupId}/evolution`),
+				get(`/groups/${groupId}/players/${playerId}/detail?${[`min_days=${days}`, query].filter(Boolean).join('&')}`),
+				get(`/groups/${groupId}/evolution${query ? `?${query}` : ''}`),
 				get(`/groups/${groupId}/players`)
 			]);
 		} catch (e) {
@@ -62,7 +69,7 @@
 
 <div class="head mb-5">
 	<a
-		href={`/groups/${groupId}?tab=ranking`}
+		href={withDayType(`/groups/${groupId}?tab=ranking`, dayType)}
 		class="mb-2 inline-block text-sm text-base-content/80 hover:text-base-content"
 	>
 		{t('player.backToGroup')}
@@ -82,14 +89,19 @@
 {:else if error}
 	<div class="alert alert-soft alert-error">{error}</div>
 {:else if detail && evolution}
-	<PlayerProfile
-		{detail}
-		{evolution}
-		{minDays}
-		onMinDays={(value) => (minDays = value)}
-		{playerHref}
-		players={players.map((p) => ({ id: p.id, name: p.name }))}
-		compareHref={`/groups/${groupId}/analise?a=${detail.player_id}`}
-		runCombo={(body) => post(`/groups/${groupId}/combo`, body)}
-	/>
+	<div class="mb-4">
+		<DayTypeFilter days={detail.days} onchange={(value) => replaceParams({ day_type: value })} />
+	</div>
+	{#key dayType}
+		<PlayerProfile
+			{detail}
+			{evolution}
+			{minDays}
+			onMinDays={(value) => (minDays = value)}
+			{playerHref}
+			players={players.map((p) => ({ id: p.id, name: p.name }))}
+			compareHref={withDayType(`/groups/${groupId}/analise?a=${detail.player_id}`, dayType)}
+			runCombo={(body) => post(`/groups/${groupId}/combo`, { ...body, day_type: dayType })}
+		/>
+	{/key}
 {/if}

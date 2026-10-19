@@ -99,6 +99,15 @@
  * @property {number} assists
  */
 
+/** @typedef {'rotation'|'single'|'all'} DayType */
+
+/**
+ * @typedef {object} Days
+ * @property {DayType} day_type
+ * @property {number} rotation_matchdays
+ * @property {number} single_game_matchdays
+ */
+
 /**
  * @typedef {object} Matchday
  * @property {number} id
@@ -116,6 +125,7 @@
  * @property {number} total_goals
  * @property {number} total_assists
  * @property {boolean} goal_mismatch
+ * @property {boolean} single_game
  */
 
 /**
@@ -205,6 +215,7 @@
 
 /**
  * @typedef {object} Stats
+ * @property {Days} days
  * @property {PlayerRow[]} ranking
  * @property {PlayerRow[]} previous_ranking
  * @property {number} total_matchdays
@@ -287,6 +298,7 @@
  * @property {number} assists
  * @property {number} goals_per_match
  * @property {number} players
+ * @property {boolean} single_game
  */
 
 /**
@@ -345,12 +357,14 @@
  * @property {number} assists
  * @property {boolean} champion
  * @property {boolean} mvp
+ * @property {boolean} single_game
  */
 
 /**
  * @typedef {object} PlayerDetail
  * @property {number} player_id
  * @property {string} name
+ * @property {Days} days
  * @property {PlayerRow} summary
  * @property {PlayerRating|null} rating
  * @property {PlayerMatchdayRow[]} history

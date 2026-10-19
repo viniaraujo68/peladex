@@ -1,4 +1,5 @@
 <script>
+	import { SINGLE_GAME_UNITS, getDayTypeView, visibleUnit } from '$lib/dayType.js';
 	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { DataTable, competitionRanks, sortRows, sortValue } from '@viniaraujo68/plinth/table';
 	import { formatRate } from '$lib/format.svelte.js';
@@ -31,7 +32,7 @@
 	 *   onSort: (sort: import('@viniaraujo68/plinth/table').SortState) => void
 	 * }}
 	 */
-	let { ranking, previousRanking, playerHref, unit, onUnit, sort, onSort } = $props();
+	let { ranking, previousRanking, playerHref, unit: requestedUnit, onUnit, sort, onSort } = $props();
 
 	/** @typedef {import('$lib/types.js').PlayerRow} Row */
 	/** @typedef {import('$lib/metrics.js').MetricId} MetricId */
@@ -56,7 +57,9 @@
 	const showGoals = $derived(tracking.trackScorers);
 	const showAssists = $derived(tracking.trackScorers && tracking.trackAssists);
 
-	const unitChoices = $derived(unitOptions());
+	const dayView = getDayTypeView();
+	const unit = $derived(visibleUnit(requestedUnit, dayView.single));
+	const unitChoices = $derived(unitOptions(dayView.single ? SINGLE_GAME_UNITS : undefined));
 
 	/** @param {string} key */
 	const asMetric = (key) =>

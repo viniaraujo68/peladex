@@ -1,4 +1,5 @@
 <script>
+	import { getDayTypeView } from '$lib/dayType.js';
 	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { onMount } from 'svelte';
 	import { getThemeContext } from '@viniaraujo68/plinth/theme';
@@ -19,6 +20,8 @@
 	 * }}
 	 */
 	let { playerId, playerName, evolution, history } = $props();
+
+	const dayView = getDayTypeView();
 
 	const theme = getThemeContext();
 
@@ -235,12 +238,14 @@
 				<h3 class="font-semibold">
 					{goalsUnit === 'match' ? t('player.goalsPerMatchChart') : t('player.goalsChart')}
 				</h3>
-				<SegmentedControl
-					options={goalsUnits}
-					value={goalsUnit}
-					label={t('unit.label')}
-					onchange={(id) => (goalsUnit = /** @type {'total'|'match'} */ (id))}
-				/>
+				{#if !dayView.single}
+					<SegmentedControl
+						options={goalsUnits}
+						value={goalsUnit}
+						label={t('unit.label')}
+						onchange={(id) => (goalsUnit = /** @type {'total'|'match'} */ (id))}
+					/>
+				{/if}
 			</div>
 			<div class="chart-wrap short"><canvas bind:this={goalsCanvas}></canvas></div>
 		</section>
