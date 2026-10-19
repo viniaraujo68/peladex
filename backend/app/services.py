@@ -82,6 +82,34 @@ def active_matchdays(db: DBSession, group_id: int, date_from=None,
     )
 
 
+def is_single_game(matchday: models.Matchday) -> bool:
+    return len(matchday.matches) == 1
+
+
+class DaySelection(NamedTuple):
+    matchdays: list[models.Matchday]
+    summary: schemas.DaysOut
+
+
+def select_days(matchdays: list[models.Matchday],
+                day_type: schemas.DayType | None) -> DaySelection:
+    single = sum(1 for matchday in matchdays if is_single_game(matchday))
+    rotation = len(matchdays) - single
+    resolved = day_type or ("rotation" if rotation else "all")
+    chosen = matchdays if resolved == "all" else [
+        matchday for matchday in matchdays
+        if is_single_game(matchday) == (resolved == "single")
+    ]
+    return DaySelection(chosen, schemas.DaysOut(
+        day_type=resolved, rotation_matchdays=rotation, single_game_matchdays=single,
+    ))
+
+
+def selected_matchdays(db: DBSession, group_id: int, date_from=None, date_to=None,
+                       day_type: schemas.DayType | None = None) -> DaySelection:
+    return select_days(active_matchdays(db, group_id, date_from, date_to), day_type)
+
+
 def _win_rate(points: int, played: int, group: models.Group) -> float | None:
     best = played * group.win_points
     return (points / best) if best else None
@@ -310,6 +338,7 @@ def serialize_matchday(
         total_goals=sum(m.home_score + m.away_score for m in matchday.matches),
         total_assists=sum(assists.values()),
         goal_mismatch=_goal_mismatch(matchday),
+        single_game=is_single_game(matchday),
     )
 
 
@@ -366,6 +395,7 @@ def _credit_teams(agg: dict[int, dict], history: dict[int, list[dict]], index: i
                 "goals": goals.get(member.player_id, 0),
                 "assists": assists.get(member.player_id, 0),
                 "mvp": matchday.mvp_player_id == member.player_id,
+                "single_game": is_single_game(matchday),
             })
 
 
@@ -567,11 +597,13 @@ def _ranking(current: _Snapshot, previous: _Snapshot, group: models.Group,
     return ranking
 
 
-def compute_stats(db: DBSession, group: models.Group, date_from=None, date_to=None, *,
+def compute_stats(db: DBSession, group: models.Group, date_from=None, date_to=None,
+                  day_type: schemas.DayType | None = None, *,
                   matchdays: list[models.Matchday] | None = None,
                   names: dict[int, str] | None = None) -> schemas.StatsOut:
     if matchdays is None:
         matchdays = active_matchdays(db, group.id, date_from, date_to)
+    matchdays, days = select_days(matchdays, day_type)
     if names is None:
         names = player_names(db, group.id)
     total = len(matchdays)
@@ -582,6 +614,7 @@ def compute_stats(db: DBSession, group: models.Group, date_from=None, date_to=No
     draws = sum(1 for match in matches if match.home_score == match.away_score)
 
     return schemas.StatsOut(
+        days=days,
         ranking=ranking,
         previous_ranking=previous,
         total_matchdays=total,
@@ -597,11 +630,13 @@ def compute_stats(db: DBSession, group: models.Group, date_from=None, date_to=No
     )
 
 
-def compute_evolution(db: DBSession, group: models.Group, date_from=None, date_to=None, *,
+def compute_evolution(db: DBSession, group: models.Group, date_from=None, date_to=None,
+                      day_type: schemas.DayType | None = None, *,
                       matchdays: list[models.Matchday] | None = None,
                       names: dict[int, str] | None = None) -> schemas.EvolutionOut:
     if matchdays is None:
         matchdays = active_matchdays(db, group.id, date_from, date_to)
+    matchdays = select_days(matchdays, day_type).matchdays
     if names is None:
         names = player_names(db, group.id)
     dates = [m.date for m in matchdays]
@@ -825,17 +860,19 @@ def _matchday_row(entry: dict) -> schemas.PlayerMatchdayRow:
         assists=entry["assists"],
         champion=entry["champion"],
         mvp=entry["mvp"],
+        single_game=entry["single_game"],
     )
 
 
 def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
-                          min_days: int = MIN_PAIR_DAYS, date_from=None,
-                          date_to=None) -> schemas.PlayerDetailOut | None:
+                          min_days: int = MIN_PAIR_DAYS, date_from=None, date_to=None,
+                          day_type: schemas.DayType | None = None
+                          ) -> schemas.PlayerDetailOut | None:
     player = db.get(models.Player, player_id)
     if not player or player.group_id != group.id:
         return None
 
-    matchdays = active_matchdays(db, group.id, date_from, date_to)
+    matchdays, days = selected_matchdays(db, group.id, date_from, date_to, day_type)
     names = player_names(db, group.id)
     current = _snapshot(matchdays, group)
     previous = _snapshot(matchdays, group, dropped=1)
@@ -852,6 +889,7 @@ def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
     return schemas.PlayerDetailOut(
         player_id=player_id,
         name=player.name,
+        days=days,
         summary=summary,
         rating=rating,
         history=rows,
@@ -862,9 +900,10 @@ def compute_player_detail(db: DBSession, group: models.Group, player_id: int,
 
 
 def compute_pair_leaderboard(db: DBSession, group: models.Group, min_days: int = MIN_PAIR_DAYS,
-                             limit: int = 10, date_from=None,
-                             date_to=None) -> schemas.PairLeaderboard:
-    matchdays = active_matchdays(db, group.id, date_from, date_to)
+                             limit: int = 10, date_from=None, date_to=None,
+                             day_type: schemas.DayType | None = None
+                             ) -> schemas.PairLeaderboard:
+    matchdays = selected_matchdays(db, group.id, date_from, date_to, day_type).matchdays
     names = player_names(db, group.id)
     agg, _ = _aggregate(matchdays, group)
     baseline = {pid: _bucket_rate(bucket, group) for pid, bucket in agg.items()}
@@ -946,7 +985,9 @@ def _combo_totals(matchdays: list[models.Matchday], group: models.Group,
 
 def compute_combo(db: DBSession, group: models.Group,
                   body: schemas.ComboIn) -> schemas.ComboOut:
-    matchdays = active_matchdays(db, group.id, body.date_from, body.date_to)
+    matchdays = selected_matchdays(
+        db, group.id, body.date_from, body.date_to, body.day_type
+    ).matchdays
     names = player_names(db, group.id)
     together = [pid for pid in body.together if pid in names]
     against = [pid for pid in body.against if pid in names]
@@ -975,9 +1016,9 @@ def compute_combo(db: DBSession, group: models.Group,
     )
 
 
-def compute_timeline(db: DBSession, group: models.Group, date_from=None,
-                     date_to=None) -> schemas.TimelineOut:
-    matchdays = active_matchdays(db, group.id, date_from, date_to)
+def compute_timeline(db: DBSession, group: models.Group, date_from=None, date_to=None,
+                     day_type: schemas.DayType | None = None) -> schemas.TimelineOut:
+    matchdays = selected_matchdays(db, group.id, date_from, date_to, day_type).matchdays
     points: list[schemas.TimelinePoint] = []
     scorelines: dict[tuple[int, int], int] = defaultdict(int)
     total_matches = 0
@@ -1005,6 +1046,7 @@ def compute_timeline(db: DBSession, group: models.Group, date_from=None,
             assists=assists,
             goals_per_match=(goals / matches) if matches else 0.0,
             players=players,
+            single_game=is_single_game(matchday),
         ))
 
     rows = [
@@ -1028,8 +1070,9 @@ def compute_timeline(db: DBSession, group: models.Group, date_from=None,
 
 
 def compute_assist_network(db: DBSession, group: models.Group, limit: int = 12,
-                           date_from=None, date_to=None) -> schemas.AssistNetwork:
-    matchdays = active_matchdays(db, group.id, date_from, date_to)
+                           date_from=None, date_to=None,
+                           day_type: schemas.DayType | None = None) -> schemas.AssistNetwork:
+    matchdays = selected_matchdays(db, group.id, date_from, date_to, day_type).matchdays
     names = player_names(db, group.id)
     links: dict[tuple[int, int], int] = defaultdict(int)
     total = 0

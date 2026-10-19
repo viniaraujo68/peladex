@@ -186,6 +186,15 @@ class AssisterOut(BaseModel):
     assists: int
 
 
+DayType = Literal["rotation", "single", "all"]
+
+
+class DaysOut(BaseModel):
+    day_type: DayType
+    rotation_matchdays: int
+    single_game_matchdays: int
+
+
 class MatchdayOut(BaseModel):
     id: int
     date: date
@@ -202,6 +211,7 @@ class MatchdayOut(BaseModel):
     total_goals: int
     total_assists: int
     goal_mismatch: bool
+    single_game: bool
 
 
 class RatingComponent(BaseModel):
@@ -273,6 +283,7 @@ class PlayerRow(BaseModel):
 
 
 class StatsOut(BaseModel):
+    days: DaysOut
     ranking: list[PlayerRow]
     previous_ranking: list[PlayerRow]
     total_matchdays: int
@@ -292,6 +303,7 @@ class TimelinePoint(BaseModel):
     assists: int
     goals_per_match: float
     players: int
+    single_game: bool
 
 
 class ScorelineRow(BaseModel):
@@ -329,6 +341,7 @@ class ComboIn(BaseModel):
     against: list[int] = Field(default_factory=list, max_length=8)
     date_from: date | None = None
     date_to: date | None = None
+    day_type: DayType | None = None
 
 
 class ComboOut(BaseModel):
@@ -407,11 +420,13 @@ class PlayerMatchdayRow(BaseModel):
     assists: int
     champion: bool
     mvp: bool
+    single_game: bool
 
 
 class PlayerDetailOut(BaseModel):
     player_id: int
     name: str
+    days: DaysOut
     summary: PlayerRow
     rating: PlayerRating | None = None
     history: list[PlayerMatchdayRow]

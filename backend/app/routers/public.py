@@ -51,6 +51,7 @@ def search_public_groups(request: Request, q: str = Query("", max_length=80),
 @limiter.limit(settings.rate_limit_public)
 def get_public_group(request: Request, slug: str, t: str | None = None,
                      date_from: date | None = None, date_to: date | None = None,
+                     day_type: schemas.DayType | None = None,
                      db: DBSession = Depends(get_session)):
     group = visible_group(db, slug, t)
     names = services.player_names(db, group.id)
@@ -64,8 +65,12 @@ def get_public_group(request: Request, slug: str, t: str | None = None,
         track_scorers=group.track_scorers,
         track_assists=group.track_assists,
         show_ratings=group.show_ratings,
-        stats=services.compute_stats(db, group, matchdays=matchdays, names=names),
-        evolution=services.compute_evolution(db, group, matchdays=matchdays, names=names),
+        stats=services.compute_stats(
+            db, group, day_type=day_type, matchdays=matchdays, names=names
+        ),
+        evolution=services.compute_evolution(
+            db, group, day_type=day_type, matchdays=matchdays, names=names
+        ),
         matchdays=[services.serialize_matchday(db, m, group, names, venues) for m in newest_first],
     )
 
@@ -75,9 +80,12 @@ def get_public_group(request: Request, slug: str, t: str | None = None,
 def get_public_player(request: Request, slug: str, player_id: int, t: str | None = None,
                       min_days: int = Query(services.MIN_PAIR_DAYS, ge=1, le=50),
                       date_from: date | None = None, date_to: date | None = None,
+                      day_type: schemas.DayType | None = None,
                       db: DBSession = Depends(get_session)):
     group = visible_group(db, slug, t)
-    detail = services.compute_player_detail(db, group, player_id, min_days, date_from, date_to)
+    detail = services.compute_player_detail(
+        db, group, player_id, min_days, date_from, date_to, day_type
+    )
     if detail is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Jogador não encontrado")
     return detail
@@ -89,18 +97,22 @@ def get_public_pairs(request: Request, slug: str, t: str | None = None,
                      min_days: int = Query(services.MIN_PAIR_DAYS, ge=1, le=50),
                      limit: int = Query(10, ge=1, le=50),
                      date_from: date | None = None, date_to: date | None = None,
+                     day_type: schemas.DayType | None = None,
                      db: DBSession = Depends(get_session)):
     group = visible_group(db, slug, t)
-    return services.compute_pair_leaderboard(db, group, min_days, limit, date_from, date_to)
+    return services.compute_pair_leaderboard(
+        db, group, min_days, limit, date_from, date_to, day_type
+    )
 
 
 @router.get("/{slug}/timeline", response_model=schemas.TimelineOut)
 @limiter.limit(settings.rate_limit_public)
 def get_public_timeline(request: Request, slug: str, t: str | None = None,
                         date_from: date | None = None, date_to: date | None = None,
+                        day_type: schemas.DayType | None = None,
                         db: DBSession = Depends(get_session)):
     group = visible_group(db, slug, t)
-    return services.compute_timeline(db, group, date_from, date_to)
+    return services.compute_timeline(db, group, date_from, date_to, day_type)
 
 
 @router.get("/{slug}/assist-network", response_model=schemas.AssistNetwork)
@@ -108,9 +120,10 @@ def get_public_timeline(request: Request, slug: str, t: str | None = None,
 def get_public_assist_network(request: Request, slug: str, t: str | None = None,
                               limit: int = Query(12, ge=1, le=60),
                               date_from: date | None = None, date_to: date | None = None,
+                              day_type: schemas.DayType | None = None,
                               db: DBSession = Depends(get_session)):
     group = visible_group(db, slug, t)
-    return services.compute_assist_network(db, group, limit, date_from, date_to)
+    return services.compute_assist_network(db, group, limit, date_from, date_to, day_type)
 
 
 @router.post("/{slug}/combo", response_model=schemas.ComboOut)

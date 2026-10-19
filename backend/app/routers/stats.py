@@ -13,26 +13,31 @@ router = APIRouter(prefix="/api/groups/{group_id}", tags=["stats"])
 
 @router.get("/stats", response_model=schemas.StatsOut)
 def get_stats(group_id: int, date_from: date | None = None, date_to: date | None = None,
+              day_type: schemas.DayType | None = None,
               _: models.User = Depends(require_owner),
               db: DBSession = Depends(get_session)):
-    return services.compute_stats(db, load_group(db, group_id), date_from, date_to)
+    return services.compute_stats(db, load_group(db, group_id), date_from, date_to, day_type)
 
 
 @router.get("/evolution", response_model=schemas.EvolutionOut)
 def get_evolution(group_id: int, date_from: date | None = None, date_to: date | None = None,
+                  day_type: schemas.DayType | None = None,
                   _: models.User = Depends(require_owner),
                   db: DBSession = Depends(get_session)):
-    return services.compute_evolution(db, load_group(db, group_id), date_from, date_to)
+    return services.compute_evolution(
+        db, load_group(db, group_id), date_from, date_to, day_type
+    )
 
 
 @router.get("/players/{player_id}/detail", response_model=schemas.PlayerDetailOut)
 def get_player_detail(group_id: int, player_id: int,
                       min_days: int = Query(services.MIN_PAIR_DAYS, ge=1, le=50),
                       date_from: date | None = None, date_to: date | None = None,
+                      day_type: schemas.DayType | None = None,
                       _: models.User = Depends(require_owner),
                       db: DBSession = Depends(get_session)):
     detail = services.compute_player_detail(
-        db, load_group(db, group_id), player_id, min_days, date_from, date_to
+        db, load_group(db, group_id), player_id, min_days, date_from, date_to, day_type
     )
     if detail is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Jogador não encontrado")
@@ -43,10 +48,11 @@ def get_player_detail(group_id: int, player_id: int,
 def get_pairs(group_id: int, min_days: int = Query(services.MIN_PAIR_DAYS, ge=1, le=50),
               limit: int = Query(10, ge=1, le=50),
               date_from: date | None = None, date_to: date | None = None,
+              day_type: schemas.DayType | None = None,
               _: models.User = Depends(require_owner),
               db: DBSession = Depends(get_session)):
     return services.compute_pair_leaderboard(
-        db, load_group(db, group_id), min_days, limit, date_from, date_to
+        db, load_group(db, group_id), min_days, limit, date_from, date_to, day_type
     )
 
 
@@ -59,16 +65,18 @@ def post_combo(group_id: int, body: schemas.ComboIn,
 
 @router.get("/timeline", response_model=schemas.TimelineOut)
 def get_timeline(group_id: int, date_from: date | None = None, date_to: date | None = None,
+                 day_type: schemas.DayType | None = None,
                  _: models.User = Depends(require_owner),
                  db: DBSession = Depends(get_session)):
-    return services.compute_timeline(db, load_group(db, group_id), date_from, date_to)
+    return services.compute_timeline(db, load_group(db, group_id), date_from, date_to, day_type)
 
 
 @router.get("/assist-network", response_model=schemas.AssistNetwork)
 def get_assist_network(group_id: int, limit: int = Query(12, ge=1, le=60),
                        date_from: date | None = None, date_to: date | None = None,
+                       day_type: schemas.DayType | None = None,
                        _: models.User = Depends(require_owner),
                        db: DBSession = Depends(get_session)):
     return services.compute_assist_network(
-        db, load_group(db, group_id), limit, date_from, date_to
+        db, load_group(db, group_id), limit, date_from, date_to, day_type
     )

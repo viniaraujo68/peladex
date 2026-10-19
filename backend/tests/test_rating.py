@@ -39,6 +39,7 @@ def test_a_guest_with_one_matchday_is_provisional(api, group):
         "BRANCO: ana, bia, zeca\n"
         "AZUL: caio, davi, edu\n"
         "BRANCO 1x0 AZUL: zeca\n"
+        "AZUL 0x0 BRANCO\n"
     )
     assert api.import_text(group, SEASON + guest_day).status_code == 200
     rows = notes(api, group)
