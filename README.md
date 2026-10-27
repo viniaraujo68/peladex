@@ -299,29 +299,34 @@ Cada execução usa um SQLite temporário migrado pelo Alembic, igual à produç
 `tests/test_queries.py` protege contra N+1: o número de queries de um request não pode
 crescer com a quantidade de dias.
 
-## Deploy na VPS (Docker Compose + Cloudflare)
+## Deploy na VPS (Docker Compose + Cloudflare Tunnel)
 
-HTTPS é provido pelo **Cloudflare** (proxy laranja, SSL "Flexible"); o origin só fala HTTP
-na porta 80. Um **edge proxy** compartilhado escuta na 80 e roteia por subdomínio.
+O tráfego chega por um **Cloudflare Tunnel**: o container `cloudflared` abre uma conexão de
+saída para o Cloudflare e entrega as requisições ao edge pela rede Docker. A VPS não publica
+porta HTTP nenhuma — o origin não é alcançável pelo IP, e o visitante só fala HTTPS com o
+Cloudflare.
 
 ```
-Cloudflare (HTTPS) → VPS:80 → edge (Caddy http)
+Visitante ─HTTPS→ Cloudflare ─túnel→ cloudflared → edge (Caddy :80, rede web)
     ├── peladex.seudominio.com  → /api/* → peladex-backend:8000 · / → peladex-frontend:3000
     └── (as outras apps por subdomínio)
 ```
 
 ### O edge é da máquina, não do app
 
-Só um processo pode escutar a porta 80, então o proxy é infra da **VPS**, compartilhada por
-todas as apps. O Peladex não sobe um proxy próprio: ele entra na rede `web` com os aliases
-`peladex-backend` e `peladex-frontend`, e publica em `deploy/peladex.caddy` o pedaço de
-configuração que o edge precisa.
+Um túnel e um proxy atendem todas as apps, então o edge é infra da **VPS**. O Peladex não sobe
+proxy próprio: ele entra na rede `web` com os aliases `peladex-backend` e `peladex-frontend`, e
+publica em `deploy/peladex.caddy` o pedaço de configuração que o edge precisa.
 
 O edge em `deploy/edge/` monta um diretório `sites/` e importa tudo que estiver lá:
 
 ```caddy
 {
 	auto_https off
+	servers {
+		trusted_proxies static private_ranges
+		client_ip_headers Cf-Connecting-IP
+	}
 }
 
 import /etc/caddy/sites/*.caddy
@@ -331,8 +336,14 @@ import /etc/caddy/sites/*.caddy
 }
 ```
 
-Com isso, **acrescentar uma app é largar um arquivo** — sem editar um Caddyfile central e
-sem tocar no `docker-compose.yml` do edge:
+O IP do visitante vem do Cloudflare em `Cf-Connecting-IP`. O Caddy só aceita esse header de
+quem está numa faixa privada (o `cloudflared`, na rede `web`), e cada site o repassa adiante
+como um `X-Forwarded-For` de um valor só (`header_up X-Forwarded-For {client_ip}`). É esse
+valor que o rate limit do backend e o `XFF_DEPTH: "1"` do frontend leem. Como o edge não
+publica porta, ninguém de fora consegue forjar o header.
+
+Com isso, **acrescentar uma app é largar um arquivo**, somar uma linha ao `.env` e cadastrar o
+hostname no túnel:
 
 ```bash
 cp ~/peladex/deploy/peladex.caddy  ~/edge/sites/
@@ -341,51 +352,9 @@ cd ~/edge && docker compose up -d
 docker compose exec edge caddy reload --config /etc/caddy/Caddyfile
 ```
 
-O `reload` é a quente: as outras apps não caem. O bloco `:80 { respond 404 }` faz o
-servidor recusar host desconhecido — sem ele, quem bater no IP cru recebe um 200 vazio.
-
-### Numa VPS que já roda outras apps
-
-O edge já está de pé e a rede `web` já existe. São três passos:
-
-```bash
-git clone https://github.com/viniaraujo68/peladex.git /opt/peladex
-cd /opt/peladex
-echo 'PELADEX_DOMAIN=peladex.seudominio.com' > .env
-docker compose up -d --build
-```
-
-Subir os containers **não basta**: o edge ainda não conhece o domínio. Acrescente o bloco
-ao Caddyfile dele (`deploy/peladex.caddy` é o mesmo conteúdo, com o domínio literal no lugar
-da variável):
-
-```bash
-cat >> /caminho/do/edge/Caddyfile <<'EOF'
-
-http://peladex.seudominio.com {
-	encode gzip
-	handle /api/* {
-		reverse_proxy peladex-backend:8000
-	}
-	handle {
-		reverse_proxy peladex-frontend:3000
-	}
-}
-EOF
-```
-
-E recarregue — a quente, sem reiniciar o container, então as outras apps não caem:
-
-```bash
-docker exec <container-do-edge> caddy reload --config /etc/caddy/Caddyfile
-```
-
-Se o Caddyfile tiver erro de sintaxe o `reload` falha e o Caddy segue com a config antiga.
-Para conferir antes: `docker exec <container-do-edge> caddy validate --config /etc/caddy/Caddyfile`.
-
-Não sabe onde o edge mora? `docker ps` mostra quem publica a `:80`, e
-`docker inspect <id> --format '{{range .Mounts}}{{.Source}} {{end}}'` mostra de onde vem o
-Caddyfile dele.
+No painel do túnel (Zero Trust → Networks → Tunnels → o túnel → **Public Hostname**), adicione
+`peladex.seudominio.com` com serviço **HTTP** e URL `edge:80`. O `reload` é a quente: as
+outras apps não caem. O bloco `:80 { respond 404 }` recusa host desconhecido.
 
 ### Numa VPS zerada
 
@@ -397,11 +366,20 @@ cp .env.example .env                 # ajuste PELADEX_DOMAIN
 docker compose up -d --build
 
 cp -r deploy/edge ~/edge && cd ~/edge
-cp .env.example .env                 # ajuste os domínios
+cp ~/peladex/deploy/peladex.caddy sites/
+cp .env.example .env                 # ajuste os domínios e o TUNNEL_TOKEN
 docker compose up -d
 ```
 
-No Cloudflare: registro `peladex` (A/CNAME) **proxied (laranja)**, SSL/TLS = **Flexible**.
+No Cloudflare:
+
+1. **Zero Trust → Networks → Tunnels → Create a tunnel** (tipo Cloudflared). Copie o token
+   do comando de instalação para `TUNNEL_TOKEN` no `.env` do edge.
+2. Em **Public Hostname**, um hostname por app, todos com serviço `HTTP` → `edge:80`. Se já
+   existir um registro A/AAAA com o mesmo nome no DNS, apague antes — o túnel cria um CNAME.
+3. **SSL/TLS → Overview**: Full (strict). **SSL/TLS → Edge Certificates**: Always Use HTTPS,
+   HSTS e Minimum TLS 1.2.
+4. No firewall da VPS, nenhuma porta de entrada além do SSH.
 
 ### Primeiro acesso
 
