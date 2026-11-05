@@ -162,6 +162,16 @@ def test_the_public_surface_exposes_the_new_views(api, client):
     assert body["track_assists"] is False
 
 
+def test_the_public_period_filters_the_stats_but_lists_every_matchday(api, client):
+    group = api.group(visibility="public")
+    slug = api.last_group["slug"]
+    api.import_text(group, SEASON)
+
+    body = client.get(f"/api/public/{slug}?date_from=2026-09-10&date_to=2026-09-17").json()
+    assert body["stats"]["total_matchdays"] == 2
+    assert len(body["matchdays"]) == 4
+
+
 SPLIT_SEASON = """2026-09-03 @ Campo do Ze
 BRANCO: ana, bia
 AZUL: caio, davi
