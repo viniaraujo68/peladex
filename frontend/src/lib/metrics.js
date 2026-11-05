@@ -7,7 +7,7 @@ import { t } from './i18n.svelte.js';
 /**
  * @typedef {'win_rate'|'goals'|'assists'|'contributions'|'goal_share'|'assist_share'
  *   |'top_scorer_days'|'top_assister_days'|'top_contributor_days'
- *   |'titles'|'mvp_count'|'matchdays'|'matches_per_matchday'|'matches'|'rating'} MetricId
+ *   |'titles'|'title_rate'|'mvp_count'|'matchdays'|'matches_per_matchday'|'matches'|'rating'} MetricId
  */
 /**
  * @typedef {object} Metric
@@ -45,6 +45,7 @@ export const METRICS = [
 	{ id: 'goal_share', kind: 'rate', perUnit: false, needs: 'scorers' },
 	{ id: 'assist_share', kind: 'rate', perUnit: false, needs: 'assists' },
 	{ id: 'titles', kind: 'count', perUnit: false, needs: null },
+	{ id: 'title_rate', kind: 'rate', perUnit: false, needs: null },
 	{ id: 'mvp_count', kind: 'count', perUnit: false, needs: null },
 	{ id: 'matchdays', kind: 'count', perUnit: false, needs: null },
 	{ id: 'matches_per_matchday', kind: 'ratio', perUnit: false, needs: null },
@@ -107,8 +108,23 @@ export function metricTitle(metric, unit) {
 	return t(`metric.${metric.id}`) + (metric.perUnit ? ` · ${unitLabel(unit)}` : '');
 }
 
-/** @type {MetricId[]} */
-export const MATCH_VARIANTS = ['matches_per_matchday', 'matches'];
+/** @typedef {{ id: 'matchesGroup'|'titlesGroup', variants: MetricId[] }} VariantGroup */
+
+/** @type {VariantGroup[]} */
+export const VARIANT_GROUPS = [
+	{ id: 'matchesGroup', variants: ['matches_per_matchday', 'matches'] },
+	{ id: 'titlesGroup', variants: ['titles', 'title_rate'] }
+];
+
+/** @param {MetricId} id @returns {VariantGroup|null} */
+export function variantGroup(id) {
+	return VARIANT_GROUPS.find((group) => group.variants.includes(id)) ?? null;
+}
+
+/** @param {VariantGroup} group */
+export function variantOptions(group) {
+	return group.variants.map((id) => ({ id, label: t(`metric.variant.${id}`) }));
+}
 
 /** @param {import('./tracking.svelte.js').Tracking} tracking */
 export function unitCaption(tracking) {
@@ -149,6 +165,9 @@ export function metricDetail(row, metric) {
 	}
 	if (metric.id === 'titles') {
 		return t('metric.detailTitles', { rate: formatRate(row.title_rate), days: row.matchdays });
+	}
+	if (metric.id === 'title_rate') {
+		return t('metric.detailTitleRate', { count: row.titles, days: row.matchdays });
 	}
 	if (metric.id === 'matchdays') return t('metric.detailPresence', { rate: formatRate(row.presence) });
 	if (metric.id === 'matches_per_matchday' || metric.id === 'matches') {

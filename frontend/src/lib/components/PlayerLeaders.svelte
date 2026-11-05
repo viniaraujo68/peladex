@@ -3,7 +3,7 @@
 	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import {
-		MATCH_VARIANTS,
+		VARIANT_GROUPS,
 		availableMetrics,
 		formatMetric,
 		metricDetail,
@@ -12,7 +12,8 @@
 		rankRows,
 		unitOptions,
 		unitCaption,
-		unitLabel
+		variantGroup,
+		variantOptions
 	} from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import FocusBar from './FocusBar.svelte';
@@ -42,7 +43,11 @@
 
 	let query = $state('');
 
-	let matchVariant = $state(/** @type {MetricId} */ ('matches_per_matchday'));
+	let variants = $state(
+		/** @type {Record<string, MetricId>} */ (
+			Object.fromEntries(VARIANT_GROUPS.map((group) => [group.id, group.variants[0]]))
+		)
+	);
 
 	const metrics = $derived(availableMetrics(tracking));
 	const focused = $derived(metrics.find((m) => m.id === focus) ?? null);
@@ -50,27 +55,23 @@
 	const hasPrevious = $derived(previousRanking.length > 0);
 
 	/** @param {MetricId} id */
-	const isMatchVariant = (id) => MATCH_VARIANTS.includes(id);
+	function shownVariant(id) {
+		const group = variantGroup(id);
+		if (!group) return id;
+		return focused && group.variants.includes(focused.id) ? focused.id : variants[group.id];
+	}
 
 	const boardMetrics = $derived(
-		metrics.filter((m) => !isMatchVariant(m.id) || m.id === matchVariant)
+		metrics.filter((m) => !variantGroup(m.id) || m.id === variants[variantGroup(m.id)?.id ?? ''])
 	);
 
 	const dayView = getDayTypeView();
 	const unit = $derived(visibleUnit(requestedUnit, dayView.single));
 	const unitChoices = $derived(unitOptions(dayView.single ? SINGLE_GAME_UNITS : undefined));
-	const variantOptions = $derived([
-		{ id: 'matches_per_matchday', label: unitLabel('day') },
-		{ id: 'matches', label: unitLabel('total') }
-	]);
-	const shownVariant = $derived(focused && isMatchVariant(focused.id) ? focused.id : matchVariant);
 	const metricOptions = $derived(
 		metrics
-			.filter((m) => !isMatchVariant(m.id) || m.id === shownVariant)
-			.map((m) => ({
-				id: m.id,
-				label: t(`metric.${isMatchVariant(m.id) ? 'matchesGroup' : m.id}`)
-			}))
+			.filter((m) => m.id === shownVariant(m.id))
+			.map((m) => ({ id: m.id, label: t(`metric.${variantGroup(m.id)?.id ?? m.id}`) }))
 	);
 
 	/** @param {Metric} metric */
@@ -94,7 +95,7 @@
 			const shown = scoring.slice(0, PREVIEW_COUNT);
 			const last = shown.at(-1);
 			const tiedOut = last ? scoring.slice(PREVIEW_COUNT).filter((e) => e.rank === last.rank).length : 0;
-			return { metric, shown, tiedOut };
+			return { metric, group: variantGroup(metric.id), shown, tiedOut };
 		})
 	);
 
@@ -120,7 +121,8 @@
 	/** @param {MetricId|null} id */
 	function openFocus(id) {
 		query = '';
-		if (id && isMatchVariant(id)) matchVariant = id;
+		const group = id ? variantGroup(id) : null;
+		if (id && group) variants[group.id] = id;
 		onFocus(id);
 	}
 </script>
@@ -136,12 +138,15 @@
 {/snippet}
 
 {#snippet variantBar(/** @type {MetricId} */ current)}
-	<SegmentedControl
-		options={variantOptions}
-		value={current}
-		label={t('metric.matchesGroup')}
-		onchange={(id) => openFocus(/** @type {MetricId} */ (id))}
-	/>
+	{@const group = variantGroup(current)}
+	{#if group}
+		<SegmentedControl
+			options={variantOptions(group)}
+			value={current}
+			label={t(`metric.${group.id}`)}
+			onchange={(id) => openFocus(/** @type {MetricId} */ (id))}
+		/>
+	{/if}
 {/snippet}
 
 {#if ranking.length === 0}
@@ -158,7 +163,7 @@
 			onchange={(id) => openFocus(/** @type {MetricId} */ (id))}
 		/>
 		{#if focused.perUnit}{@render unitBar()}{/if}
-		{#if isMatchVariant(focused.id)}{@render variantBar(focused.id)}{/if}
+		{@render variantBar(focused.id)}
 
 		<section class="card bg-base-100 p-2 sm:p-4">
 			<h3 class="ltitle px-2 pt-1">{metricTitle(focused, unit)}</h3>
@@ -213,13 +218,14 @@
 				<section class="card leader bg-base-100 p-4">
 					<div class="lhead">
 						<h3 class="ltitle">{metricTitle(board.metric, unit)}</h3>
-						{#if isMatchVariant(board.metric.id)}
+						{#if board.group}
+							{@const group = board.group}
 							<SegmentedControl
 								size="sm"
-								options={variantOptions}
-								value={matchVariant}
-								label={t('metric.matchesGroup')}
-								onchange={(id) => (matchVariant = /** @type {MetricId} */ (id))}
+								options={variantOptions(group)}
+								value={variants[group.id]}
+								label={t(`metric.${group.id}`)}
+								onchange={(id) => (variants[group.id] = /** @type {MetricId} */ (id))}
 							/>
 						{/if}
 					</div>

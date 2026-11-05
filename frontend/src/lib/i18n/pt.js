@@ -541,6 +541,12 @@ export default {
 	'metric.goal_share': 'Parte nos gols do time',
 	'metric.assist_share': 'Assist. nos gols do time',
 	'metric.titles': 'Mais títulos',
+	'metric.title_rate': 'Aproveitamento de títulos',
+	'metric.titlesGroup': 'Títulos',
+	'metric.variant.matches_per_matchday': 'Por dia',
+	'metric.variant.matches': 'Total',
+	'metric.variant.titles': 'Total',
+	'metric.variant.title_rate': '% dos dias',
 	'metric.mvp_count': 'MVPs',
 	'metric.matchdays': 'Mais presentes',
 	'metric.rating': 'Nota',
@@ -553,6 +559,10 @@ export default {
 	},
 	'metric.detail.contributions': { one: '{count} G+A em {matches} jogos', other: '{count} G+A em {matches} jogos' },
 	'metric.detailTitles': 'campeão em {rate} dos {days} dias',
+	'metric.detailTitleRate': {
+		one: '{count} título em {days} dias',
+		other: '{count} títulos em {days} dias'
+	},
 	'metric.detailPresence': '{rate} dos dias',
 	'metric.detailDays': { one: '{count} dia', other: '{count} dias' },
 	'unit.total': 'Total',
