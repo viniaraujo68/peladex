@@ -145,8 +145,8 @@ export default {
 	'dayType.single': 'Single game',
 	'dayType.all': 'All',
 	'dayType.hint.rotation': {
-		one: 'Only days with several matches. {single} single game is left out.',
-		other: 'Only days with several matches. {single} single games are left out.'
+		one: 'Only days with several matches. {single} single-game day is left out.',
+		other: 'Only days with several matches. {single} single-game days are left out.'
 	},
 	'dayType.hint.single': {
 		one: 'Only one-match days. {rotation} rotation day is left out.',

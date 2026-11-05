@@ -145,8 +145,8 @@ export default {
 	'dayType.single': 'Jogo único',
 	'dayType.all': 'Todos',
 	'dayType.hint.rotation': {
-		one: 'Só dias com várias partidas. {single} jogo único fica de fora.',
-		other: 'Só dias com várias partidas. {single} jogos únicos ficam de fora.'
+		one: 'Só dias com várias partidas. {single} dia com jogo único fica de fora.',
+		other: 'Só dias com várias partidas. {single} dias com jogos únicos ficam de fora.'
 	},
 	'dayType.hint.single': {
 		one: 'Só dias de uma partida só. {rotation} dia de rodízio fica de fora.',
