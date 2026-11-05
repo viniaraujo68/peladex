@@ -14,16 +14,32 @@
 	let custom = $state(false);
 	let rangeError = $state(false);
 
+	/** @param {Date} d */
+	function ymd(d) {
+		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(
+			d.getDate()
+		).padStart(2, '0')}`;
+	}
+
 	/** @param {number} months */
 	function monthsAgo(months) {
 		const now = new Date();
 		const targetMonth = now.getMonth() - months;
 		const lastDayOfTargetMonth = new Date(now.getFullYear(), targetMonth + 1, 0).getDate();
 		const day = Math.min(now.getDate(), lastDayOfTargetMonth);
-		const then = new Date(now.getFullYear(), targetMonth, day);
-		return `${then.getFullYear()}-${String(then.getMonth() + 1).padStart(2, '0')}-${String(
-			then.getDate()
-		).padStart(2, '0')}`;
+		return ymd(new Date(now.getFullYear(), targetMonth, day));
+	}
+
+	/** @param {number} offset */
+	function monthStart(offset) {
+		const now = new Date();
+		return ymd(new Date(now.getFullYear(), now.getMonth() + offset, 1));
+	}
+
+	/** @param {number} offset */
+	function monthEnd(offset) {
+		const now = new Date();
+		return ymd(new Date(now.getFullYear(), now.getMonth() + offset + 1, 0));
 	}
 
 	/** @param {string} value */
@@ -47,22 +63,23 @@
 	}
 
 	const presets = $derived([
-		{ id: 'all', label: t('stats.periodAll'), from: '' },
-		{ id: '3m', label: t('stats.period3m'), from: monthsAgo(3) },
-		{ id: '6m', label: t('stats.period6m'), from: monthsAgo(6) },
-		{ id: '12m', label: t('stats.periodYear'), from: monthsAgo(12) }
+		{ id: 'all', label: t('stats.periodAll'), from: '', to: '' },
+		{ id: 'month', label: t('stats.periodMonth'), from: monthStart(0), to: '' },
+		{ id: 'lastMonth', label: t('stats.periodLastMonth'), from: monthStart(-1), to: monthEnd(-1) },
+		{ id: '6m', label: t('stats.period6m'), from: monthsAgo(6), to: '' },
+		{ id: '12m', label: t('stats.periodYear'), from: monthsAgo(12), to: '' }
 	]);
 
 	const activePreset = $derived.by(() => {
-		if (custom || to) return null;
-		return presets.find((p) => p.from === from)?.id ?? null;
+		if (custom) return null;
+		return presets.find((p) => p.from === from && p.to === to)?.id ?? null;
 	});
 
-	/** @param {{ from: string }} preset */
+	/** @param {{ from: string, to: string }} preset */
 	function pick(preset) {
 		custom = false;
 		rangeError = false;
-		onchange({ from: preset.from, to: '' });
+		onchange({ from: preset.from, to: preset.to });
 	}
 </script>
 
@@ -131,10 +148,13 @@
 		{/if}
 	{:else if from || to}
 		<span class="rangetext">
-			{t('stats.periodRange', {
-				from: from ? formatShortDate(from) : '…',
-				to: to ? formatShortDate(to) : '…'
-			})}
+			{#if from && to}
+				{t('stats.periodRange', { from: formatShortDate(from), to: formatShortDate(to) })}
+			{:else if from}
+				{t('stats.periodSince', { from: formatShortDate(from) })}
+			{:else}
+				{t('stats.periodUntil', { to: formatShortDate(to) })}
+			{/if}
 		</span>
 	{/if}
 </div>
