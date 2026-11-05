@@ -1,11 +1,14 @@
 <script>
+	import { tick } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
 	import { Combobox, Select } from '@viniaraujo68/plinth/components';
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
+	import { nextMatch } from '$lib/rotation.js';
 	import GoalMark from './GoalMark.svelte';
 	import Icon from './Icon.svelte';
+	import TeamCrest from './TeamCrest.svelte';
 
 	/**
 	 * @type {{
@@ -36,7 +39,28 @@
 		oncancel
 	} = $props();
 
-	const TEAM_PRESETS = ['BRANCO', 'VERMELHO', 'AZUL', 'VERDE', 'PRETO', 'AMARELO'];
+	const DEFAULT_TEAM_COLORS = ['black', 'white', 'red'];
+	const TEAM_COLORS = [...DEFAULT_TEAM_COLORS, 'blue', 'green', 'yellow', 'gray'];
+
+	/** @param {string} color */
+	function colorName(color) {
+		return t(`teamColor.${color}`);
+	}
+
+	/** @param {string} value */
+	function fold(value) {
+		return value
+			.normalize('NFKD')
+			.replace(/[̀-ͯ]/g, '')
+			.replace(/\s+/g, ' ')
+			.trim()
+			.toLowerCase();
+	}
+
+	/** @param {string} value */
+	function tidyName(value) {
+		return value.replace(/\s+/g, ' ').trim().toLowerCase();
+	}
 
 	/** @param {Date} d */
 	function ymd(d) {
@@ -67,16 +91,7 @@
 					playerIds: s.members.map((m) => m.player_id)
 				}));
 		}
-		if (lastMatchday) {
-			return lastMatchday.standings
-				.slice()
-				.sort((a, b) => a.team_id - b.team_id)
-				.map((s) => ({ name: s.name, color: s.color, playerIds: [] }));
-		}
-		return [
-			{ name: TEAM_PRESETS[0], color: '', playerIds: [] },
-			{ name: TEAM_PRESETS[1], color: '', playerIds: [] }
-		];
+		return DEFAULT_TEAM_COLORS.map((color) => ({ name: colorName(color), color: '', playerIds: [] }));
 	}
 
 	/** @returns {MatchDraft[]} */
@@ -121,7 +136,7 @@
 
 	// svelte-ignore state_referenced_locally
 	let players = $state([...catalogs.players]);
-	let newPlayer = $state('');
+	let query = $state('');
 	let addingPlayer = $state(false);
 
 	let teams = $state(seedTeams());
@@ -132,6 +147,7 @@
 	let notes = $state(matchday?.notes ?? '');
 
 	let activeTeam = $state(0);
+	let openMatches = $state(/** @type {number[]} */ ([]));
 	let editingGoal = $state(/** @type {{ match: number, goal: number }|null} */ (null));
 	let formError = $state('');
 	let submitting = $state(false);
@@ -149,6 +165,53 @@
 	const rosterPlayers = $derived(players.filter((p) => p.active || assigned.has(p.id)));
 	const playingIds = $derived([...assigned.keys()]);
 
+	const foldedQuery = $derived(fold(query));
+	const exactPlayer = $derived(
+		foldedQuery ? (players.find((p) => fold(p.name) === foldedQuery) ?? null) : null
+	);
+	const shownPlayers = $derived.by(() => {
+		if (!foldedQuery) return rosterPlayers;
+		const found = rosterPlayers.filter((p) => fold(p.name).includes(foldedQuery));
+		return exactPlayer && !found.includes(exactPlayer) ? [exactPlayer, ...found] : found;
+	});
+	const pickTarget = $derived.by(() => {
+		if (!foldedQuery) return null;
+		if (exactPlayer) return assigned.get(exactPlayer.id) === activeTeam ? null : exactPlayer;
+		return shownPlayers.find((p) => !assigned.has(p.id)) ?? null;
+	});
+	const canCreate = $derived(!!foldedQuery && !exactPlayer);
+	const enterCreates = $derived(canCreate && shownPlayers.length === 0);
+
+	const freePresets = $derived.by(() => {
+		const taken = new Set(teams.map((team) => tidyName(team.name)));
+		return TEAM_COLORS.map(colorName).filter((preset) => !taken.has(preset));
+	});
+
+	const upcoming = $derived(nextMatch(teams.length, matches));
+	const upcomingPairs = $derived(
+		upcoming
+			? upcoming.stayers.flatMap((home) => upcoming.challengers.map((away) => ({ home, away })))
+			: []
+	);
+	const upcomingQuestion = $derived.by(() => {
+		if (!upcoming || upcomingPairs.length < 2) return null;
+		const stayerUnknown = upcoming.stayers.length > 1;
+		const challengerUnknown = upcoming.challengers.length > 1;
+		if (stayerUnknown && challengerUnknown) {
+			return { title: t('day.whoNextBoth'), hint: t('day.whoNextBothHint') };
+		}
+		if (stayerUnknown) {
+			return {
+				title: t('day.whoStayed', { name: teamLabel(upcoming.challengers[0]) }),
+				hint: t('day.whoStayedHint')
+			};
+		}
+		return {
+			title: t('day.whoEnters', { name: teamLabel(upcoming.stayers[0]) }),
+			hint: t('day.whoEntersHint')
+		};
+	});
+
 	/** @type {import('@viniaraujo68/plinth/components').SelectOption[]} */
 	const venueOptions = $derived(venues.map((v) => ({ value: String(v.id), label: v.name })));
 
@@ -161,7 +224,12 @@
 
 	/** @param {number} index */
 	function teamLabel(index) {
-		return teams[index]?.name?.trim() || `#${index + 1}`;
+		return tidyName(teams[index]?.name ?? '') || `#${index + 1}`;
+	}
+
+	/** @param {number} index */
+	function tidyTeamName(index) {
+		if (teams[index]) teams[index].name = tidyName(teams[index].name);
 	}
 
 	/** @param {string} value */
@@ -171,9 +239,8 @@
 	}
 
 	function addTeam() {
-		const used = new Set(teams.map((team) => team.name.trim().toUpperCase()));
-		const preset = TEAM_PRESETS.find((name) => !used.has(name)) ?? '';
-		teams = [...teams, { name: preset, color: '', playerIds: [] }];
+		const name = freePresets[Math.floor(Math.random() * freePresets.length)] ?? '';
+		teams = [...teams, { name, color: '', playerIds: [] }];
 		activeTeam = teams.length - 1;
 	}
 
@@ -188,6 +255,8 @@
 				away: m.away > index ? m.away - 1 : m.away
 			}));
 		if (activeTeam >= teams.length) activeTeam = Math.max(0, teams.length - 1);
+		openMatches = [];
+		editingGoal = null;
 	}
 
 	/** @param {number} playerId */
@@ -202,23 +271,56 @@
 			}
 			return team;
 		});
-		if (current !== undefined && current !== activeTeam) return;
 	}
 
-	function addMatch() {
-		if (teams.length < 2) return;
-		const last = matches[matches.length - 1];
-		const home = last ? last.away : 0;
-		const away = last ? (last.away + 1) % teams.length : 1;
-		matches = [
-			...matches,
-			{ home, away: away === home ? (home + 1) % teams.length : away, homeScore: 0, awayScore: 0, goals: [] }
-		];
+	/** @param {number} playerId */
+	function pickPlayer(playerId) {
+		togglePlayer(playerId);
+		query = '';
+	}
+
+	/** @param {KeyboardEvent} ev */
+	function onSearchKeydown(ev) {
+		if (ev.key === 'Escape' && query) {
+			ev.preventDefault();
+			query = '';
+			return;
+		}
+		if (ev.key !== 'Enter') return;
+		ev.preventDefault();
+		if (pickTarget) pickPlayer(pickTarget.id);
+		else if (enterCreates) addPlayer();
+	}
+
+	/** @param {number} home @param {number} away */
+	async function addMatch(home, away) {
+		matches = [...matches, { home, away, homeScore: 0, awayScore: 0, goals: [] }];
+		openMatches = [];
+		editingGoal = null;
+		await tick();
+		document
+			.getElementById(`match-${matches.length - 1}`)
+			?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+	}
+
+	/** @param {number} index */
+	function isOpen(index) {
+		return index === matches.length - 1 || openMatches.includes(index);
+	}
+
+	/** @param {number} index */
+	function toggleMatch(index) {
+		openMatches = openMatches.includes(index)
+			? openMatches.filter((i) => i !== index)
+			: [...openMatches, index];
+		if (editingGoal?.match === index) editingGoal = null;
 	}
 
 	/** @param {number} index */
 	function removeMatch(index) {
 		matches = matches.filter((_, i) => i !== index);
+		openMatches = openMatches.filter((i) => i !== index).map((i) => (i > index ? i - 1 : i));
+		editingGoal = null;
 	}
 
 	/** @param {number} matchIndex @param {'home'|'away'} side @param {number} delta */
@@ -319,11 +421,10 @@
 		return tally.home !== match.homeScore || tally.away !== match.awayScore;
 	}
 
-	/** @param {MatchDraft} match */
-	function matchPlayers(match) {
-		const ids = [...(teams[match.home]?.playerIds ?? []), ...(teams[match.away]?.playerIds ?? [])];
-		return ids
-			.map((id) => ({ id, name: nameById.get(id) ?? '?', team: assigned.get(id) }))
+	/** @param {number} team */
+	function teamPlayers(team) {
+		return (teams[team]?.playerIds ?? [])
+			.map((id) => ({ id, name: nameById.get(id) ?? '?' }))
 			.sort((a, b) => a.name.localeCompare(b.name, localeTag()));
 	}
 
@@ -333,15 +434,15 @@
 	}
 
 	async function addPlayer() {
-		const name = newPlayer.trim();
-		if (!name) return;
+		const name = query.trim();
+		if (!name || addingPlayer) return;
 		addingPlayer = true;
 		try {
 			const created = await post(`/groups/${groupId}/players`, { name });
 			players = [...players, { id: created.id, name: created.name, active: true }].sort((a, b) =>
 				a.name.localeCompare(b.name, localeTag())
 			);
-			newPlayer = '';
+			query = '';
 			if (!assigned.has(created.id)) togglePlayer(created.id);
 		} catch (e) {
 			toast.error(errorMessage(e));
@@ -372,13 +473,24 @@
 		const found = [];
 		if (teams.length < 2) found.push(t('day.needTwoTeams'));
 		if (teams.some((team) => !team.name.trim())) found.push(t('day.needTeamName'));
-		const names = teams.map((team) => team.name.trim().toUpperCase()).filter(Boolean);
+		const names = teams.map((team) => tidyName(team.name)).filter(Boolean);
 		if (new Set(names).size !== names.length) found.push(t('day.duplicateTeamName'));
 		if (matches.some((m) => m.home === m.away)) found.push(t('day.sameTeamTwice'));
 		return found;
 	});
 
 	const mismatchCount = $derived(matches.filter(mismatched).length);
+
+	const savedTeams = $derived.by(() => {
+		const used = teams
+			.map((_, index) => index)
+			.filter(
+				(index) =>
+					teams[index].playerIds.length > 0 ||
+					matches.some((m) => m.home === index || m.away === index)
+			);
+		return used.length >= 2 ? used : teams.map((_, index) => index);
+	});
 
 	// svelte-ignore state_referenced_locally
 	const draftKey = editing
@@ -449,6 +561,8 @@
 			}))
 		}));
 		activeTeam = 0;
+		openMatches = [];
+		editingGoal = null;
 	}
 
 	function discardDraft() {
@@ -509,19 +623,20 @@
 			return;
 		}
 		submitting = true;
+		const position = new Map(savedTeams.map((teamIndex, index) => [teamIndex, index]));
 		const payload = {
 			date,
 			venue_id: venueId ? Number(venueId) : null,
 			mvp_player_id: mvpId ? Number(mvpId) : null,
 			notes,
-			teams: teams.map((team) => ({
-				name: team.name.trim(),
-				color: team.color,
-				player_ids: [...team.playerIds]
+			teams: savedTeams.map((index) => ({
+				name: tidyName(teams[index].name),
+				color: teams[index].color,
+				player_ids: [...teams[index].playerIds]
 			})),
 			matches: matches.map((m) => ({
-				home_team_index: m.home,
-				away_team_index: m.away,
+				home_team_index: position.get(m.home) ?? m.home,
+				away_team_index: position.get(m.away) ?? m.away,
 				home_score: m.homeScore,
 				away_score: m.awayScore,
 				goals: m.goals.map((g) => ({
@@ -636,6 +751,20 @@
 				</div>
 			{/if}
 		</div>
+
+		<div class="block">
+			<label class="blabel" for="notes">
+				{t('day.notes')}
+				<span class="font-normal text-base-content/65">{t('common.optional')}</span>
+			</label>
+			<textarea
+				id="notes"
+				class="textarea w-full"
+				rows="2"
+				placeholder={t('day.notesPlaceholder')}
+				bind:value={notes}
+			></textarea>
+		</div>
 	</section>
 
 	<section class="card flex flex-col gap-4 bg-base-100 p-5">
@@ -653,6 +782,7 @@
 						aria-pressed={activeTeam === index}
 						onclick={() => (activeTeam = index)}
 					>
+						<TeamCrest name={teamLabel(index)} color={team.color} />
 						<span class="tname">{teamLabel(index)}</span>
 						<span class="tcount">{team.playerIds.length}</span>
 					</button>
@@ -675,27 +805,61 @@
 				<label class="blabel" for="team-name">{t('day.teamName')}</label>
 				<input
 					id="team-name"
-					class="input w-full"
+					class="input w-full teamname"
 					bind:value={teams[activeTeam].name}
+					onblur={() => tidyTeamName(activeTeam)}
 					maxlength="40"
+					autocapitalize="none"
+					autocomplete="off"
 				/>
+				{#if freePresets.length}
+					<div class="chips" role="group" aria-label={t('day.teamPresets')}>
+						{#each freePresets as preset (preset)}
+							<button
+								type="button"
+								class="pchip"
+								onclick={() => (teams[activeTeam].name = preset)}
+							>
+								<TeamCrest name={preset} />
+								{preset}
+							</button>
+						{/each}
+					</div>
+				{/if}
 			</div>
 
 			<div class="block">
-				<span class="blabel">{t('day.roster', { name: teamLabel(activeTeam) })}</span>
-				{#if rosterPlayers.length === 0}
+				<label class="blabel" for="player-search">
+					{t('day.roster', { name: teamLabel(activeTeam) })}
+				</label>
+				<label class="input w-full">
+					<Icon name="search" class="size-4 opacity-60" />
+					<input
+						id="player-search"
+						type="search"
+						class="grow"
+						placeholder={t('day.playerSearch')}
+						bind:value={query}
+						onkeydown={onSearchKeydown}
+						autocapitalize="none"
+						autocomplete="off"
+						enterkeyhint="done"
+					/>
+				</label>
+				{#if rosterPlayers.length === 0 && !foldedQuery}
 					<p class="hint">{t('day.noPlayersYet')}</p>
-				{:else}
+				{:else if shownPlayers.length}
 					<div class="roster">
-						{#each rosterPlayers as player (player.id)}
+						{#each shownPlayers as player (player.id)}
 							{@const teamIndex = assigned.get(player.id)}
 							<button
 								type="button"
 								class="pchip"
 								class:mine={teamIndex === activeTeam}
 								class:taken={teamIndex !== undefined && teamIndex !== activeTeam}
+								class:target={pickTarget?.id === player.id}
 								aria-pressed={teamIndex === activeTeam}
-								onclick={() => togglePlayer(player.id)}
+								onclick={() => pickPlayer(player.id)}
 							>
 								{player.name}
 								{#if teamIndex !== undefined && teamIndex !== activeTeam}
@@ -704,232 +868,316 @@
 							</button>
 						{/each}
 					</div>
+				{:else}
+					<p class="hint">{t('day.playerNoMatch')}</p>
 				{/if}
-				<div class="venue-row mt-3">
-					<input
-						class="input input-sm min-w-0 flex-1"
-						placeholder={t('day.newPlayer')}
-						bind:value={newPlayer}
-						onkeydown={(e) => {
-							if (e.key === 'Enter') {
-								e.preventDefault();
-								addPlayer();
-							}
-						}}
-					/>
+				{#if canCreate}
 					<button
 						type="button"
-						class="btn btn-sm"
-						disabled={addingPlayer || !newPlayer.trim()}
+						class="btn btn-sm btn-soft self-start"
+						disabled={addingPlayer}
 						onclick={addPlayer}
 					>
-						{t('common.add')}
+						<Icon name="plus" class="size-4" />
+						{t('day.createPlayer', { name: tidyName(query) })}
 					</button>
-				</div>
+				{/if}
+				{#if pickTarget}
+					<p class="tiphint">{t('day.enterPicks', { name: pickTarget.name })}</p>
+				{:else if enterCreates}
+					<p class="tiphint">{t('day.enterCreates')}</p>
+				{/if}
 			</div>
 		{/if}
 	</section>
 
 	<section class="card flex flex-col gap-4 bg-base-100 p-5">
-		<div class="sec-head">
-			<h2 class="stitle">{t('day.matches')}</h2>
-			<button type="button" class="btn btn-sm" disabled={teams.length < 2} onclick={addMatch}>
-				{t('day.addMatch')}
-			</button>
-		</div>
-
-		{#if matches.length === 0}
-			<p class="hint">{t('day.noMatches')}</p>
-		{/if}
+		<h2 class="stitle">{t('day.matches')}</h2>
 
 		{#each matches as match, index (index)}
-			<div class="match" class:warn={mismatched(match)}>
-				<div class="mrow">
-					<select class="select select-sm tsel" bind:value={match.home}>
-						{#each teams as _team, i (i)}
-							<option value={i}>{teamLabel(i)}</option>
-						{/each}
-					</select>
-
-					<div class="stepper">
-						<button
-							type="button"
-							class="stepbtn"
-							aria-label="-"
-							onclick={() => bumpScore(index, 'home', -1)}>−</button
-						>
-						<input
-							class="scoreinput"
-							type="number"
-							min="0"
-							max="99"
-							inputmode="numeric"
-							bind:value={match.homeScore}
-							aria-label={t('standings.goalsFor')}
-						/>
-						<button
-							type="button"
-							class="stepbtn"
-							aria-label="+"
-							onclick={() => bumpScore(index, 'home', 1)}>+</button
-						>
-					</div>
-
-					<span class="xsep">x</span>
-
-					<div class="stepper">
-						<button
-							type="button"
-							class="stepbtn"
-							aria-label="-"
-							onclick={() => bumpScore(index, 'away', -1)}>−</button
-						>
-						<input
-							class="scoreinput"
-							type="number"
-							min="0"
-							max="99"
-							inputmode="numeric"
-							bind:value={match.awayScore}
-							aria-label={t('standings.goalsAgainst')}
-						/>
-						<button
-							type="button"
-							class="stepbtn"
-							aria-label="+"
-							onclick={() => bumpScore(index, 'away', 1)}>+</button
-						>
-					</div>
-
-					<select class="select select-sm tsel" bind:value={match.away}>
-						{#each teams as _team, i (i)}
-							<option value={i}>{teamLabel(i)}</option>
-						{/each}
-					</select>
-
-					<button
-						type="button"
-						class="mx hit-44"
-						aria-label={t('day.removeMatch')}
-						onclick={() => removeMatch(index)}
-					>
-						<Icon name="close" class="size-4" />
-					</button>
-				</div>
-
-				{#if match.home === match.away}
-					<p class="mwarn">{t('day.sameTeamTwice')}</p>
-				{:else if trackScorers}
-					{@const roster = matchPlayers(match)}
-					{#if roster.length}
-						<div class="scorers">
-							{#each roster as player (player.id)}
-								{@const count = goalsBy(match, player.id)}
-								<button
-									type="button"
-									class="gchip"
-									class:has={count > 0}
-									onclick={() => addGoal(index, player.id)}
-								>
-									{player.name}
-									{#if count > 0}<span class="gcount">{count}</span>{/if}
-								</button>
-							{/each}
-						</div>
-					{/if}
-					{#if match.goals.length}
-						<div class="goallist">
-							{#each match.goals as goal, goalIndex (goalIndex)}
-								{@const open =
-									editingGoal?.match === index && editingGoal?.goal === goalIndex}
-								<button
-									type="button"
-									class="goaltag"
-									class:own={goal.ownGoal}
-									class:open
-									aria-expanded={open}
-									onclick={() => openGoal(index, goalIndex)}
-									title={t('day.editGoal', { name: nameById.get(goal.playerId) ?? '?' })}
-								>
-									<GoalMark
-										player={nameById.get(goal.playerId) ?? '?'}
-										assist={goal.assistId ? (nameById.get(goal.assistId) ?? '?') : null}
-										ownGoal={goal.ownGoal}
-										showAssist={trackAssists}
-									/>
-									<Icon name="chevron" class="size-3" />
-								</button>
-							{/each}
-						</div>
-						<p class="tiphint">{t('day.tapToEdit')}</p>
-					{/if}
-
-					{#if editingGoal?.match === index && match.goals[editingGoal.goal]}
-						{@const goalIndex = editingGoal.goal}
-						{@const goal = match.goals[goalIndex]}
-						<div class="goaledit">
-							<div class="ge-head">
-								<span class="ge-title">
-									{t('day.goalOf', { name: nameById.get(goal.playerId) ?? '?' })}
-								</span>
+			{#if !isOpen(index)}
+				<button
+					type="button"
+					id="match-{index}"
+					class="mfold"
+					class:warn={mismatched(match)}
+					aria-expanded="false"
+					aria-label={t('day.expandMatch', { n: index + 1 })}
+					onclick={() => toggleMatch(index)}
+				>
+					<span class="mnum">{index + 1}</span>
+					<span class="fteam home">
+						<span class="fname">{teamLabel(match.home)}</span>
+						<TeamCrest name={teamLabel(match.home)} color={teams[match.home]?.color} />
+					</span>
+					<span class="fscore">{match.homeScore} x {match.awayScore}</span>
+					<span class="fteam away">
+						<TeamCrest name={teamLabel(match.away)} color={teams[match.away]?.color} />
+						<span class="fname">{teamLabel(match.away)}</span>
+					</span>
+					<span class="fend">
+						{#if mismatched(match)}
+							<Icon name="warning" class="size-4 text-[var(--ink-warning)]" />
+						{/if}
+						<Icon name="chevron" class="size-3" />
+					</span>
+				</button>
+			{:else}
+				<div class="match" class:warn={mismatched(match)} id="match-{index}">
+					<div class="mtop">
+						<span class="mlabel">{t('day.matchNumber', { n: index + 1 })}</span>
+						<span class="flex items-center gap-1">
+							{#if index !== matches.length - 1}
 								<button
 									type="button"
 									class="btn btn-ghost btn-xs"
-									onclick={() => (editingGoal = null)}
+									aria-expanded="true"
+									onclick={() => toggleMatch(index)}
 								>
-									{t('common.close')}
+									{t('day.collapseMatch')}
 								</button>
+							{/if}
+							<button
+								type="button"
+								class="mx hit-44"
+								aria-label={t('day.removeMatch')}
+								onclick={() => removeMatch(index)}
+							>
+								<Icon name="close" class="size-4" />
+							</button>
+						</span>
+					</div>
+					<div class="mrow">
+						<select class="select select-sm tsel home-team" bind:value={match.home}>
+							{#each teams as _team, i (i)}
+								<option value={i}>{teamLabel(i)}</option>
+							{/each}
+						</select>
+
+						<div class="stepper home-score">
+							<button
+								type="button"
+								class="stepbtn"
+								aria-label="-"
+								onclick={() => bumpScore(index, 'home', -1)}>−</button
+							>
+							<input
+								class="scoreinput"
+								type="number"
+								min="0"
+								max="99"
+								inputmode="numeric"
+								bind:value={match.homeScore}
+								aria-label={t('standings.goalsFor')}
+							/>
+							<button
+								type="button"
+								class="stepbtn"
+								aria-label="+"
+								onclick={() => bumpScore(index, 'home', 1)}>+</button
+							>
+						</div>
+
+						<span class="xsep">x</span>
+
+						<div class="stepper away-score">
+							<button
+								type="button"
+								class="stepbtn"
+								aria-label="-"
+								onclick={() => bumpScore(index, 'away', -1)}>−</button
+							>
+							<input
+								class="scoreinput"
+								type="number"
+								min="0"
+								max="99"
+								inputmode="numeric"
+								bind:value={match.awayScore}
+								aria-label={t('standings.goalsAgainst')}
+							/>
+							<button
+								type="button"
+								class="stepbtn"
+								aria-label="+"
+								onclick={() => bumpScore(index, 'away', 1)}>+</button
+							>
+						</div>
+
+						<select class="select select-sm tsel away-team" bind:value={match.away}>
+							{#each teams as _team, i (i)}
+								<option value={i}>{teamLabel(i)}</option>
+							{/each}
+						</select>
+					</div>
+
+					{#if match.home === match.away}
+						<p class="mwarn">{t('day.sameTeamTwice')}</p>
+					{:else if trackScorers}
+						{#if teams[match.home]?.playerIds.length || teams[match.away]?.playerIds.length}
+							<div class="sides">
+								{#each [match.home, match.away] as team (team)}
+									<div class="sidecol">
+										<span class="sidehead">
+											<TeamCrest name={teamLabel(team)} color={teams[team]?.color} />
+											{teamLabel(team)}
+										</span>
+										<div class="scorers">
+											{#each teamPlayers(team) as player (player.id)}
+												{@const count = goalsBy(match, player.id)}
+												<button
+													type="button"
+													class="gchip"
+													class:has={count > 0}
+													onclick={() => addGoal(index, player.id)}
+												>
+													{player.name}
+													{#if count > 0}<span class="gcount">{count}</span>{/if}
+												</button>
+											{/each}
+										</div>
+									</div>
+								{/each}
 							</div>
+						{/if}
+						{#if match.goals.length}
+							<div class="goallist">
+								{#each match.goals as goal, goalIndex (goalIndex)}
+									{@const open =
+										editingGoal?.match === index && editingGoal?.goal === goalIndex}
+									<button
+										type="button"
+										class="goaltag"
+										class:own={goal.ownGoal}
+										class:open
+										aria-expanded={open}
+										onclick={() => openGoal(index, goalIndex)}
+										title={t('day.editGoal', { name: nameById.get(goal.playerId) ?? '?' })}
+									>
+										<GoalMark
+											player={nameById.get(goal.playerId) ?? '?'}
+											assist={goal.assistId ? (nameById.get(goal.assistId) ?? '?') : null}
+											ownGoal={goal.ownGoal}
+											showAssist={trackAssists}
+										/>
+										<Icon name="chevron" class="size-3" />
+									</button>
+								{/each}
+							</div>
+							<p class="tiphint">{t('day.tapToEdit')}</p>
+						{/if}
 
-							<label class="check">
-								<input
-									type="checkbox"
-									class="checkbox checkbox-sm"
-									checked={goal.ownGoal}
-									onchange={() => toggleOwnGoal(index, goalIndex)}
-								/>
-								<span>{t('day.markOwnGoal')}</span>
-							</label>
+						{#if editingGoal?.match === index && match.goals[editingGoal.goal]}
+							{@const goalIndex = editingGoal.goal}
+							{@const goal = match.goals[goalIndex]}
+							<div class="goaledit">
+								<div class="ge-head">
+									<span class="ge-title">
+										{t('day.goalOf', { name: nameById.get(goal.playerId) ?? '?' })}
+									</span>
+									<button
+										type="button"
+										class="btn btn-ghost btn-xs"
+										onclick={() => (editingGoal = null)}
+									>
+										{t('common.close')}
+									</button>
+								</div>
 
-							{#if trackAssists && !goal.ownGoal}
-								<div class="block">
-									<span class="blabel">{t('day.assist')}</span>
-									<div class="scorers">
-										<button
-											type="button"
-											class="gchip"
-											class:has={goal.assistId === null}
-											onclick={() => setAssist(index, goalIndex, null)}
-										>
-											{t('day.noAssist')}
-										</button>
-										{#each assistOptions(match, goal) as option (option.id)}
+								<label class="check">
+									<input
+										type="checkbox"
+										class="checkbox checkbox-sm"
+										checked={goal.ownGoal}
+										onchange={() => toggleOwnGoal(index, goalIndex)}
+									/>
+									<span>{t('day.markOwnGoal')}</span>
+								</label>
+
+								{#if trackAssists && !goal.ownGoal}
+									<div class="block">
+										<span class="blabel">{t('day.assist')}</span>
+										<div class="scorers">
 											<button
 												type="button"
 												class="gchip"
-												class:has={goal.assistId === option.id}
-												onclick={() => setAssist(index, goalIndex, option.id)}
+												class:has={goal.assistId === null}
+												onclick={() => setAssist(index, goalIndex, null)}
 											>
-												{option.name}
+												{t('day.noAssist')}
 											</button>
-										{/each}
+											{#each assistOptions(match, goal) as option (option.id)}
+												<button
+													type="button"
+													class="gchip"
+													class:has={goal.assistId === option.id}
+													onclick={() => setAssist(index, goalIndex, option.id)}
+												>
+													{option.name}
+												</button>
+											{/each}
+										</div>
+										<p class="tiphint">{t('day.assistHint')}</p>
 									</div>
-									<p class="tiphint">{t('day.assistHint')}</p>
-								</div>
-							{/if}
+								{/if}
 
+								<button
+									type="button"
+									class="btn btn-soft btn-error btn-sm self-start"
+									onclick={() => removeGoal(index, goalIndex)}
+								>
+									{t('day.removeGoal')}
+								</button>
+							</div>
+						{/if}
+					{/if}
+				</div>
+			{/if}
+		{/each}
+
+		{#snippet pairLabel(/** @type {number} */ home, /** @type {number} */ away)}
+			<span class="nextpair">
+				<TeamCrest name={teamLabel(home)} color={teams[home]?.color} />
+				{teamLabel(home)}
+				<span class="xsep">x</span>
+				{teamLabel(away)}
+				<TeamCrest name={teamLabel(away)} color={teams[away]?.color} />
+			</span>
+		{/snippet}
+
+		{#if upcomingPairs.length}
+			<div class="nextmatch">
+				{#if upcomingQuestion}
+					<p class="nextq">{upcomingQuestion.title}</p>
+					<p class="tiphint">{upcomingQuestion.hint}</p>
+					<div class="nextchoices">
+						{#each upcomingPairs as pair (`${pair.home}-${pair.away}`)}
 							<button
 								type="button"
-								class="btn btn-soft btn-error btn-sm self-start"
-								onclick={() => removeGoal(index, goalIndex)}
+								class="btn btn-soft btn-primary"
+								onclick={() => addMatch(pair.home, pair.away)}
 							>
-								{t('day.removeGoal')}
+								{@render pairLabel(pair.home, pair.away)}
 							</button>
-						</div>
+						{/each}
+					</div>
+				{:else}
+					{@const pair = upcomingPairs[0]}
+					<button
+						type="button"
+						class="btn btn-soft btn-primary nextbtn"
+						onclick={() => addMatch(pair.home, pair.away)}
+					>
+						<Icon name="plus" class="size-4" />
+						<span>{matches.length ? t('day.nextMatch') : t('day.firstMatch')}</span>
+						{@render pairLabel(pair.home, pair.away)}
+					</button>
+					{#if matches.length}
+						<p class="tiphint">{t('day.rotationHint')}</p>
 					{/if}
 				{/if}
 			</div>
-		{/each}
+		{/if}
 	</section>
 
 	<section class="card flex flex-col gap-4 bg-base-100 p-5">
@@ -945,16 +1193,8 @@
 				aria-labelledby="mvp-label"
 				class="w-full"
 			/>
-			<p class="hint">{t('day.mvpHint')}</p>
 		</div>
 
-		<div class="block">
-			<label class="blabel" for="notes">
-				{t('day.notes')}
-				<span class="font-normal text-base-content/65">{t('common.optional')}</span>
-			</label>
-			<textarea id="notes" class="textarea w-full" rows="2" bind:value={notes}></textarea>
-		</div>
 	</section>
 
 	<div class="savebar">
@@ -1120,6 +1360,14 @@
 	.pchip.taken {
 		opacity: 0.6;
 	}
+	.pchip.target {
+		outline: 2px solid var(--color-primary);
+		outline-offset: 1px;
+		opacity: 1;
+	}
+	.teamname {
+		text-transform: lowercase;
+	}
 	.ptag {
 		font-size: 0.64rem;
 		text-transform: uppercase;
@@ -1134,18 +1382,169 @@
 		border: 1px solid color-mix(in oklch, var(--color-base-content) 12%, transparent);
 		border-radius: var(--radius-field);
 	}
-	.match.warn {
+	.match.warn,
+	.mfold.warn {
 		border-color: color-mix(in oklch, var(--color-warning) 55%, transparent);
 	}
-	.mrow {
+	.match,
+	.mfold {
+		scroll-margin-top: 80px;
+	}
+	.mtop {
 		display: flex;
-		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 8px;
+		margin: -4px -4px -4px 0;
+	}
+	.mlabel {
+		font-size: 0.72rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.06em;
+		color: var(--ink-muted);
+	}
+	.mfold {
+		display: grid;
+		grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr) auto;
+		align-items: center;
+		gap: 8px;
+		width: 100%;
+		min-height: 44px;
+		padding: 6px 12px;
+		border: 1px solid color-mix(in oklch, var(--color-base-content) 12%, transparent);
+		border-radius: var(--radius-field);
+		background: color-mix(in oklch, var(--color-base-content) 3%, transparent);
+		color: var(--color-base-content);
+		font: inherit;
+		font-size: 0.84rem;
+		text-align: left;
+		cursor: pointer;
+	}
+	.mfold:hover {
+		border-color: var(--color-primary);
+	}
+	.mnum {
+		min-width: 1.6em;
+		color: var(--ink-muted);
+		font-size: 0.72rem;
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+	}
+	.fteam {
+		display: flex;
 		align-items: center;
 		gap: 6px;
+		min-width: 0;
+	}
+	.fteam.home {
+		justify-content: flex-end;
+	}
+	.fname {
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+	.fscore {
+		font-weight: 700;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+	.fend {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		color: var(--ink-muted);
+	}
+	.sides {
+		display: grid;
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+		gap: 12px;
+	}
+	.sidecol {
+		display: flex;
+		flex-direction: column;
+		gap: 6px;
+		min-width: 0;
+	}
+	.sidecol + .sidecol {
+		padding-left: 12px;
+		border-left: 1px solid color-mix(in oklch, var(--color-base-content) 9%, transparent);
+	}
+	.sidehead {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		font-size: 0.72rem;
+		font-weight: 700;
+		color: var(--ink-muted);
+	}
+	.nextmatch {
+		display: flex;
+		flex-direction: column;
+		gap: 8px;
+	}
+	.nextbtn {
+		justify-content: flex-start;
+		flex-wrap: wrap;
+		height: auto;
+		min-height: 48px;
+		padding-block: 8px;
+		gap: 8px;
+	}
+	.nextpair {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
+		font-weight: 700;
+	}
+	.nextq {
+		font-size: 0.86rem;
+		font-weight: 600;
+	}
+	.nextchoices {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 8px;
+	}
+	.nextchoices :global(.btn) {
+		flex: 1 1 140px;
+	}
+	.mrow {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+		grid-template-areas:
+			'home-team . away-team'
+			'home-score sep away-score';
+		align-items: center;
+		gap: 8px 6px;
+	}
+	.home-team {
+		grid-area: home-team;
+	}
+	.away-team {
+		grid-area: away-team;
+	}
+	.home-score {
+		grid-area: home-score;
+		justify-self: center;
+	}
+	.away-score {
+		grid-area: away-score;
+		justify-self: center;
+	}
+	.mrow .xsep {
+		grid-area: sep;
 	}
 	.tsel {
-		flex: 1 1 110px;
-		min-width: 92px;
+		width: 100%;
+		min-width: 0;
+	}
+	@media (min-width: 640px) {
+		.mrow {
+			grid-template-columns: minmax(0, 1fr) auto auto auto minmax(0, 1fr);
+			grid-template-areas: 'home-team home-score sep away-score away-team';
+		}
 	}
 	.stepper {
 		display: inline-flex;
