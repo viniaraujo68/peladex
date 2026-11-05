@@ -1,5 +1,5 @@
 <script>
-	import { publicErrorMessage } from '$lib/publicApi.js';
+	import { periodParam, periodQuery, publicErrorMessage } from '$lib/publicApi.js';
 	import { page } from '$app/stores';
 	import { get } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
@@ -12,6 +12,7 @@
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
 	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
+	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
 	import { dayTypeParam, dayTypeQuery, withDayType, setDayTypeContext } from '$lib/dayType.js';
 	import { createGroupView, replaceParams } from '$lib/groupView.svelte.js';
 
@@ -19,6 +20,7 @@
 	let { data } = $props();
 
 	const group = $derived(data.group);
+	const hasGroup = $derived(!!group);
 	const token = $derived($page.url.searchParams.get('t'));
 
 	setGroupTracking(() => group);
@@ -40,6 +42,7 @@
 	]);
 
 	const dayType = $derived(dayTypeParam($page.url.searchParams));
+	const period = $derived(periodParam($page.url.searchParams));
 
 	/** @param {number} playerId */
 	const playerHref = (playerId) =>
@@ -49,7 +52,8 @@
 		);
 
 	const tokenQuery = $derived(token ? `t=${encodeURIComponent(token)}` : '');
-	const filterQuery = $derived([tokenQuery, dayTypeQuery(dayType)].filter(Boolean).join('&'));
+	const viewQuery = $derived([tokenQuery, dayTypeQuery(dayType)].filter(Boolean).join('&'));
+	const filterQuery = $derived([viewQuery, periodQuery(period)].filter(Boolean).join('&'));
 
 	let pairs = $state(/** @type {import('$lib/types.js').PairLeaderboard|null} */ (null));
 	let network = $state(/** @type {import('$lib/types.js').AssistNetwork|null} */ (null));
@@ -62,7 +66,7 @@
 	$effect(() => {
 		const root = base;
 		const suffix = filterSuffix;
-		if (!group) return;
+		if (!hasGroup) return;
 		let current = true;
 		Promise.all([get(`${root}/assist-network${suffix}`), get(`${root}/timeline${suffix}`)])
 			.then(([n, tl]) => {
@@ -84,7 +88,7 @@
 		const root = base;
 		const days = minDays;
 		const query = [filterQuery, `min_days=${days}`].filter(Boolean).join('&');
-		if (!group) return;
+		if (!hasGroup) return;
 		let current = true;
 		get(`${root}/pairs?${query}`)
 			.then((p) => current && (pairs = p))
@@ -113,6 +117,18 @@
 			onchange={(value) => replaceParams({ day_type: value })}
 		/>
 	{/if}
+{/snippet}
+
+{#snippet periodBar()}
+	{@render dayTypeBar()}
+	<div class="card bg-base-100 p-4">
+		<PeriodFilter
+			from={period.from}
+			to={period.to}
+			onchange={(range) =>
+				replaceParams({ date_from: range.from || null, date_to: range.to || null })}
+		/>
+	</div>
 {/snippet}
 
 <svelte:head>
@@ -165,7 +181,7 @@
 				matchdays={group.matchdays}
 				{view}
 				{playerHref}
-				before={dayTypeBar}
+				before={periodBar}
 			/>
 		{:else if view.tab === 'players'}
 			<PlayersTab
@@ -177,12 +193,12 @@
 				onMinDays={(value) => (minDays = value)}
 				{view}
 				{playerHref}
-				analysisHref={`/g/${slug}/analise${filterSuffix}`}
-				before={dayTypeBar}
+				analysisHref={`/g/${slug}/analise${viewQuery ? `?${viewQuery}` : ''}`}
+				before={periodBar}
 			/>
 		{:else if view.tab === 'stats'}
 			<div class="flex flex-col gap-4">
-				{@render dayTypeBar()}
+				{@render periodBar()}
 				<GroupStats stats={group.stats} />
 				{#if timeline}
 					<TimelineCharts {timeline} />

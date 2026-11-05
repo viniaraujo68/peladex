@@ -17,12 +17,32 @@ export async function fetchPublic(fetch, path) {
 	}
 }
 
+/** @param {string|null} value */
+function isoDate(value) {
+	if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return '';
+	const parsed = new Date(`${value}T00:00:00Z`);
+	return !Number.isNaN(parsed.getTime()) && parsed.toISOString().startsWith(value) ? value : '';
+}
+
+/** @param {URLSearchParams} params @returns {{ from: string, to: string }} */
+export function periodParam(params) {
+	return { from: isoDate(params.get('date_from')), to: isoDate(params.get('date_to')) };
+}
+
+/** @param {{ from: string, to: string }} period */
+export function periodQuery(period) {
+	return [period.from ? `date_from=${period.from}` : '', period.to ? `date_to=${period.to}` : '']
+		.filter(Boolean)
+		.join('&');
+}
+
 /** @param {{ fetch: typeof globalThis.fetch, params: { slug?: string }, url: URL }} event */
 export async function loadPublicGroup({ fetch, params, url }) {
 	const token = url.searchParams.get('t');
 	const filters = [
 		token ? `t=${encodeURIComponent(token)}` : '',
-		dayTypeQuery(dayTypeParam(url.searchParams))
+		dayTypeQuery(dayTypeParam(url.searchParams)),
+		periodQuery(periodParam(url.searchParams))
 	]
 		.filter(Boolean)
 		.join('&');
