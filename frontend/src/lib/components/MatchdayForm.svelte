@@ -1,7 +1,8 @@
 <script>
 	import { tick } from 'svelte';
 	import { beforeNavigate } from '$app/navigation';
-	import { Combobox, Select } from '@viniaraujo68/plinth/components';
+	import { sortable } from '@viniaraujo68/plinth/attachments';
+	import { Combobox, DragHandle, Select } from '@viniaraujo68/plinth/components';
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
 	import { localeTag, t, teamName } from '$lib/i18n.svelte.js';
@@ -79,9 +80,12 @@
 	const today = $derived(ymd(now));
 	const yesterday = $derived(ymd(new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)));
 
-	/** @typedef {{ name: string, color: string, playerIds: number[] }} TeamDraft */
+	/** @typedef {{ key: number, name: string, color: string, playerIds: number[] }} TeamDraft */
 	/** @typedef {{ playerId: number, ownGoal: boolean, assistId: number|null }} GoalDraft */
 	/** @typedef {{ home: number, away: number, homeScore: number, awayScore: number, goals: GoalDraft[] }} MatchDraft */
+
+	let teamKeys = 0;
+	const nextTeamKey = () => ++teamKeys;
 
 	/** @returns {TeamDraft[]} */
 	function seedTeams() {
@@ -90,12 +94,18 @@
 				.slice()
 				.sort((a, b) => a.team_id - b.team_id)
 				.map((s) => ({
+					key: nextTeamKey(),
 					name: teamName(s.name),
 					color: explicitTeamColor(s.color),
 					playerIds: s.members.map((m) => m.player_id)
 				}));
 		}
-		return DEFAULT_TEAM_COLORS.map((color) => ({ name: colorName(color), color: '', playerIds: [] }));
+		return DEFAULT_TEAM_COLORS.map((color) => ({
+			key: nextTeamKey(),
+			name: colorName(color),
+			color: '',
+			playerIds: []
+		}));
 	}
 
 	/** @returns {MatchDraft[]} */
@@ -244,7 +254,7 @@
 
 	function addTeam() {
 		const name = freePresets[Math.floor(Math.random() * freePresets.length)] ?? '';
-		teams = [...teams, { name, color: '', playerIds: [] }];
+		teams = [...teams, { key: nextTeamKey(), name, color: '', playerIds: [] }];
 		activeTeam = teams.length - 1;
 	}
 
@@ -261,6 +271,24 @@
 		if (activeTeam >= teams.length) activeTeam = Math.max(0, teams.length - 1);
 		openMatches = [];
 		editingGoal = null;
+	}
+
+	/**
+	 * @param {number} from
+	 * @param {number} to
+	 */
+	function moveTeam(from, to) {
+		if (from === to || to < 0 || to >= teams.length) return;
+		const order = teams.map((_, index) => index);
+		order.splice(to, 0, ...order.splice(from, 1));
+		const position = new Map(order.map((previous, index) => [previous, index]));
+		teams = order.map((previous) => teams[previous]);
+		matches = matches.map((m) => ({
+			...m,
+			home: position.get(m.home) ?? m.home,
+			away: position.get(m.away) ?? m.away
+		}));
+		activeTeam = position.get(activeTeam) ?? activeTeam;
 	}
 
 	/** @param {number} playerId */
@@ -515,7 +543,11 @@
 			venueId,
 			mvpId,
 			notes,
-			teams: teams.map((team) => ({ ...team, playerIds: [...team.playerIds] })),
+			teams: teams.map((team) => ({
+				name: team.name,
+				color: team.color,
+				playerIds: [...team.playerIds]
+			})),
 			matches: matches.map((m) => ({ ...m, goals: m.goals.map((g) => ({ ...g })) }))
 		};
 	}
@@ -556,6 +588,7 @@
 		mvpId = s.mvpId ?? '';
 		notes = s.notes ?? '';
 		teams = (s.teams ?? []).map((/** @type {TeamDraft} */ team) => ({
+			key: nextTeamKey(),
 			name: team.name ?? '',
 			color: explicitTeamColor(team.color),
 			playerIds: [...(team.playerIds ?? [])]
@@ -791,12 +824,21 @@
 			</button>
 		</div>
 
-		<div class="teamtabs" role="group" aria-label={t('day.teams')}>
-			{#each teams as team, index (index)}
-				<div class="teamtab" class:sel={activeTeam === index}>
+		<div
+			class="teamtabs"
+			role="group"
+			aria-label={t('day.teams')}
+			{@attach sortable({ onmove: moveTeam })}
+		>
+			{#each teams as team, index (team.key)}
+				<div class="teamtab" class:sel={activeTeam === index} data-sortable-item>
+					{#if teams.length > 1}
+						<DragHandle label={t('day.moveTeam', { name: teamLabel(index) })} />
+					{/if}
 					<button
 						type="button"
 						class="teamtab-pick"
+						class:after-grip={teams.length > 1}
 						aria-pressed={activeTeam === index}
 						onclick={() => (activeTeam = index)}
 					>
@@ -1310,6 +1352,14 @@
 	.teamtab.sel {
 		border-color: var(--color-primary);
 		background: color-mix(in oklch, var(--color-primary) 12%, transparent);
+	}
+	.teamtab:global([data-sortable-dragging]) {
+		border-color: var(--color-primary);
+		box-shadow: 0 6px 16px color-mix(in oklch, var(--color-base-content) 22%, transparent);
+		transform: scale(1.04);
+	}
+	.teamtab-pick.after-grip {
+		padding-left: 2px;
 	}
 	.teamtab-pick {
 		display: inline-flex;

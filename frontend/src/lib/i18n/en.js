@@ -110,6 +110,7 @@ export default {
 	'day.venuePlaceholder': 'Venue name',
 	'day.addVenue': '+ Venue',
 	'day.teams': 'Teams',
+	'day.moveTeam': 'Move {name}',
 	'day.addTeam': '+ Team',
 	'day.teamName': 'Team name',
 	'day.removeTeam': 'Remove team {name}',

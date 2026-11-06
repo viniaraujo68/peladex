@@ -110,6 +110,7 @@ export default {
 	'day.venuePlaceholder': 'Nome do local',
 	'day.addVenue': '+ Local',
 	'day.teams': 'Times',
+	'day.moveTeam': 'Mover {name}',
 	'day.addTeam': '+ Time',
 	'day.teamName': 'Nome do time',
 	'day.removeTeam': 'Remover o time {name}',
