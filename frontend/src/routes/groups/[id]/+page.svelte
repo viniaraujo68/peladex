@@ -255,7 +255,7 @@
 	{#if showMismatchBadge && mismatchCount > 0}
 		{#if view.tab === 'matchdays'}
 			<span class="badge badge-soft badge-warning warn">
-				<Icon name="warning" />
+				<Icon name="warning" class="h-[1lh] w-[1em] shrink-0" />
 				{t('group.mismatch', { count: mismatchCount })}
 			</span>
 		{:else}
@@ -264,7 +264,7 @@
 				title={t('group.mismatchGoTo')}
 				onclick={() => view.setTab('matchdays')}
 			>
-				<Icon name="warning" />
+				<Icon name="warning" class="h-[1lh] w-[1em] shrink-0" />
 				{t('group.mismatch', { count: mismatchCount })}
 			</button>
 		{/if}
