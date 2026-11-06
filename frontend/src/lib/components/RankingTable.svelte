@@ -212,32 +212,33 @@
 		{ key: 'mvp_count', label: t('ranking.mvp'), numeric: true }
 	]);
 
-	const activeColumn = $derived(columns.find((c) => c.key === sort.key) ?? columns[2]);
+	const winRateColumn = $derived(
+		/** @type {import('@viniaraujo68/plinth/table').Column<Row>} */ (
+			columns.find((c) => c.key === 'win_rate')
+		)
+	);
+	const activeColumn = $derived(columns.find((c) => c.key === sort.key) ?? winRateColumn);
+	const rankColumn = $derived(activeColumn.numeric ? activeColumn : winRateColumn);
 
 	/** @param {Row[]} rows */
 	function positionsOf(rows) {
-		const ordered = sortRows(rows, activeColumn, sort.direction, localeTag());
-		const positions = competitionRanks(ordered, (r) => sortValue(activeColumn, r), localeTag());
+		const direction = rankColumn.defaultSortDirection ?? 'desc';
+		const ordered = sortRows(rows, rankColumn, direction, localeTag());
+		const positions = competitionRanks(ordered, (r) => sortValue(rankColumn, r), localeTag());
 		return new Map(ordered.map((r, i) => [r.player_id, positions[i]]));
 	}
 
 	const ranks = $derived(positionsOf(ranking));
 	const previousRanks = $derived(positionsOf(previousRanking));
-	const showMovement = $derived(previousRanking.length > 0 && activeColumn.key !== 'name');
+	const showMovement = $derived(previousRanking.length > 0);
 
 	/** @param {Row} r */
 	const rankOf = (r) => ranks.get(r.player_id) ?? null;
 	/** @param {Row} r */
 	const previousOf = (r) => previousRanks.get(r.player_id) ?? null;
 
-	const bestFirst = $derived(
-		activeColumn.numeric === true &&
-			sort.direction === (activeColumn.defaultSortDirection ?? 'desc')
-	);
-
 	/** @param {Row} r */
 	function tier(r) {
-		if (!bestFirst) return undefined;
 		const rank = ranks.get(r.player_id);
 		return rank !== null && rank !== undefined && rank <= PODIUM ? String(rank) : undefined;
 	}
