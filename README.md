@@ -321,6 +321,9 @@ docker compose up -d --build
 
 O IP do visitante chega como um `X-Forwarded-For` de valor único, montado pelo edge a partir
 do `Cf-Connecting-IP`: é o que o rate limit do backend e o `XFF_DEPTH: "1"` do frontend leem.
+O backend só aceita `X-Forwarded-For` de quem conecta por uma faixa privada (os containers da
+rede `web`) e usa o último endereço público da lista, então um IP inventado na frente do
+header não escapa do rate limit, mesmo que o edge um dia passe a anexar em vez de substituir.
 
 ### Primeiro acesso
 
