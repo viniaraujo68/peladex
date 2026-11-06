@@ -289,7 +289,7 @@
 				onDelete={deleteMatchday}
 			/>
 		{:else if view.tab === 'ranking'}
-			<RankingTab {stats} {matchdays} {view} {playerHref} before={periodBar} />
+			<RankingTab {stats} {view} {playerHref} before={periodBar} />
 		{:else if view.tab === 'players'}
 			<PlayersTab
 				{stats}

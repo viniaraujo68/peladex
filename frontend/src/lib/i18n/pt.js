@@ -179,10 +179,6 @@ export default {
 		'Rodízio e jogo único misturados: aproveitamento e médias por partida comparam jogos de tamanhos diferentes.',
 	'day.singleGame': 'Jogo único',
 	'player.singleGameBadge': 'jogo único',
-	'summary.averageSingleGameGoals': {
-		one: '{count} gol no jogo · média dos jogos únicos: {average}',
-		other: '{count} gols no jogo · média dos jogos únicos: {average}'
-	},
 	'day.champion': 'Campeão do dia',
 	'day.noChampion': 'Empate na liderança',
 	'day.topScorer': 'Artilheiro do dia',
@@ -617,25 +613,6 @@ export default {
 	'player.shareOf': '{value} de {total} gols do time',
 	'day.mvpSearch': 'Sem MVP — digite para buscar',
 	'day.mvpNoMatch': 'Ninguém com esse nome jogou neste dia.',
-	'summary.title': 'Última pelada',
-	'summary.champion': 'Campeão',
-	'summary.record': '{wins}V {draws}E {losses}D · {points} pts',
-	'summary.noChampion': 'Sem campeão — empate no topo da tabela.',
-	'summary.standings': 'Classificação do dia',
-	'summary.recordDayGoals': 'Recorde: {count} gols, o dia com mais gols até agora',
-	'summary.recordPlayerGoals': {
-		one: 'Recorde: {name} fez {count} gol, o máximo de um jogador num dia',
-		other: 'Recorde: {name} fez {count} gols, o máximo de um jogador num dia'
-	},
-	'summary.recordMargin': {
-		one: 'Recorde: maior goleada até agora, {count} gol de diferença',
-		other: 'Recorde: maior goleada até agora, {count} gols de diferença'
-	},
-	'summary.averageGoals': {
-		one: '{count} gol no dia · média da pelada: {average} por dia',
-		other: '{count} gols no dia · média da pelada: {average} por dia'
-	},
-	'summary.openDay': 'Ver o dia completo',
 	'move.new': 'novo',
 	'move.newHint': 'Entrou no ranking nesta pelada',
 	'move.upHint': { one: 'Subiu {count} posição desde a pelada anterior', other: 'Subiu {count} posições desde a pelada anterior' },

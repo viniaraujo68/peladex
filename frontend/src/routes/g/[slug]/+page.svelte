@@ -178,7 +178,6 @@
 		{#if view.tab === 'ranking'}
 			<RankingTab
 				stats={group.stats}
-				matchdays={group.matchdays}
 				{view}
 				{playerHref}
 				before={periodBar}

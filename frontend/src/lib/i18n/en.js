@@ -179,10 +179,6 @@ export default {
 		'Rotation and single games mixed: win rate and per-match averages compare games of different lengths.',
 	'day.singleGame': 'Single game',
 	'player.singleGameBadge': 'single game',
-	'summary.averageSingleGameGoals': {
-		one: '{count} goal in the game · single game average: {average}',
-		other: '{count} goals in the game · single game average: {average}'
-	},
 	'day.champion': 'Winner of the day',
 	'day.noChampion': 'Tied at the top',
 	'day.topScorer': 'Top scorer of the day',
@@ -616,25 +612,6 @@ export default {
 	'player.shareOf': '{value} of {total} team goals',
 	'day.mvpSearch': 'No MVP — type to search',
 	'day.mvpNoMatch': 'Nobody by that name played on this day.',
-	'summary.title': 'Last matchday',
-	'summary.champion': 'Champion',
-	'summary.record': '{wins}W {draws}D {losses}L · {points} pts',
-	'summary.noChampion': 'No champion — tie at the top of the table.',
-	'summary.standings': 'Standings of the day',
-	'summary.recordDayGoals': 'Record: {count} goals, the highest-scoring day so far',
-	'summary.recordPlayerGoals': {
-		one: 'Record: {name} scored {count} goal, the most by a player in one day',
-		other: 'Record: {name} scored {count} goals, the most by a player in one day'
-	},
-	'summary.recordMargin': {
-		one: 'Record: biggest win so far, by {count} goal',
-		other: 'Record: biggest win so far, by {count} goals'
-	},
-	'summary.averageGoals': {
-		one: '{count} goal on the day · group average: {average} per day',
-		other: '{count} goals on the day · group average: {average} per day'
-	},
-	'summary.openDay': 'See the full day',
 	'move.new': 'new',
 	'move.newHint': 'Entered the ranking on this matchday',
 	'move.upHint': { one: 'Up {count} place since the previous matchday', other: 'Up {count} places since the previous matchday' },
