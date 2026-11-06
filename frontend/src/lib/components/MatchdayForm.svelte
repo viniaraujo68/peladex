@@ -772,7 +772,6 @@
 				id="notes"
 				class="textarea w-full"
 				rows="2"
-				placeholder={t('day.notesPlaceholder')}
 				maxlength={MAX_NOTES_LENGTH}
 				bind:value={notes}
 			></textarea>

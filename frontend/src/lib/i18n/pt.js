@@ -157,7 +157,6 @@ export default {
 	'day.mvp': 'MVP do dia',
 	'day.noMvp': 'sem MVP',
 	'day.notes': 'Observações',
-	'day.notesPlaceholder': 'Ex.: choveu, faltou gente, jogo até 2 gols…',
 	'day.save': 'Salvar dia',
 	'day.saving': 'Salvando…',
 	'day.draftFound': 'Rascunho de {date} encontrado',
