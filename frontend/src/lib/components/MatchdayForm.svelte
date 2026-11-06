@@ -1,8 +1,9 @@
 <script>
 	import { tick } from 'svelte';
-	import { beforeNavigate } from '$app/navigation';
+	import { beforeNavigate, goto } from '$app/navigation';
 	import { sortable } from '@viniaraujo68/plinth/attachments';
 	import { Combobox, DragHandle, Select } from '@viniaraujo68/plinth/components';
+	import { confirm } from '@viniaraujo68/plinth/confirm';
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
 	import { i18n, localeTag, t, teamName } from '$lib/i18n.svelte.js';
@@ -656,9 +657,26 @@
 		});
 	}
 
+	let leaveConfirmed = false;
+
+	/** @param {import('@sveltejs/kit').BeforeNavigate} nav */
+	async function confirmLeave(nav) {
+		const leave = await confirm({
+			title: t('day.leaveTitle'),
+			description: t('day.leaveBody'),
+			confirmLabel: t('day.leaveAction'),
+			danger: true
+		});
+		if (!leave) return;
+		leaveConfirmed = true;
+		if (nav.type === 'popstate' && nav.delta) history.go(nav.delta);
+		else if (nav.to) await goto(nav.to.url);
+	}
+
 	beforeNavigate((nav) => {
-		if (!dirty || submitting) return;
-		if (!confirm(t('day.leaveConfirm'))) nav.cancel();
+		if (leaveConfirmed || !dirty || submitting || nav.willUnload) return;
+		nav.cancel();
+		void confirmLeave(nav);
 	});
 
 	/** @param {BeforeUnloadEvent} ev */
