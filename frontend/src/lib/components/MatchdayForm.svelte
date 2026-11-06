@@ -190,7 +190,7 @@
 	});
 	const pickTarget = $derived.by(() => {
 		if (!foldedQuery) return null;
-		if (exactPlayer) return assigned.get(exactPlayer.id) === activeTeam ? null : exactPlayer;
+		if (exactPlayer) return exactPlayer;
 		return shownPlayers.find((p) => !assigned.has(p.id)) ?? null;
 	});
 	const canCreate = $derived(!!foldedQuery && !exactPlayer);
@@ -942,7 +942,9 @@
 						{t('day.createPlayer', { name: tidyName(query) })}
 					</button>
 				{/if}
-				{#if pickTarget}
+				{#if pickTarget && assigned.get(pickTarget.id) === activeTeam}
+					<p class="tiphint">{t('day.enterRemoves', { name: pickTarget.name })}</p>
+				{:else if pickTarget}
 					<p class="tiphint">{t('day.enterPicks', { name: pickTarget.name })}</p>
 				{:else if enterCreates}
 					<p class="tiphint">{t('day.enterCreates')}</p>

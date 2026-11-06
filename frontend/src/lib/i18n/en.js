@@ -141,6 +141,7 @@ export default {
 	'day.playerNoMatch': 'Nobody with that name.',
 	'day.createPlayer': 'Add “{name}”',
 	'day.enterPicks': 'Enter puts {name} on the team.',
+	'day.enterRemoves': 'Enter takes {name} off the team.',
 	'day.enterCreates': 'Enter adds the new player.',
 	'day.matchNumber': 'Match {n}',
 	'day.expandMatch': 'Open match {n}',

@@ -141,6 +141,7 @@ export default {
 	'day.playerNoMatch': 'Ninguém com esse nome.',
 	'day.createPlayer': 'Cadastrar “{name}”',
 	'day.enterPicks': 'Enter coloca {name} no time.',
+	'day.enterRemoves': 'Enter tira {name} do time.',
 	'day.enterCreates': 'Enter cadastra o jogador novo.',
 	'day.matchNumber': 'Jogo {n}',
 	'day.expandMatch': 'Abrir o jogo {n}',
