@@ -5,7 +5,7 @@
 	import { Combobox, DragHandle, Select } from '@viniaraujo68/plinth/components';
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
-	import { localeTag, t, teamName } from '$lib/i18n.svelte.js';
+	import { i18n, localeTag, t, teamName } from '$lib/i18n.svelte.js';
 	import { nextMatch } from '$lib/rotation.js';
 	import { explicitTeamColor } from '$lib/teamColor.js';
 	import GoalMark from './GoalMark.svelte';
@@ -553,7 +553,21 @@
 	}
 
 	const stateJson = $derived(JSON.stringify(formState()));
-	const pristineJson = JSON.stringify(formState());
+	let pristineJson = $state(JSON.stringify(formState()));
+	let formLocale = i18n.locale;
+
+	$effect(() => {
+		const locale = i18n.locale;
+		if (locale === formLocale) return;
+		formLocale = locale;
+		teams = teams.map((team) => ({ ...team, name: teamName(team.name) }));
+		const pristine = JSON.parse(pristineJson);
+		pristine.teams = pristine.teams.map((/** @type {TeamDraft} */ team) => ({
+			...team,
+			name: teamName(team.name)
+		}));
+		pristineJson = JSON.stringify(pristine);
+	});
 	const dirty = $derived(stateJson !== pristineJson);
 
 	/** @type {{savedAt: string, state: any}|null} */
