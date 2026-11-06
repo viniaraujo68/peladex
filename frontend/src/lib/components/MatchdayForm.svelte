@@ -4,7 +4,7 @@
 	import { Combobox, Select } from '@viniaraujo68/plinth/components';
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
-	import { localeTag, t } from '$lib/i18n.svelte.js';
+	import { localeTag, t, teamName } from '$lib/i18n.svelte.js';
 	import { nextMatch } from '$lib/rotation.js';
 	import { explicitTeamColor } from '$lib/teamColor.js';
 	import GoalMark from './GoalMark.svelte';
@@ -90,7 +90,7 @@
 				.slice()
 				.sort((a, b) => a.team_id - b.team_id)
 				.map((s) => ({
-					name: s.name,
+					name: teamName(s.name),
 					color: explicitTeamColor(s.color),
 					playerIds: s.members.map((m) => m.player_id)
 				}));

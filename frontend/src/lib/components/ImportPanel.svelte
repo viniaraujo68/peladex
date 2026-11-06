@@ -2,7 +2,7 @@
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
 	import { formatMatchdayDate, formatRate } from '$lib/format.svelte.js';
-	import { t } from '$lib/i18n.svelte.js';
+	import { t, teamName } from '$lib/i18n.svelte.js';
 	import Icon from './Icon.svelte';
 	import MatchRow from './MatchRow.svelte';
 
@@ -351,7 +351,7 @@
 							<tbody>
 								{#each day.standings as row (row.name)}
 									<tr>
-										<td class="font-semibold">{row.name}</td>
+										<td class="font-semibold">{teamName(row.name)}</td>
 										<td class="num">{row.played}</td>
 										<td class="num">{row.wins}</td>
 										<td class="num">{row.draws}</td>
@@ -369,7 +369,7 @@
 				<div class="lineups">
 					{#each day.teams as team (team.name)}
 						<div class="lineup">
-							<span class="lteam">{team.name}</span>
+							<span class="lteam">{teamName(team.name)}</span>
 							<span class="lnames">{team.players.join(' · ')}</span>
 						</div>
 					{/each}

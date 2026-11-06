@@ -1,4 +1,5 @@
 <script>
+	import { teamName } from '$lib/i18n.svelte.js';
 	import GoalMark from './GoalMark.svelte';
 	import TeamCrest from './TeamCrest.svelte';
 
@@ -36,13 +37,13 @@
 
 <div class="match">
 	<span class="side home" class:win={homeScore > awayScore}>
-		<TeamCrest name={homeName} color={homeColor} />
-		<span class="tname">{homeName}</span>
+		<TeamCrest name={teamName(homeName)} color={homeColor} />
+		<span class="tname">{teamName(homeName)}</span>
 	</span>
 	<span class="score">{homeScore}<i>x</i>{awayScore}</span>
 	<span class="side away" class:win={awayScore > homeScore}>
-		<span class="tname">{awayName}</span>
-		<TeamCrest name={awayName} color={awayColor} />
+		<span class="tname">{teamName(awayName)}</span>
+		<TeamCrest name={teamName(awayName)} color={awayColor} />
 	</span>
 	{#if showGoals && homeGoals.length + awayGoals.length > 0}
 		<span class="gcol home">

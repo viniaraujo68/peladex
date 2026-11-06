@@ -6,7 +6,7 @@
 		formatRate,
 		formatShortDate
 	} from '$lib/format.svelte.js';
-	import { t } from '$lib/i18n.svelte.js';
+	import { t, teamName } from '$lib/i18n.svelte.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 
 	const tracking = getTracking();
@@ -312,7 +312,7 @@
 									{/if}
 								</td>
 								<td class="font-medium">
-									{row.team_name}
+									{teamName(row.team_name)}
 									{#if row.champion}
 										<span class="tag champ" title={t('player.championBadge')}>
 											<Icon name="trophy" class="size-3" />

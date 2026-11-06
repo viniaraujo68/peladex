@@ -67,3 +67,30 @@ export function t(key, params) {
 	if (typeof value !== 'string') return key;
 	return interpolate(value, params);
 }
+
+/** @param {string} value */
+function foldWord(value) {
+	return value
+		.normalize('NFKD')
+		.replace(/[\u0300-\u036f]/g, '')
+		.toLowerCase()
+		.replace(/\s+/g, ' ')
+		.trim();
+}
+
+const TEAM_COLOR_WORDS = new Map(
+	Object.values(dicts).flatMap((dict) =>
+		Object.entries(dict)
+			.filter(([key, value]) => key.startsWith('teamColor.') && typeof value === 'string')
+			.map(([key, value]) => [foldWord(/** @type {string} */ (value)), key])
+	)
+);
+
+/**
+ * @param {string} name
+ * @returns {string}
+ */
+export function teamName(name) {
+	const key = TEAM_COLOR_WORDS.get(foldWord(name ?? ''));
+	return key ? t(key) : name;
+}

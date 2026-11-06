@@ -15,6 +15,7 @@ const PALETTE = {
 	bege: '#d8c8a4',
 	vinho: '#8c2740',
 	celeste: '#5fc4e8',
+	'sky blue': '#5fc4e8',
 	dourado: '#d2ac37',
 	prata: '#c3c7cc',
 	white: '#f2f3f5',

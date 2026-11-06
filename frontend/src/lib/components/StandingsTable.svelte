@@ -1,6 +1,6 @@
 <script>
 	import { formatRate } from '$lib/format.svelte.js';
-	import { t } from '$lib/i18n.svelte.js';
+	import { t, teamName } from '$lib/i18n.svelte.js';
 	import Icon from './Icon.svelte';
 	import TeamCrest from './TeamCrest.svelte';
 
@@ -42,8 +42,8 @@
 								{#if row.team_id === championTeamId}
 									<Icon name="trophy" class="size-4 shrink-0 text-[var(--ink-primary)]" />
 								{/if}
-								<TeamCrest name={row.name} color={row.color} class="size-4 shrink-0" />
-								{row.name}
+								<TeamCrest name={teamName(row.name)} color={row.color} class="size-4 shrink-0" />
+								{teamName(row.name)}
 							</span>
 						</td>
 						<td class="num">{row.played}</td>
@@ -67,7 +67,7 @@
 		<div class="lineups">
 			{#each standings as row (row.team_id)}
 				<div class="lineup">
-					<span class="lineup-team">{row.name}</span>
+					<span class="lineup-team">{teamName(row.name)}</span>
 					<span class="lineup-names">
 						{#each row.members as member, i (member.player_id)}
 							{#if playerHref}

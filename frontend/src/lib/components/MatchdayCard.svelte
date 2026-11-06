@@ -1,6 +1,6 @@
 <script>
 	import { formatMatchdayDate } from '$lib/format.svelte.js';
-	import { t } from '$lib/i18n.svelte.js';
+	import { t, teamName } from '$lib/i18n.svelte.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import Icon from './Icon.svelte';
 	import MatchRow from './MatchRow.svelte';
@@ -124,7 +124,7 @@
 		<div class="hl">
 			<span class="hl-label">{t('day.champion')}</span>
 			{#if champion}
-				<span class="hl-value"><Icon name="trophy" class="size-4" />{champion.name}</span>
+				<span class="hl-value"><Icon name="trophy" class="size-4" />{teamName(champion.name)}</span>
 			{:else}
 				<span class="hl-value muted">{t('day.noChampion')}</span>
 			{/if}
