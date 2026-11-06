@@ -1,18 +1,19 @@
 import random
+import secrets
 import sys
 from datetime import date, timedelta
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlmodel import Session, select  # noqa: E402
+from sqlmodel import Session, func, select  # noqa: E402
 
 from app import models, parser, schemas, writes  # noqa: E402
 from app.db import engine, init_db  # noqa: E402
 from app.security import hash_password  # noqa: E402
+from app.services import unique_slug  # noqa: E402
 
 OWNER_USERNAME = "vini"
-OWNER_PASSWORD = "pelada123"
 GROUP_NAME = "Pelada da Quinta"
 GROUP_DESCRIPTION = "Toda quinta, 19h, campo do Ze"
 VISIBILITY = "public"
@@ -30,7 +31,7 @@ MISSING_SCORER_CHANCE = 0.06
 ASSIST_CHANCE = 0.58
 TRACK_ASSISTS = True
 TEXT_OUTPUT = "peladas-demo.txt"
-APPLY = True
+APPLY = False
 
 ROSTER = [
     ("golin", 0.90, 0.95), ("galetti", 0.62, 0.30), ("galo", 0.70, 0.62),
@@ -189,77 +190,61 @@ def build_season() -> str:
 def main() -> None:
     text = build_season()
     Path(TEXT_OUTPUT).write_text(text, encoding="utf-8")
-    print(f"texto gerado em {TEXT_OUTPUT} ({len(text.splitlines())} linhas)")
+    print(f"text written to {TEXT_OUTPUT} ({len(text.splitlines())} lines)")
 
     result = parser.parse(text)
     errors = [i for i in result.issues if i.severity == "error"]
     warnings = [i for i in result.issues if i.severity == "warning"]
-    print(f"parser: {len(result.matchdays)} dias, {len(errors)} erros, {len(warnings)} avisos")
+    print(f"parser: {len(result.matchdays)} matchdays, {len(errors)} errors, "
+          f"{len(warnings)} warnings")
     for issue in errors[:10]:
-        print(f"  [erro] linha {issue.line}: {issue.message}")
+        print(f"  [error] line {issue.line}: {issue.message}")
     if errors:
-        sys.exit("texto gerado tem erros")
+        sys.exit("the generated text has errors")
     if not APPLY:
-        print("APPLY = False — nada gravado.")
+        print("APPLY = False, nothing written.")
         return
 
     init_db()
     with Session(engine) as db:
-        owner = db.exec(select(models.User).where(models.User.username == OWNER_USERNAME)).first()
-        if owner is None:
-            owner = models.User(
-                username=OWNER_USERNAME, password_hash=hash_password(OWNER_PASSWORD)
-            )
-            db.add(owner)
-            db.flush()
+        if db.exec(select(func.count()).select_from(models.User)).one():
+            sys.exit("the database already has users; the demo seed only runs on an empty database")
 
-        group = db.exec(select(models.Group).where(models.Group.name == GROUP_NAME)).first()
-        if group is None:
-            from app.services import unique_slug
+        password = secrets.token_urlsafe(16)
+        owner = models.User(username=OWNER_USERNAME, password_hash=hash_password(password))
+        db.add(owner)
+        db.flush()
 
-            group = models.Group(
-                name=GROUP_NAME,
-                slug=unique_slug(db, GROUP_NAME),
-                description=GROUP_DESCRIPTION,
-                visibility=VISIBILITY,
-                track_assists=TRACK_ASSISTS,
-            )
-            db.add(group)
-            db.flush()
-            db.add(models.GroupOwner(group_id=group.id, user_id=owner.id))
-            db.flush()
+        group = models.Group(
+            name=GROUP_NAME,
+            slug=unique_slug(db, GROUP_NAME),
+            description=GROUP_DESCRIPTION,
+            visibility=VISIBILITY,
+            track_assists=TRACK_ASSISTS,
+        )
+        db.add(group)
+        db.flush()
+        db.add(models.GroupOwner(group_id=group.id, user_id=owner.id))
+        db.flush()
 
-        players: dict[str, models.Player] = {
-            parser.normalize(p.name): p
-            for p in db.exec(
-                select(models.Player).where(models.Player.group_id == group.id)
-            ).all()
-        }
+        players: dict[str, models.Player] = {}
         for name in result.new_players:
-            key = parser.normalize(name)
-            if key in players:
-                continue
             player = models.Player(group_id=group.id, name=name)
             db.add(player)
             db.flush()
-            players[key] = player
+            players[parser.normalize(name)] = player
 
         venues: dict[str, models.Venue] = {}
-        written = 0
         for day in result.matchdays:
             venue_id = None
             if day.venue:
                 key = parser.normalize(day.venue)
-                venue = venues.get(key) or db.exec(
-                    select(models.Venue).where(
-                        models.Venue.group_id == group.id, models.Venue.name == day.venue
-                    )
-                ).first()
+                venue = venues.get(key)
                 if venue is None:
                     venue = models.Venue(group_id=group.id, name=day.venue)
                     db.add(venue)
                     db.flush()
-                venues[key] = venue
+                    venues[key] = venue
                 venue_id = venue.id
 
             mvp = players.get(parser.normalize(day.mvp)) if day.mvp else None
@@ -298,16 +283,15 @@ def main() -> None:
             )
             writes.validate_payload(db, group.id, payload)
             writes.apply_payload(db, models.Matchday(group_id=group.id, date=day.date), payload)
-            written += 1
 
-        if group.default_venue_id is None and venues:
-            first = sorted(venues.values(), key=lambda v: v.name)[0]
-            group.default_venue_id = first.id
+        if venues:
+            group.default_venue_id = sorted(venues.values(), key=lambda v: v.name)[0].id
             db.add(group)
 
         db.commit()
-        print(f"{written} dias gravados em '{group.name}' (slug: {group.slug})")
-        print(f"login: {OWNER_USERNAME} / {OWNER_PASSWORD}")
+        print(f"{len(result.matchdays)} matchdays written to '{group.name}' (slug: {group.slug})")
+        print(f"login: {OWNER_USERNAME} / {password}")
+        print("this password is shown only once")
 
 
 if __name__ == "__main__":

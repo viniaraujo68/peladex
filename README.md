@@ -158,7 +158,8 @@ time, MVP fora da escalação.
 Para backfill em lote existe `backend/scripts/import_text.py`, configurado por constantes
 no topo do arquivo (com `APPLY = False` por padrão, que só relata). E
 `backend/scripts/seed_demo.py` gera uma temporada inteira de mentira nesse mesmo formato,
-para ver o app cheio.
+para ver o app cheio. Ele também vem com `APPLY = False`, só grava num banco **sem nenhum
+usuário** e cria a conta dona com uma senha aleatória, impressa uma única vez no fim.
 
 ## O que o grupo escolhe anotar
 
