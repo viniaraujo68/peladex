@@ -130,6 +130,13 @@
 	);
 	let fileInput = $state(/** @type {HTMLInputElement|undefined} */ (undefined));
 
+	/** @param {import('$lib/types.js').ImportIssue} issue */
+	function issueMessage(issue) {
+		const key = `importIssue.${issue.code}`;
+		const message = t(key, issue.params);
+		return message === key ? issue.message : message;
+	}
+
 	const errors = $derived(preview ? preview.issues.filter((i) => i.severity === 'error') : []);
 	const warnings = $derived(preview ? preview.issues.filter((i) => i.severity === 'warning') : []);
 	const existingCount = $derived(
@@ -279,7 +286,7 @@
 								{#if issue.line > 0}
 									<b>{t('import.line', { line: issue.line })}</b>
 								{/if}
-								{issue.message}
+								{issueMessage(issue)}
 								{#if issue.text}<code>{issue.text}</code>{/if}
 							</span>
 						</li>

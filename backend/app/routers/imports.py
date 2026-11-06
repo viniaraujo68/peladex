@@ -17,7 +17,7 @@ router = APIRouter(prefix="/api/groups/{group_id}", tags=["import"])
 def _issues(result: parser.ParseResult) -> list[schemas.ImportIssueOut]:
     return [
         schemas.ImportIssueOut(line=i.line, severity=i.severity, code=i.code,
-                               message=i.message, text=i.text)
+                               message=i.message, text=i.text, params=i.params)
         for i in result.issues
     ]
 

@@ -55,16 +55,53 @@ def _clip(value: str) -> str:
     return value[: MAX_ISSUE_TEXT_LENGTH - 1] + "…"
 
 
+ISSUE_MESSAGES = {
+    "venue_name_too_long": "The venue name is longer than {limit} characters.",
+    "missing_team_name": "The team name is missing before the colon.",
+    "team_name_too_long": "The team name is longer than {limit} characters.",
+    "duplicate_team": "Team \u201c{team}\u201d was lined up twice on the same day.",
+    "too_many_teams": "A matchday takes at most {limit} teams.",
+    "name_too_long": "A player name in {team} is longer than {limit} characters.",
+    "player_in_two_teams": "\u201c{player}\u201d is lined up in {team} and in {other_team}.",
+    "duplicate_player": "\u201c{player}\u201d appears twice in {team}.",
+    "too_many_players": "Team \u201c{team}\u201d has more than {limit} players.",
+    "unknown_team": "Team \u201c{team}\u201d was not lined up on this day.",
+    "same_team_twice": "{team} cannot play against itself.",
+    "bad_goal_count": "\u201c{value}\u201d is not a valid goal count.",
+    "stray_assist": "\u201c{value}\u201d looks like an assist but does not follow a scorer.",
+    "unknown_scorer": "\u201c{player}\u201d scored but is not lined up on this day.",
+    "scorer_off_match": "\u201c{player}\u201d scored in {home} x {away}, but plays for {team}.",
+    "too_many_goals": "{home} {home_score}x{away_score} {away}: more goals were written than the score.",
+    "own_goal_assist": "An own goal by \u201c{player}\u201d cannot have an assist; the one by \u201c{assist}\u201d was ignored.",
+    "unknown_assist": "\u201c{player}\u201d assisted but is not lined up on this day.",
+    "self_assist": "\u201c{player}\u201d cannot assist their own goal.",
+    "assist_other_team": "\u201c{assist}\u201d does not play on the same team as \u201c{player}\u201d, so the assist was ignored.",
+    "missing_date": "This matchday has no date. Start the block with a date line.",
+    "no_teams": "No team was lined up on this day.",
+    "notes_too_long": "The matchday notes are longer than {limit} characters.",
+    "goal_count_mismatch": "{home} {home_score}x{away_score} {away}: {expected} goal(s) in the score, {scored} scorer(s) written.",
+    "goal_side_mismatch": "{home} {home_score}x{away_score} {away}: the scorers add up to {home_scored}x{away_scored}.",
+    "mvp_not_playing": "MVP \u201c{player}\u201d is not lined up on this day.",
+    "bad_date": "Could not read the date \u201c{value}\u201d.",
+    "outside_matchday": "Line outside a matchday.",
+    "unexpected_line": "Could not understand this line.",
+    "empty": "No matchday found in the text.",
+    "too_many_issues": "And {count} more problem(s) from here on.",
+}
+
+
 @dataclass
 class ParseIssue:
     line: int
     severity: str
     code: str
-    message: str
     text: str = ""
+    params: dict[str, str | int] = field(default_factory=dict)
+    message: str = field(init=False)
 
     def __post_init__(self) -> None:
-        self.message = _clip(self.message)
+        self.params = {k: _clip(v) if isinstance(v, str) else v for k, v in self.params.items()}
+        self.message = _clip(ISSUE_MESSAGES[self.code].format(**self.params))
         self.text = _clip(self.text)
 
 
@@ -200,6 +237,11 @@ def split_names(text: str, lookup: dict[str, str]) -> list[str]:
     return _greedy_split(text, lookup)
 
 
+def _score_params(match: ParsedMatch) -> dict[str, str | int]:
+    return {"home": match.home_team, "away": match.away_team,
+            "home_score": match.home_score, "away_score": match.away_score}
+
+
 class _MatchdayBuilder:
     def __init__(self, line: int, known_players: dict[str, str]):
         self.day = ParsedMatchday(line=line)
@@ -209,8 +251,8 @@ class _MatchdayBuilder:
         self.issues: list[ParseIssue] = []
         self.new_players: list[str] = []
 
-    def issue(self, line: int, severity: str, code: str, message: str, text: str = "") -> None:
-        self.issues.append(ParseIssue(line, severity, code, message, text))
+    def issue(self, line: int, severity: str, code: str, text: str = "", **params: str | int) -> None:
+        self.issues.append(ParseIssue(line, severity, code, text, params))
 
     def canonical_player(self, raw: str) -> str:
         key = normalize(raw)
@@ -222,28 +264,24 @@ class _MatchdayBuilder:
 
     def set_venue(self, line: int, value: str, text: str) -> None:
         if len(value) > MAX_NAME_LENGTH:
-            self.issue(line, SEVERITY_ERROR, "name_too_long",
-                       f"O nome do local passa de {MAX_NAME_LENGTH} caracteres.", text)
+            self.issue(line, SEVERITY_ERROR, "venue_name_too_long", text, limit=MAX_NAME_LENGTH)
             return
         self.day.venue = value or None
 
     def add_team(self, line: int, name: str, body: str, text: str) -> None:
         name = display_name(name)
         if not name:
-            self.issue(line, SEVERITY_ERROR, "missing_team_name",
-                       "Falta o nome do time antes dos dois-pontos.", text)
+            self.issue(line, SEVERITY_ERROR, "missing_team_name", text)
             return
         if len(name) > MAX_TEAM_NAME_LENGTH:
-            self.issue(line, SEVERITY_ERROR, "team_name_too_long",
-                       f"O nome do time passa de {MAX_TEAM_NAME_LENGTH} caracteres.", text)
+            self.issue(line, SEVERITY_ERROR, "team_name_too_long", text,
+                       limit=MAX_TEAM_NAME_LENGTH)
             return
         if any(normalize(t.name) == normalize(name) for t in self.day.teams):
-            self.issue(line, SEVERITY_ERROR, "duplicate_team",
-                       f"O time “{name}” foi escalado duas vezes no mesmo dia.", text)
+            self.issue(line, SEVERITY_ERROR, "duplicate_team", text, team=name)
             return
         if len(self.day.teams) >= MAX_MATCHDAY_TEAMS:
-            self.issue(line, SEVERITY_ERROR, "too_many_teams",
-                       f"Um dia aceita no máximo {MAX_MATCHDAY_TEAMS} times.", text)
+            self.issue(line, SEVERITY_ERROR, "too_many_teams", text, limit=MAX_MATCHDAY_TEAMS)
             return
         team = ParsedTeam(line=line, name=name)
         keys: set[str] = set()
@@ -253,21 +291,20 @@ class _MatchdayBuilder:
             if not key:
                 continue
             if len(player) > MAX_NAME_LENGTH:
-                self.issue(line, SEVERITY_ERROR, "name_too_long",
-                           f"Um nome de jogador em {name} passa de {MAX_NAME_LENGTH} caracteres.",
-                           text)
+                self.issue(line, SEVERITY_ERROR, "name_too_long", text,
+                           team=name, limit=MAX_NAME_LENGTH)
                 continue
             if key in self.team_of:
-                self.issue(line, SEVERITY_ERROR, "player_in_two_teams",
-                           f"“{player}” está escalado em {self.team_of[key]} e em {name}.", text)
+                self.issue(line, SEVERITY_ERROR, "player_in_two_teams", text,
+                           player=player, team=self.team_of[key], other_team=name)
                 continue
             if key in keys:
-                self.issue(line, SEVERITY_WARNING, "duplicate_player",
-                           f"“{player}” aparece duas vezes em {name}.", text)
+                self.issue(line, SEVERITY_WARNING, "duplicate_player", text,
+                           player=player, team=name)
                 continue
             if len(team.players) >= MAX_TEAM_PLAYERS:
-                self.issue(line, SEVERITY_ERROR, "too_many_players",
-                           f"O time “{name}” passa de {MAX_TEAM_PLAYERS} jogadores.", text)
+                self.issue(line, SEVERITY_ERROR, "too_many_players", text,
+                           team=name, limit=MAX_TEAM_PLAYERS)
                 break
             if key not in self.known and key not in self.roster:
                 self.new_players.append(player)
@@ -296,12 +333,10 @@ class _MatchdayBuilder:
         away_name = self.find_team(away)
         if home_name is None or away_name is None:
             missing = home if home_name is None else away
-            self.issue(line, SEVERITY_ERROR, "unknown_team",
-                       f"O time “{missing.strip()}” não foi escalado neste dia.", text)
+            self.issue(line, SEVERITY_ERROR, "unknown_team", text, team=missing.strip())
             return None
         if home_name == away_name:
-            self.issue(line, SEVERITY_ERROR, "same_team_twice",
-                       f"{home_name} não pode jogar contra ele mesmo.", text)
+            self.issue(line, SEVERITY_ERROR, "same_team_twice", text, team=home_name)
             return None
         match = ParsedMatch(line=line, home_team=home_name, away_team=away_name,
                             home_score=hs, away_score=away_score)
@@ -343,17 +378,15 @@ class _MatchdayBuilder:
                     pending_own_goal = True
             elif marker.isdigit():
                 if not GOAL_COUNT_RE.fullmatch(marker):
-                    self.issue(line, SEVERITY_ERROR, "bad_goal_count",
-                               f"\u201c{annotation.strip()}\u201d n\u00e3o \u00e9 uma "
-                               f"quantidade de gols v\u00e1lida.", text)
+                    self.issue(line, SEVERITY_ERROR, "bad_goal_count", text,
+                               value=annotation.strip())
                 elif entries:
                     entries[-1]["count"] = int(marker)
             elif marker and entries:
                 entries[-1]["assist"] = annotation.strip()
             elif marker:
-                self.issue(line, SEVERITY_WARNING, "stray_assist",
-                           f"\u201c{annotation.strip()}\u201d aparece como assist\u00eancia "
-                           f"mas n\u00e3o vem depois de um artilheiro.", text)
+                self.issue(line, SEVERITY_WARNING, "stray_assist", text,
+                           value=annotation.strip())
 
         for entry in entries:
             name_part = entry["name"]
@@ -362,14 +395,11 @@ class _MatchdayBuilder:
             if resolved is None:
                 resolved = self.roster.get(key)
                 if resolved is None:
-                    self.issue(line, SEVERITY_WARNING, "unknown_scorer",
-                               f"\u201c{name_part}\u201d marcou gol mas n\u00e3o est\u00e1 "
-                               f"escalado neste dia.", text)
+                    self.issue(line, SEVERITY_WARNING, "unknown_scorer", text, player=name_part)
                     continue
-                self.issue(line, SEVERITY_WARNING, "scorer_off_match",
-                           f"\u201c{resolved}\u201d marcou em {match.home_team} x "
-                           f"{match.away_team}, mas joga em "
-                           f"{self.team_of.get(key, '?')}.", text)
+                self.issue(line, SEVERITY_WARNING, "scorer_off_match", text,
+                           player=resolved, home=match.home_team, away=match.away_team,
+                           team=self.team_of.get(key, "?"))
             scorer_team = self.team_of.get(normalize(resolved), match.home_team)
             if entry["own_goal"]:
                 credited = match.away_team if scorer_team == match.home_team else match.home_team
@@ -378,10 +408,8 @@ class _MatchdayBuilder:
 
             assist = self.resolve_assist(line, entry, resolved, scorer_team, pool, text)
             if len(match.goals) + entry["count"] > match.home_score + match.away_score:
-                self.issue(line, SEVERITY_ERROR, "too_many_goals",
-                           f"{match.home_team} {match.home_score}x{match.away_score} "
-                           f"{match.away_team}: h\u00e1 mais gols anotados do que o placar.",
-                           text)
+                self.issue(line, SEVERITY_ERROR, "too_many_goals", text,
+                           **_score_params(match))
                 return
             for _ in range(entry["count"]):
                 match.goals.append(ParsedGoal(player=resolved, team=credited,
@@ -393,40 +421,31 @@ class _MatchdayBuilder:
         if raw is None:
             return None
         if entry["own_goal"]:
-            self.issue(line, SEVERITY_WARNING, "own_goal_assist",
-                       f"Gol contra de \u201c{scorer}\u201d n\u00e3o pode ter "
-                       f"assist\u00eancia \u2014 a de \u201c{raw}\u201d foi ignorada.", text)
+            self.issue(line, SEVERITY_WARNING, "own_goal_assist", text,
+                       player=scorer, assist=raw)
             return None
         key = normalize(raw)
         resolved = pool.get(key) or self.roster.get(key)
         if resolved is None:
-            self.issue(line, SEVERITY_WARNING, "unknown_assist",
-                       f"\u201c{raw}\u201d deu assist\u00eancia mas n\u00e3o est\u00e1 "
-                       f"escalado neste dia.", text)
+            self.issue(line, SEVERITY_WARNING, "unknown_assist", text, player=raw)
             return None
         if normalize(resolved) == normalize(scorer):
-            self.issue(line, SEVERITY_WARNING, "self_assist",
-                       f"\u201c{scorer}\u201d n\u00e3o pode dar assist\u00eancia para "
-                       f"si mesmo.", text)
+            self.issue(line, SEVERITY_WARNING, "self_assist", text, player=scorer)
             return None
         assist_team = self.team_of.get(normalize(resolved))
         if assist_team != scorer_team:
-            self.issue(line, SEVERITY_WARNING, "assist_other_team",
-                       f"\u201c{resolved}\u201d n\u00e3o joga no mesmo time de "
-                       f"\u201c{scorer}\u201d, ent\u00e3o a assist\u00eancia foi ignorada.", text)
+            self.issue(line, SEVERITY_WARNING, "assist_other_team", text,
+                       assist=resolved, player=scorer)
             return None
         return resolved
 
     def finish(self) -> ParsedMatchday:
         if self.day.date is None:
-            self.issue(self.day.line, SEVERITY_ERROR, "missing_date",
-                       "Este dia não tem data. Comece o bloco com uma linha de data.")
+            self.issue(self.day.line, SEVERITY_ERROR, "missing_date")
         if not self.day.teams:
-            self.issue(self.day.line, SEVERITY_ERROR, "no_teams",
-                       "Nenhum time foi escalado neste dia.")
+            self.issue(self.day.line, SEVERITY_ERROR, "no_teams")
         if len(self.day.notes) > MAX_NOTES_LENGTH:
-            self.issue(self.day.line, SEVERITY_ERROR, "notes_too_long",
-                       f"As observações do dia passam de {MAX_NOTES_LENGTH} caracteres.")
+            self.issue(self.day.line, SEVERITY_ERROR, "notes_too_long", limit=MAX_NOTES_LENGTH)
         for match in self.day.matches:
             scored = {match.home_team: 0, match.away_team: 0}
             for goal in match.goals:
@@ -435,21 +454,18 @@ class _MatchdayBuilder:
             expected = match.home_score + match.away_score
             if match.goals and len(match.goals) != expected:
                 self.issue(match.line, SEVERITY_WARNING, "goal_count_mismatch",
-                           f"{match.home_team} {match.home_score}x{match.away_score} "
-                           f"{match.away_team}: {expected} gol(s) no placar, "
-                           f"{len(match.goals)} artilheiro(s) anotado(s).")
+                           **_score_params(match), expected=expected, scored=len(match.goals))
             elif match.goals and (scored[match.home_team] != match.home_score
                                   or scored[match.away_team] != match.away_score):
                 self.issue(match.line, SEVERITY_WARNING, "goal_side_mismatch",
-                           f"{match.home_team} {match.home_score}x{match.away_score} "
-                           f"{match.away_team}: os artilheiros somam "
-                           f"{scored[match.home_team]}x{scored[match.away_team]}.")
+                           **_score_params(match), home_scored=scored[match.home_team],
+                           away_scored=scored[match.away_team])
         if self.day.mvp:
             self.day.mvp = self.canonical_player(self.day.mvp)
             key = normalize(self.day.mvp)
             if key not in self.team_of:
                 self.issue(self.day.line, SEVERITY_WARNING, "mvp_not_playing",
-                           f"O MVP “{self.day.mvp}” não está escalado neste dia.")
+                           player=self.day.mvp)
         return self.day
 
 
@@ -511,8 +527,7 @@ def parse(text: str, known_players: list[str] | None = None,
             elif head_key in RESERVED_DATE:
                 parsed = parse_date_token(value, year_hint)
                 if parsed is None:
-                    builder.issue(index, SEVERITY_ERROR, "bad_date",
-                                  f"Não consegui ler a data “{value}”.", line)
+                    builder.issue(index, SEVERITY_ERROR, "bad_date", line, value=value)
                 else:
                     builder.day.date = parsed
                     builder.day.raw_date = value
@@ -546,17 +561,14 @@ def parse(text: str, known_players: list[str] | None = None,
             continue
 
         if builder is None:
-            result.issues.append(ParseIssue(index, SEVERITY_ERROR, "unexpected_line",
-                                            "Linha fora de um dia de pelada.", line))
+            result.issues.append(ParseIssue(index, SEVERITY_ERROR, "outside_matchday", line))
         else:
-            builder.issue(index, SEVERITY_ERROR, "unexpected_line",
-                          "Não entendi esta linha.", line)
+            builder.issue(index, SEVERITY_ERROR, "unexpected_line", line)
 
     close()
 
     if not result.matchdays:
-        result.issues.append(ParseIssue(0, SEVERITY_ERROR, "empty",
-                                        "Nenhum dia de pelada encontrado no texto."))
+        result.issues.append(ParseIssue(0, SEVERITY_ERROR, "empty"))
     result.issues.sort(key=lambda i: (i.line, i.severity))
     if len(result.issues) > MAX_ISSUES:
         dropped = result.issues[MAX_ISSUES:]
@@ -564,5 +576,5 @@ def parse(text: str, known_players: list[str] | None = None,
         severity = (SEVERITY_ERROR if any(i.severity == SEVERITY_ERROR for i in dropped)
                     else SEVERITY_WARNING)
         result.issues.append(ParseIssue(dropped[0].line, severity, "too_many_issues",
-                                        f"E mais {len(dropped)} problema(s) a partir daqui."))
+                                        params={"count": len(dropped)}))
     return result

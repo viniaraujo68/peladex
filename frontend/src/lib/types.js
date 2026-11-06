@@ -380,6 +380,7 @@
  * @property {string} code
  * @property {string} message
  * @property {string} text
+ * @property {Record<string, string|number>} params
  */
 
 /**

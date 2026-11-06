@@ -451,6 +451,7 @@ class ImportIssueOut(BaseModel):
     code: str
     message: str
     text: str = ""
+    params: dict[str, str | int] = {}
 
 
 class ImportGoalPreview(BaseModel):

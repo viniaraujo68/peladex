@@ -169,3 +169,10 @@ def test_the_import_routes_are_rate_limited(api, group, rate_limits, path):
     ]
     assert 429 in statuses
 
+
+def test_issues_carry_their_parameters_for_translation(api, group):
+    r = preview(api, group, "2026-09-16\nAZUL: ana\nBRANCO: bia\nAZUL 1x0 ROXO\n")
+    assert r.status_code == 200
+    issue = next(i for i in r.json()["issues"] if i["code"] == "unknown_team")
+    assert issue["params"] == {"team": "ROXO"}
+    assert issue["message"] == "Team “ROXO” was not lined up on this day."

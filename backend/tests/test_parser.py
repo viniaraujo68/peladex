@@ -194,8 +194,8 @@ def test_a_comma_free_team_line_matches_known_names_up_to_the_token_cap():
 
 @pytest.mark.parametrize("text,code", [
     ("2026-09-16\nAZUL: " + "x" * 81 + ", ana\nBRANCO: bia\n", "name_too_long"),
-    ("2026-09-16\nLocal: " + "c" * 81 + "\nAZUL: ana\nBRANCO: bia\n", "name_too_long"),
-    ("2026-09-16 @ " + "c" * 81 + "\nAZUL: ana\nBRANCO: bia\n", "name_too_long"),
+    ("2026-09-16\nLocal: " + "c" * 81 + "\nAZUL: ana\nBRANCO: bia\n", "venue_name_too_long"),
+    ("2026-09-16 @ " + "c" * 81 + "\nAZUL: ana\nBRANCO: bia\n", "venue_name_too_long"),
     ("2026-09-16\n" + "t" * 41 + ": ana\nBRANCO: bia\n", "team_name_too_long"),
     ("2026-09-16\n: ana\nBRANCO: bia\n", "missing_team_name"),
     ("2026-09-16\nAZUL: ana\nBRANCO: bia\nObs: " + "n" * 2001 + "\n", "notes_too_long"),
