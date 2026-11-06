@@ -383,7 +383,7 @@ mexa no schema.
 |---|---|---|
 | `PORT` | `3000` | Porta do servidor Node (adapter-node) |
 | `ORIGIN` | — | URL pública; o adapter-node precisa dela para links absolutos |
-| `PELADEX_API_INTERNAL_URL` | `http://backend:8000` | Onde o **SSR** busca a API |
+| `PELADEX_API_INTERNAL_URL` | `http://peladex-backend:8000` | Onde o **SSR** busca a API (o alias único na rede `web`, não o nome genérico `backend`) |
 
 ## Licença
 

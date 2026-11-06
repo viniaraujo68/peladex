@@ -22,7 +22,7 @@ export async function handle({ event, resolve }) {
 	});
 }
 
-const FALLBACK_BASE = dev ? 'http://localhost:8000' : 'http://backend:8000';
+const FALLBACK_BASE = dev ? 'http://localhost:8000' : 'http://peladex-backend:8000';
 
 function apiBase() {
 	return (env.PELADEX_API_INTERNAL_URL || FALLBACK_BASE).replace(/\/+$/, '');
