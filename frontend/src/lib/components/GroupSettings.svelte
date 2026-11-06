@@ -253,14 +253,14 @@
 		<h3 class="stitle">{t('settings.group')}</h3>
 		<div class="block">
 			<label class="blabel" for="s-name">{t('common.name')}</label>
-			<input id="s-name" class="input w-full" bind:value={name} />
+			<input id="s-name" class="input w-full" maxlength="80" bind:value={name} />
 			{#if name.trim() && name !== group.name}
 				<span class="hint">{t('settings.renameMovesLink')}</span>
 			{/if}
 		</div>
 		<div class="block">
 			<label class="blabel" for="s-desc">{t('common.description')}</label>
-			<input id="s-desc" class="input w-full" bind:value={description} />
+			<input id="s-desc" class="input w-full" maxlength="500" bind:value={description} />
 		</div>
 		<div class="block">
 			<span class="blabel">{t('group.visibility')}</span>

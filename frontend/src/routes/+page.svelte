@@ -132,14 +132,21 @@
 					{t('group.nameLabel')}
 				</label>
 				<!-- svelte-ignore a11y_autofocus -->
-				<input id="g-name" class="input w-full" bind:value={name} autofocus required />
+				<input
+					id="g-name"
+					class="input w-full"
+					maxlength="80"
+					bind:value={name}
+					autofocus
+					required
+				/>
 			</div>
 			<div class="flex flex-col gap-1.5">
 				<label class="text-xs font-medium text-base-content/80" for="g-desc">
 					{t('common.description')}
 					<span class="font-normal text-base-content/65">{t('common.optional')}</span>
 				</label>
-				<input id="g-desc" class="input w-full" bind:value={description} />
+				<input id="g-desc" class="input w-full" maxlength="500" bind:value={description} />
 			</div>
 			<div class="flex flex-col gap-1.5">
 				<span class="text-xs font-medium text-base-content/80" id="vis-label">

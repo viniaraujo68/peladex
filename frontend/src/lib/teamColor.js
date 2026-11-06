@@ -38,6 +38,8 @@ const PALETTE = {
 
 const FALLBACK = ['#2f6fe0', '#e0453f', '#2f9e51', '#efc033', '#8a5cf0', '#ee7f2c'];
 
+const HEX_COLOR = /^#[0-9a-f]{6}$/i;
+
 /** @param {string} value */
 function strip(value) {
 	return value
@@ -48,12 +50,20 @@ function strip(value) {
 }
 
 /**
+ * @param {string | null | undefined} value
+ * @returns {string}
+ */
+export function explicitTeamColor(value) {
+	return value && HEX_COLOR.test(value) ? value : '';
+}
+
+/**
  * @param {string} name
  * @param {string} [explicit]
  * @returns {string}
  */
 export function teamColor(name, explicit = '') {
-	if (explicit) return explicit;
+	if (explicitTeamColor(explicit)) return explicit;
 	const key = strip(name ?? '');
 	if (PALETTE[key]) return PALETTE[key];
 	for (const word of key.split(/\s+/)) {

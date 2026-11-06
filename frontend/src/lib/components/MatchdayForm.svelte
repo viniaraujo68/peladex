@@ -6,6 +6,7 @@
 	import { post, errorMessage } from '$lib/http.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import { nextMatch } from '$lib/rotation.js';
+	import { explicitTeamColor } from '$lib/teamColor.js';
 	import GoalMark from './GoalMark.svelte';
 	import Icon from './Icon.svelte';
 	import TeamCrest from './TeamCrest.svelte';
@@ -41,6 +42,9 @@
 
 	const DEFAULT_TEAM_COLORS = ['black', 'white', 'red'];
 	const TEAM_COLORS = [...DEFAULT_TEAM_COLORS, 'blue', 'green', 'yellow', 'gray'];
+	const MAX_TEAMS = 20;
+	const MAX_TEAM_PLAYERS = 40;
+	const MAX_NOTES_LENGTH = 2000;
 
 	/** @param {string} color */
 	function colorName(color) {
@@ -87,7 +91,7 @@
 				.sort((a, b) => a.team_id - b.team_id)
 				.map((s) => ({
 					name: s.name,
-					color: s.color,
+					color: explicitTeamColor(s.color),
 					playerIds: s.members.map((m) => m.player_id)
 				}));
 		}
@@ -476,6 +480,13 @@
 		const names = teams.map((team) => tidyName(team.name)).filter(Boolean);
 		if (new Set(names).size !== names.length) found.push(t('day.duplicateTeamName'));
 		if (matches.some((m) => m.home === m.away)) found.push(t('day.sameTeamTwice'));
+		if (teams.length > MAX_TEAMS) found.push(t('day.tooManyTeams', { max: MAX_TEAMS }));
+		if (teams.some((team) => team.playerIds.length > MAX_TEAM_PLAYERS)) {
+			found.push(t('day.tooManyPlayers', { max: MAX_TEAM_PLAYERS }));
+		}
+		if (matches.some((m) => m.goals.length > m.homeScore + m.awayScore)) {
+			found.push(t('day.tooManyGoals'));
+		}
 		return found;
 	});
 
@@ -546,7 +557,7 @@
 		notes = s.notes ?? '';
 		teams = (s.teams ?? []).map((/** @type {TeamDraft} */ team) => ({
 			name: team.name ?? '',
-			color: team.color ?? '',
+			color: explicitTeamColor(team.color),
 			playerIds: [...(team.playerIds ?? [])]
 		}));
 		matches = (s.matches ?? []).map((/** @type {MatchDraft} */ m) => ({
@@ -762,6 +773,7 @@
 				class="textarea w-full"
 				rows="2"
 				placeholder={t('day.notesPlaceholder')}
+				maxlength={MAX_NOTES_LENGTH}
 				bind:value={notes}
 			></textarea>
 		</div>
@@ -770,7 +782,14 @@
 	<section class="card flex flex-col gap-4 bg-base-100 p-5">
 		<div class="sec-head">
 			<h2 class="stitle">{t('day.teams')}</h2>
-			<button type="button" class="btn btn-sm" onclick={addTeam}>{t('day.addTeam')}</button>
+			<button
+				type="button"
+				class="btn btn-sm"
+				disabled={teams.length >= MAX_TEAMS}
+				onclick={addTeam}
+			>
+				{t('day.addTeam')}
+			</button>
 		</div>
 
 		<div class="teamtabs" role="group" aria-label={t('day.teams')}>
