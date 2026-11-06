@@ -84,3 +84,9 @@ def test_login_still_works_with_registration_closed(api, client, monkeypatch):
     monkeypatch.setattr(settings, "allow_registration", False)
     r = client.post("/api/auth/login", json={"username": api.username, "password": PASSWORD})
     assert r.status_code == 200
+
+
+def test_an_oversized_current_password_is_refused_before_hashing(api):
+    r = api.post("/api/auth/change-password",
+                 json={"current_password": "x" * 201, "new_password": "novasenha"})
+    assert r.status_code == 422

@@ -58,6 +58,9 @@ def validate_payload(db: DBSession, group_id: int, body: schemas.MatchdayCreate)
         if match.home_team_index == match.away_team_index:
             raise api_error(status.HTTP_400_BAD_REQUEST, "same_team_twice",
                             "Um time não pode jogar contra ele mesmo")
+        if len(match.goals) > match.home_score + match.away_score:
+            raise api_error(status.HTTP_400_BAD_REQUEST, "too_many_goals",
+                            "The match lists more goals than its score")
         for goal in match.goals:
             if goal.player_id not in seen:
                 raise api_error(status.HTTP_400_BAD_REQUEST, "scorer_not_playing",

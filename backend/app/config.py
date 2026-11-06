@@ -19,6 +19,7 @@ class Settings(BaseSettings):
     rate_limit_login: str = "5/minute"
     rate_limit_register: str = "3/minute"
     rate_limit_public: str = "30/minute"
+    rate_limit_import: str = "20/minute"
 
 
 settings = Settings()

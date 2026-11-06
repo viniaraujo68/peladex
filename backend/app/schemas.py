@@ -3,16 +3,26 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from .parser import display_name
+from .parser import (
+    MAX_MATCHDAY_TEAMS,
+    MAX_NAME_LENGTH,
+    MAX_NOTES_LENGTH,
+    MAX_TEAM_NAME_LENGTH,
+    MAX_TEAM_PLAYERS,
+    display_name,
+)
 
 MAX_SCORE = 99
+MAX_PASSWORD_LENGTH = 200
+MAX_DESCRIPTION_LENGTH = 500
+TEAM_COLOR_PATTERN = r"^(#[0-9a-fA-F]{6})?$"
 
 StandingsOrder = Literal["points", "win_rate"]
 
 
 class Credentials(BaseModel):
     username: str = Field(min_length=3, max_length=40)
-    password: str = Field(min_length=6, max_length=200)
+    password: str = Field(min_length=6, max_length=MAX_PASSWORD_LENGTH)
 
 
 class UserOut(BaseModel):
@@ -21,19 +31,19 @@ class UserOut(BaseModel):
 
 
 class PasswordChange(BaseModel):
-    current_password: str = Field(min_length=1)
-    new_password: str = Field(min_length=6, max_length=200)
+    current_password: str = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
+    new_password: str = Field(min_length=6, max_length=MAX_PASSWORD_LENGTH)
 
 
 class GroupCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=80)
-    description: str = ""
+    name: str = Field(min_length=1, max_length=MAX_NAME_LENGTH)
+    description: str = Field(default="", max_length=MAX_DESCRIPTION_LENGTH)
     visibility: str = "private"
 
 
 class GroupUpdate(BaseModel):
-    name: str | None = None
-    description: str | None = None
+    name: str | None = Field(default=None, min_length=1, max_length=MAX_NAME_LENGTH)
+    description: str | None = Field(default=None, max_length=MAX_DESCRIPTION_LENGTH)
     visibility: str | None = None
     win_points: int | None = Field(default=None, ge=0, le=10)
     draw_points: int | None = Field(default=None, ge=0, le=10)
@@ -66,7 +76,7 @@ class GroupOut(BaseModel):
 
 
 class NamedCreate(BaseModel):
-    name: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=MAX_NAME_LENGTH)
 
 
 class PlayerCreate(NamedCreate):
@@ -88,7 +98,7 @@ class PlayerOut(BaseModel):
 
 
 class PlayerUpdate(BaseModel):
-    name: str | None = Field(default=None, min_length=1, max_length=80)
+    name: str | None = Field(default=None, min_length=1, max_length=MAX_NAME_LENGTH)
     active: bool | None = None
 
     @field_validator("name")
@@ -108,13 +118,13 @@ class MatchIn(BaseModel):
     away_team_index: int = Field(ge=0)
     home_score: int = Field(default=0, ge=0, le=MAX_SCORE)
     away_score: int = Field(default=0, ge=0, le=MAX_SCORE)
-    goals: list[GoalIn] = []
+    goals: list[GoalIn] = Field(default=[], max_length=2 * MAX_SCORE)
 
 
 class TeamIn(BaseModel):
-    name: str = Field(min_length=1, max_length=40)
-    color: str = ""
-    player_ids: list[int] = []
+    name: str = Field(min_length=1, max_length=MAX_TEAM_NAME_LENGTH)
+    color: str = Field(default="", pattern=TEAM_COLOR_PATTERN)
+    player_ids: list[int] = Field(default=[], max_length=MAX_TEAM_PLAYERS)
 
     @field_validator("name")
     @classmethod
@@ -126,8 +136,8 @@ class MatchdayCreate(BaseModel):
     date: date
     venue_id: int | None = None
     mvp_player_id: int | None = None
-    notes: str = ""
-    teams: list[TeamIn] = []
+    notes: str = Field(default="", max_length=MAX_NOTES_LENGTH)
+    teams: list[TeamIn] = Field(default=[], max_length=MAX_MATCHDAY_TEAMS)
     matches: list[MatchIn] = []
 
 

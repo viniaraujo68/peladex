@@ -14,6 +14,15 @@ RESERVED_DATE = {"data", "dia"}
 RESERVED_NOTES = {"obs", "nota", "notas", "observacao", "observacoes"}
 RESERVED = RESERVED_VENUE | RESERVED_MVP | RESERVED_DATE | RESERVED_NOTES
 
+MAX_NAME_TOKENS = 8
+MAX_NAME_LENGTH = 80
+MAX_TEAM_NAME_LENGTH = 40
+MAX_TEAM_PLAYERS = 40
+MAX_MATCHDAY_TEAMS = 20
+MAX_NOTES_LENGTH = 2000
+MAX_ISSUES = 200
+MAX_ISSUE_TEXT_LENGTH = 200
+
 SEPARATOR_RE = re.compile(r"^[-*=_]{3,}$")
 MATCH_RE = re.compile(
     r"^(?P<home>.+?)\s+(?P<hs>\d{1,2})\s*(?:[xX×]|-)\s*(?P<as>\d{1,2})\s+(?P<away>.+?)$"
@@ -23,6 +32,8 @@ VENUE_SPLIT_RE = re.compile(r"\s+@\s*(?P<venue>.+)$")
 MULT_PREFIX_RE = re.compile(r"^(\d{1,2})\s*[xX×]\s*(.+)$")
 MULT_SUFFIX_RE = re.compile(r"^(.+?)\s*(?:[xX×]\s*(\d{1,2})|\((\d{1,2})\))$")
 BARE_MULT_RE = re.compile(r"^[xX×]\s*(\d{1,2})$")
+GOAL_COUNT_RE = re.compile(r"[0-9]{1,2}")
+WHITESPACE_RE = re.compile(r"\s+")
 
 ISO_DATE_RE = re.compile(r"^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})$")
 BR_DATE_RE = re.compile(r"^(\d{1,2})[-/.](\d{1,2})(?:[-/.](\d{2,4}))?$")
@@ -38,6 +49,12 @@ def normalize(value: str) -> str:
     return re.sub(r"\s+", " ", stripped)
 
 
+def _clip(value: str) -> str:
+    if len(value) <= MAX_ISSUE_TEXT_LENGTH:
+        return value
+    return value[: MAX_ISSUE_TEXT_LENGTH - 1] + "…"
+
+
 @dataclass
 class ParseIssue:
     line: int
@@ -45,6 +62,10 @@ class ParseIssue:
     code: str
     message: str
     text: str = ""
+
+    def __post_init__(self) -> None:
+        self.message = _clip(self.message)
+        self.text = _clip(self.text)
 
 
 @dataclass
@@ -155,18 +176,16 @@ def _strip_multiplier(chunk: str) -> tuple[str, int]:
 
 def _greedy_split(text: str, lookup: dict[str, str]) -> list[str]:
     tokens = text.split()
+    keys = [normalize(token).strip() for token in tokens]
     chunks: list[str] = []
     i = 0
     while i < len(tokens):
-        matched = False
-        for size in range(len(tokens) - i, 0, -1):
-            candidate = " ".join(tokens[i : i + size])
-            if normalize(candidate) in lookup:
-                chunks.append(candidate)
+        for size in range(min(MAX_NAME_TOKENS, len(tokens) - i), 0, -1):
+            if " ".join(key for key in keys[i : i + size] if key) in lookup:
+                chunks.append(" ".join(tokens[i : i + size]))
                 i += size
-                matched = True
                 break
-        if not matched:
+        else:
             chunks.append(tokens[i])
             i += 1
     return chunks
@@ -201,30 +220,60 @@ class _MatchdayBuilder:
             return self.known[key]
         return display_name(raw)
 
+    def set_venue(self, line: int, value: str, text: str) -> None:
+        if len(value) > MAX_NAME_LENGTH:
+            self.issue(line, SEVERITY_ERROR, "name_too_long",
+                       f"O nome do local passa de {MAX_NAME_LENGTH} caracteres.", text)
+            return
+        self.day.venue = value or None
+
     def add_team(self, line: int, name: str, body: str, text: str) -> None:
         name = display_name(name)
+        if not name:
+            self.issue(line, SEVERITY_ERROR, "missing_team_name",
+                       "Falta o nome do time antes dos dois-pontos.", text)
+            return
+        if len(name) > MAX_TEAM_NAME_LENGTH:
+            self.issue(line, SEVERITY_ERROR, "team_name_too_long",
+                       f"O nome do time passa de {MAX_TEAM_NAME_LENGTH} caracteres.", text)
+            return
         if any(normalize(t.name) == normalize(name) for t in self.day.teams):
             self.issue(line, SEVERITY_ERROR, "duplicate_team",
                        f"O time “{name}” foi escalado duas vezes no mesmo dia.", text)
             return
+        if len(self.day.teams) >= MAX_MATCHDAY_TEAMS:
+            self.issue(line, SEVERITY_ERROR, "too_many_teams",
+                       f"Um dia aceita no máximo {MAX_MATCHDAY_TEAMS} times.", text)
+            return
         team = ParsedTeam(line=line, name=name)
+        keys: set[str] = set()
         for raw in split_names(body, self.known):
             player = self.canonical_player(raw)
             key = normalize(player)
             if not key:
                 continue
+            if len(player) > MAX_NAME_LENGTH:
+                self.issue(line, SEVERITY_ERROR, "name_too_long",
+                           f"Um nome de jogador em {name} passa de {MAX_NAME_LENGTH} caracteres.",
+                           text)
+                continue
             if key in self.team_of:
                 self.issue(line, SEVERITY_ERROR, "player_in_two_teams",
                            f"“{player}” está escalado em {self.team_of[key]} e em {name}.", text)
                 continue
-            if key in team_keys(team):
+            if key in keys:
                 self.issue(line, SEVERITY_WARNING, "duplicate_player",
                            f"“{player}” aparece duas vezes em {name}.", text)
                 continue
+            if len(team.players) >= MAX_TEAM_PLAYERS:
+                self.issue(line, SEVERITY_ERROR, "too_many_players",
+                           f"O time “{name}” passa de {MAX_TEAM_PLAYERS} jogadores.", text)
+                break
             if key not in self.known and key not in self.roster:
                 self.new_players.append(player)
             self.roster[key] = player
             self.team_of[key] = name
+            keys.add(key)
             team.players.append(player)
         self.day.teams.append(team)
 
@@ -293,7 +342,11 @@ class _MatchdayBuilder:
                 else:
                     pending_own_goal = True
             elif marker.isdigit():
-                if entries:
+                if not GOAL_COUNT_RE.fullmatch(marker):
+                    self.issue(line, SEVERITY_ERROR, "bad_goal_count",
+                               f"\u201c{annotation.strip()}\u201d n\u00e3o \u00e9 uma "
+                               f"quantidade de gols v\u00e1lida.", text)
+                elif entries:
                     entries[-1]["count"] = int(marker)
             elif marker and entries:
                 entries[-1]["assist"] = annotation.strip()
@@ -324,6 +377,12 @@ class _MatchdayBuilder:
                 credited = scorer_team
 
             assist = self.resolve_assist(line, entry, resolved, scorer_team, pool, text)
+            if len(match.goals) + entry["count"] > match.home_score + match.away_score:
+                self.issue(line, SEVERITY_ERROR, "too_many_goals",
+                           f"{match.home_team} {match.home_score}x{match.away_score} "
+                           f"{match.away_team}: h\u00e1 mais gols anotados do que o placar.",
+                           text)
+                return
             for _ in range(entry["count"]):
                 match.goals.append(ParsedGoal(player=resolved, team=credited,
                                               own_goal=entry["own_goal"], assist=assist))
@@ -365,6 +424,9 @@ class _MatchdayBuilder:
         if not self.day.teams:
             self.issue(self.day.line, SEVERITY_ERROR, "no_teams",
                        "Nenhum time foi escalado neste dia.")
+        if len(self.day.notes) > MAX_NOTES_LENGTH:
+            self.issue(self.day.line, SEVERITY_ERROR, "notes_too_long",
+                       f"As observações do dia passam de {MAX_NOTES_LENGTH} caracteres.")
         for match in self.day.matches:
             scored = {match.home_team: 0, match.away_team: 0}
             for goal in match.goals:
@@ -391,10 +453,6 @@ class _MatchdayBuilder:
         return self.day
 
 
-def team_keys(team: ParsedTeam) -> set[str]:
-    return {normalize(p) for p in team.players}
-
-
 def parse(text: str, known_players: list[str] | None = None,
           default_year: int | None = None) -> ParseResult:
     known = {normalize(name): name for name in (known_players or [])}
@@ -419,7 +477,7 @@ def parse(text: str, known_players: list[str] | None = None,
         last_match = None
 
     for index, raw_line in enumerate(text.splitlines(), start=1):
-        line = raw_line.strip()
+        line = WHITESPACE_RE.sub(" ", raw_line).strip()
         if not line or line.startswith("#") or line.startswith("//"):
             continue
         if SEPARATOR_RE.match(line):
@@ -436,7 +494,7 @@ def parse(text: str, known_players: list[str] | None = None,
             builder.day.date = as_date
             builder.day.raw_date = date_part.strip()
             if venue_match:
-                builder.day.venue = venue_match.group("venue").strip()
+                builder.set_venue(index, venue_match.group("venue").strip(), line)
             continue
 
         head, sep, tail = line.partition(":")
@@ -447,7 +505,7 @@ def parse(text: str, known_players: list[str] | None = None,
                 builder = _MatchdayBuilder(index, known)
             value = tail.strip()
             if head_key in RESERVED_VENUE:
-                builder.day.venue = value or None
+                builder.set_venue(index, value, line)
             elif head_key in RESERVED_MVP:
                 builder.day.mvp = value or None
             elif head_key in RESERVED_DATE:
@@ -500,4 +558,11 @@ def parse(text: str, known_players: list[str] | None = None,
         result.issues.append(ParseIssue(0, SEVERITY_ERROR, "empty",
                                         "Nenhum dia de pelada encontrado no texto."))
     result.issues.sort(key=lambda i: (i.line, i.severity))
+    if len(result.issues) > MAX_ISSUES:
+        dropped = result.issues[MAX_ISSUES:]
+        del result.issues[MAX_ISSUES:]
+        severity = (SEVERITY_ERROR if any(i.severity == SEVERITY_ERROR for i in dropped)
+                    else SEVERITY_WARNING)
+        result.issues.append(ParseIssue(dropped[0].line, severity, "too_many_issues",
+                                        f"E mais {len(dropped)} problema(s) a partir daqui."))
     return result

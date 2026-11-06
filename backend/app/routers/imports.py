@@ -1,11 +1,13 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, status
 from sqlmodel import Session as DBSession
 from sqlmodel import select
 
 from .. import models, parser, schemas, services, writes
 from ..auth import require_owner
+from ..config import settings
 from ..db import get_session
 from ..errors import api_error
+from ..ratelimit import limiter
 from .groups import load_group
 from .matchdays import find_by_date
 
@@ -67,7 +69,8 @@ def _known_names(db: DBSession, group_id: int) -> list[str]:
 
 
 @router.post("/import/preview", response_model=schemas.ImportPreviewOut)
-def preview_import(group_id: int, body: schemas.ImportPreviewIn,
+@limiter.limit(settings.rate_limit_import)
+def preview_import(request: Request, group_id: int, body: schemas.ImportPreviewIn,
                    _: models.User = Depends(require_owner),
                    db: DBSession = Depends(get_session)):
     group = load_group(db, group_id)
@@ -103,7 +106,8 @@ def preview_import(group_id: int, body: schemas.ImportPreviewIn,
 
 
 @router.post("/import", response_model=schemas.ImportCommitOut)
-def commit_import(group_id: int, body: schemas.ImportCommitIn,
+@limiter.limit(settings.rate_limit_import)
+def commit_import(request: Request, group_id: int, body: schemas.ImportCommitIn,
                   _: models.User = Depends(require_owner),
                   db: DBSession = Depends(get_session)):
     group = load_group(db, group_id)

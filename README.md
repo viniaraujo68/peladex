@@ -144,12 +144,16 @@ Três detalhes que valem saber:
 - **`2:1` não vale como placar.** Os dois-pontos já separam a partida dos artilheiros, e
   aceitar os dois deixaria `BRANCO 2:1 VERMELHO: golin` ambíguo. Use `2x1` ou `2-1`.
 - Nomes são resolvidos por **correspondência mais longa primeiro**, então `rod` e
-  `rod kauer` em times diferentes não se confundem.
+  `rod kauer` em times diferentes não se confundem. Numa lista sem vírgulas, o nome
+  conhecido mais longo que ainda casa tem até 8 palavras; com vírgulas não há esse limite.
 
 O parser **recusa** o texto quando há erro estrutural (time jogando contra si mesmo, time
-não escalado, jogador em dois times) e apenas **avisa** quando algo é suspeito mas
-plausível: artilheiros que não fecham com o placar, assistência de alguém de outro time,
-MVP fora da escalação.
+não escalado, jogador em dois times, mais gols anotados do que o placar, quantidade de gols
+entre parênteses com mais de dois dígitos) ou quando algo passa dos limites: nome de jogador ou local com mais
+de 80 caracteres, nome de time com mais de 40, mais de 40 jogadores num time, mais de 20
+times num dia, observações com mais de 2000 caracteres. Ele apenas **avisa** quando algo é
+suspeito mas plausível: artilheiros a menos que o placar, assistência de alguém de outro
+time, MVP fora da escalação.
 
 Para backfill em lote existe `backend/scripts/import_text.py`, configurado por constantes
 no topo do arquivo (com `APPLY = False` por padrão, que só relata). E
@@ -370,7 +374,7 @@ mexa no schema.
 | `PELADEX_SESSION_TTL_DAYS` | `30` | Validade da sessão |
 | `PELADEX_CORS_ORIGINS` | `http://localhost:5173` | Vazio em prod (same-origin) |
 | `PELADEX_ALLOW_REGISTRATION` | `true` | `false` fecha o `/register` sem afetar quem já tem conta |
-| `PELADEX_RATE_LIMIT_*` | ver `.env.example` | Limites por IP de login, registro e páginas públicas |
+| `PELADEX_RATE_LIMIT_*` | ver `.env.example` | Limites por IP de login, registro, páginas públicas e importação de texto |
 
 ### Variáveis de ambiente (frontend)
 

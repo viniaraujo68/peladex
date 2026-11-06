@@ -1,4 +1,7 @@
+import time
 from datetime import date
+
+import pytest
 
 from app import parser
 from tests.conftest import PELADA_TEXT
@@ -144,3 +147,132 @@ def test_an_existing_player_matches_regardless_of_case():
     assert result.ok
     assert result.matchdays[0].teams[0].players == ["golin"]
     assert result.new_players == ["vini"]
+
+
+def goal_count_text(annotation: str) -> str:
+    return f"2026-09-16\nBRANCO: golin\nAZUL: ney\nBRANCO 1x0 AZUL\ngolin({annotation})\n"
+
+
+@pytest.mark.parametrize("annotation", ["1000000", "9" * 4301, "\u1369", "\u0661\u0662"],
+                         ids=["seven_digits", "4301_digits", "ethiopic_digit", "arabic_digits"])
+def test_a_goal_count_annotation_must_be_one_or_two_ascii_digits(annotation):
+    result = parser.parse(goal_count_text(annotation))
+    assert not result.ok
+    assert [i.code for i in result.issues if i.severity == "error"] == ["bad_goal_count"]
+    assert len(result.matchdays[0].matches[0].goals) <= 1
+
+
+def test_a_two_digit_goal_count_is_still_accepted():
+    text = "2026-09-16\nBRANCO: golin\nAZUL: ney\nBRANCO 12x0 AZUL\ngolin (12)\n"
+    result = parser.parse(text)
+    assert result.ok
+    assert len(result.matchdays[0].matches[0].goals) == 12
+
+
+def test_more_goals_than_the_score_is_an_error():
+    result = parser.parse("2026-09-16\nBRANCO: golin\nAZUL: ney\nBRANCO 1x0 AZUL: golin, golin\n")
+    assert not result.ok
+    assert any(i.code == "too_many_goals" and i.severity == "error" for i in result.issues)
+
+
+def test_multipliers_cannot_inflate_the_goal_list_past_the_score():
+    text = "2026-09-16\nBRANCO: golin\nAZUL: ney\nBRANCO 1x0 AZUL: " + "golin x99, " * 5000
+    result = parser.parse(text)
+    assert not result.ok
+    assert len(result.matchdays[0].matches[0].goals) <= 1
+
+
+def test_a_comma_free_team_line_matches_known_names_up_to_the_token_cap():
+    eight = "a b c d e f g h"
+    nine = "i j k l m n o p q"
+    text = f"2026-09-16\nAZUL: {eight}\nBRANCO: {nine}\n"
+    result = parser.parse(text, known_players=[eight, nine])
+    azul, branco = result.matchdays[0].teams
+    assert azul.players == [eight]
+    assert branco.players == nine.split()
+
+
+@pytest.mark.parametrize("text,code", [
+    ("2026-09-16\nAZUL: " + "x" * 81 + ", ana\nBRANCO: bia\n", "name_too_long"),
+    ("2026-09-16\nLocal: " + "c" * 81 + "\nAZUL: ana\nBRANCO: bia\n", "name_too_long"),
+    ("2026-09-16 @ " + "c" * 81 + "\nAZUL: ana\nBRANCO: bia\n", "name_too_long"),
+    ("2026-09-16\n" + "t" * 41 + ": ana\nBRANCO: bia\n", "team_name_too_long"),
+    ("2026-09-16\n: ana\nBRANCO: bia\n", "missing_team_name"),
+    ("2026-09-16\nAZUL: ana\nBRANCO: bia\nObs: " + "n" * 2001 + "\n", "notes_too_long"),
+], ids=["player_name", "venue_line", "venue_on_date", "team_name", "empty_team_name", "notes"])
+def test_values_past_the_write_limits_are_import_errors(text, code):
+    result = parser.parse(text)
+    assert not result.ok
+    assert code in {i.code for i in result.issues if i.severity == "error"}
+
+
+def test_a_team_cannot_pass_the_player_cap():
+    names = ", ".join(f"p{i}" for i in range(parser.MAX_TEAM_PLAYERS + 1))
+    result = parser.parse(f"2026-09-16\nAZUL: {names}\nBRANCO: bia\n")
+    assert not result.ok
+    assert any(i.code == "too_many_players" for i in result.issues)
+    assert len(result.matchdays[0].teams[0].players) == parser.MAX_TEAM_PLAYERS
+
+
+def test_a_matchday_cannot_pass_the_team_cap():
+    teams = "\n".join(f"t{i}: p{i}" for i in range(parser.MAX_MATCHDAY_TEAMS + 1))
+    result = parser.parse(f"2026-09-16\n{teams}\n")
+    assert not result.ok
+    assert any(i.code == "too_many_teams" for i in result.issues)
+    assert len(result.matchdays[0].teams) == parser.MAX_MATCHDAY_TEAMS
+
+
+def test_runs_of_whitespace_inside_a_line_are_collapsed():
+    text = "2026-09-16\nAZUL:\t rod   kauer ,  ney\nBRANCO: bia\nAZUL   1  x  0\t BRANCO\n"
+    result = parser.parse(text)
+    assert result.ok
+    assert result.matchdays[0].teams[0].players == ["rod kauer", "ney"]
+    assert len(result.matchdays[0].matches) == 1
+
+
+def test_the_issue_list_is_capped_without_hiding_errors():
+    result = parser.parse("2026-09-16\nAZUL: ana\nBRANCO: bia\n" + "zz\n" * 1000)
+    assert len(result.issues) == parser.MAX_ISSUES + 1
+    summary = result.issues[-1]
+    assert summary.code == "too_many_issues"
+    assert summary.severity == parser.SEVERITY_ERROR
+    assert not result.ok
+
+
+def test_a_capped_list_of_warnings_stays_a_warning():
+    scorers = ", ".join(f"x{i}" for i in range(500))
+    result = parser.parse(f"2026-09-16\nAZUL: ana\nBRANCO: bia\nAZUL 0x0 BRANCO: {scorers}\n")
+    assert result.issues[-1].code == "too_many_issues"
+    assert result.issues[-1].severity == parser.SEVERITY_WARNING
+    assert result.ok
+
+
+def test_issue_text_and_message_are_clipped():
+    result = parser.parse("2026-09-16\nAZUL: ana\nBRANCO: bia\n" + "z" * 50_000 + "\n")
+    issue = next(i for i in result.issues if i.code == "unexpected_line")
+    assert len(issue.text) <= parser.MAX_ISSUE_TEXT_LENGTH
+    assert len(issue.message) <= parser.MAX_ISSUE_TEXT_LENGTH
+
+
+SINGLE_LINE_BUDGET_SECONDS = 2.0
+LONG_LINES = {
+    "team_tokens": "VERDE: " + "a " * 100_000,
+    "team_commas": "VERDE: " + "a," * 100_000,
+    "team_distinct": "VERDE: " + " ".join(f"p{i}" for i in range(40_000)),
+    "goal_tokens": "golin " * 40_000,
+    "whitespace": "AZUL" + " \t" * 100_000 + "1",
+    "venue_markers": "Local:" + " @" * 100_000,
+    "annotations": "golin(99)" * 25_000,
+}
+
+
+@pytest.mark.timing
+@pytest.mark.parametrize("name", list(LONG_LINES))
+def test_a_200k_single_line_parses_fast(name):
+    head = "2026-09-16\nBRANCO: golin\nAZUL: ney\nBRANCO 1x0 AZUL\n"
+    text = (head + LONG_LINES[name])[:200_000]
+    known = ["a b c d e f g h", "golin", "ney"] + [f"k{i}" for i in range(2000)]
+    start = time.perf_counter()
+    result = parser.parse(text, known_players=known)
+    assert time.perf_counter() - start < SINGLE_LINE_BUDGET_SECONDS
+    assert len(result.issues) <= parser.MAX_ISSUES + 1

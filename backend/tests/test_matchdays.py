@@ -1,3 +1,6 @@
+import pytest
+
+
 def teams(*groups):
     return [{"name": name, "player_ids": ids} for name, ids in groups]
 
@@ -185,3 +188,67 @@ def test_venue_names_keep_the_original_case(api, group):
     r = api.post(f"/api/groups/{group}/venues", json={"name": "Campo do Zé"})
     assert r.status_code == 201, r.text
     assert r.json()["name"] == "Campo do Zé"
+
+
+def one_match(home_score, away_score, goals):
+    return [{"home_team_index": 0, "away_team_index": 1,
+             "home_score": home_score, "away_score": away_score, "goals": goals}]
+
+
+def test_more_goals_than_the_score_is_refused_on_create_and_update(api, group):
+    a, b = api.player(group), api.player(group)
+    body = {"date": "2026-09-16", "teams": teams(("BRANCO", [a]), ("AZUL", [b])),
+            "matches": one_match(1, 0, [{"player_id": a}, {"player_id": a}])}
+    created = api.post(f"/api/groups/{group}/matchdays", json=body)
+    assert created.status_code == 400
+    assert created.json()["detail"]["code"] == "too_many_goals"
+
+    day = api.matchday(group, "2026-09-16", body["teams"], one_match(1, 0, [{"player_id": a}]))
+    updated = api.put(f"/api/groups/{group}/matchdays/{day['id']}", json=body)
+    assert updated.status_code == 400
+    assert updated.json()["detail"]["code"] == "too_many_goals"
+
+
+def test_a_goal_list_longer_than_any_score_is_rejected_before_validation(api, group):
+    a, b = api.player(group), api.player(group)
+    body = {"date": "2026-09-16", "teams": teams(("BRANCO", [a]), ("AZUL", [b])),
+            "matches": one_match(99, 99, [{"player_id": a}] * 199)}
+    assert api.post(f"/api/groups/{group}/matchdays", json=body).status_code == 422
+
+
+def test_a_team_cannot_pass_the_player_cap(api, group):
+    body = {"date": "2026-09-16",
+            "teams": teams(("BRANCO", list(range(1, 42))), ("AZUL", [])), "matches": []}
+    assert api.post(f"/api/groups/{group}/matchdays", json=body).status_code == 422
+
+
+def test_a_matchday_cannot_pass_the_team_cap(api, group):
+    body = {"date": "2026-09-16",
+            "teams": teams(*[(f"t{i}", []) for i in range(21)]), "matches": []}
+    assert api.post(f"/api/groups/{group}/matchdays", json=body).status_code == 422
+
+
+def test_matchday_notes_are_bounded(api, group):
+    body = {"date": "2026-09-16", "notes": "n" * 2001,
+            "teams": teams(("BRANCO", []), ("AZUL", [])), "matches": []}
+    assert api.post(f"/api/groups/{group}/matchdays", json=body).status_code == 422
+
+
+@pytest.mark.parametrize("color", [
+    "red;background:url(https://example.invalid/x)",
+    "#fff",
+    "#12345g",
+    "url(x)",
+    "#1a2b3c ",
+], ids=["css_payload", "short_hex", "bad_hex_digit", "css_function", "trailing_space"])
+def test_a_team_color_must_be_a_hex_value(api, group, color):
+    body = {"date": "2026-09-16", "matches": [],
+            "teams": [{"name": "BRANCO", "color": color}, {"name": "AZUL"}]}
+    assert api.post(f"/api/groups/{group}/matchdays", json=body).status_code == 422
+
+
+def test_a_hex_team_color_is_kept(api, group):
+    day = api.matchday(group, "2026-09-16",
+                       [{"name": "BRANCO", "color": "#1A2b3C"}, {"name": "AZUL", "color": ""}],
+                       [])
+    assert {s["color"] for s in day["standings"]} == {"#1A2b3C", ""}
