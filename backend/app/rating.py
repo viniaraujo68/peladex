@@ -12,6 +12,8 @@ ATTACK_RATE_FLOOR = 0.05
 MIN_APPEARANCES = 3
 RIDGE_LAMBDA = 3.0
 RIDGE_GAIN = 1.5
+RIDGE_TOLERANCE = 1e-12
+RIDGE_MAX_ITERATIONS = 500
 GAINS = {"team_attack": 1.2, "team_defense": 1.2, "scoring": 0.6, "mvp": 0.3}
 CAPS = {"results": 1.25, "team_attack": 0.75, "team_defense": 0.75, "scoring": 0.5, "mvp": 0.25}
 FULL_SPAN = sum(CAPS.values())
@@ -73,9 +75,8 @@ def _rosters(matchday: models.Matchday) -> dict[int, list[int]]:
 def _teammate_adjusted_results(matchdays: list[models.Matchday], weights: list[float],
                                players: list[int]) -> dict[int, float]:
     index = {pid: i for i, pid in enumerate(players)}
-    size = len(players)
-    normal = [[0.0] * size for _ in range(size)]
-    target = [0.0] * size
+    rows: list[tuple[float, list[tuple[int, float]]]] = []
+    target = [0.0] * len(players)
     for matchday, weight in zip(matchdays, weights):
         rosters = _rosters(matchday)
         for match in matchday.matches:
@@ -89,26 +90,39 @@ def _teammate_adjusted_results(matchdays: list[models.Matchday], weights: list[f
             ]
             for i, ci in coefficients:
                 target[i] += weight * ci * outcome
-                row = normal[i]
-                for j, cj in coefficients:
-                    row[j] += weight * ci * cj
-    for i in range(size):
-        normal[i][i] += RIDGE_LAMBDA
-    for col in range(size):
-        pivot_row = normal[col]
-        pivot = pivot_row[col]
-        for r in range(col + 1, size):
-            factor = normal[r][col] / pivot
-            if factor:
-                row = normal[r]
-                for c in range(col, size):
-                    row[c] -= factor * pivot_row[c]
-                target[r] -= factor * target[col]
-    beta = [0.0] * size
-    for i in range(size - 1, -1, -1):
-        rest = sum(normal[i][j] * beta[j] for j in range(i + 1, size))
-        beta[i] = (target[i] - rest) / normal[i][i]
-    return dict(zip(players, beta))
+            rows.append((weight, coefficients))
+    return dict(zip(players, _conjugate_gradient(rows, target)))
+
+
+def _normal_product(rows: list[tuple[float, list[tuple[int, float]]]],
+                    vector: list[float]) -> list[float]:
+    product = [RIDGE_LAMBDA * value for value in vector]
+    for weight, coefficients in rows:
+        projection = weight * sum(c * vector[i] for i, c in coefficients)
+        if projection:
+            for i, c in coefficients:
+                product[i] += c * projection
+    return product
+
+
+def _conjugate_gradient(rows: list[tuple[float, list[tuple[int, float]]]],
+                        target: list[float]) -> list[float]:
+    solution = [0.0] * len(target)
+    residual = list(target)
+    direction = list(target)
+    norm = sum(r * r for r in residual)
+    threshold = norm * RIDGE_TOLERANCE ** 2
+    for _ in range(RIDGE_MAX_ITERATIONS):
+        if norm <= threshold:
+            break
+        product = _normal_product(rows, direction)
+        step = norm / sum(d * q for d, q in zip(direction, product))
+        solution = [x + step * d for x, d in zip(solution, direction)]
+        residual = [r - step * q for r, q in zip(residual, product)]
+        next_norm = sum(r * r for r in residual)
+        direction = [r + (next_norm / norm) * d for r, d in zip(residual, direction)]
+        norm = next_norm
+    return solution
 
 
 def rate_players(matchdays: list[models.Matchday],
