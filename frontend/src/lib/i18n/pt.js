@@ -467,9 +467,8 @@ export default {
 	'day.noAssist': 'sem assistência',
 	'day.editGoal': 'Editar o gol de {name}',
 	'day.goalOf': 'Gol de {name}',
-	'day.markOwnGoal': 'Foi gol contra',
+	'day.markOwnGoal': 'Gol contra',
 	'day.removeGoal': 'Remover gol',
-	'day.assistHint': 'Só quem estava no mesmo time pode aparecer aqui.',
 	'day.tapToEdit': 'Toque num gol para trocar a assistência ou marcar gol contra.',
 	'day.totalAssists': {
 		one: '{count} assistência',

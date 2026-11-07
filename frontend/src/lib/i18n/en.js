@@ -466,9 +466,8 @@ export default {
 	'day.noAssist': 'no assist',
 	'day.editGoal': 'Edit {name}’s goal',
 	'day.goalOf': 'Goal by {name}',
-	'day.markOwnGoal': 'It was an own goal',
+	'day.markOwnGoal': 'Own goal',
 	'day.removeGoal': 'Remove goal',
-	'day.assistHint': 'Only teammates from that match can appear here.',
 	'day.tapToEdit': 'Tap a goal to set the assist or mark it as an own goal.',
 	'day.totalAssists': {
 		one: '{count} assist',

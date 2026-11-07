@@ -395,6 +395,7 @@
 		if (side === null) return;
 		moveGoalCredit(match, null, side);
 		match.goals = [...match.goals, goal];
+		editingGoal = trackAssists ? { match: matchIndex, goal: match.goals.length - 1 } : null;
 	}
 
 	/** @param {number} matchIndex @param {number} goalIndex */
@@ -419,6 +420,7 @@
 	function setAssist(matchIndex, goalIndex, assistId) {
 		const goal = matches[matchIndex].goals[goalIndex];
 		goal.assistId = goal.assistId === assistId ? null : assistId;
+		editingGoal = null;
 	}
 
 	/** @param {number} matchIndex @param {number} goalIndex */
@@ -1117,9 +1119,30 @@
 					{#if match.home === match.away}
 						<p class="mwarn">{t('day.sameTeamTwice')}</p>
 					{:else if trackScorers}
+						{#snippet goalTag(/** @type {GoalDraft} */ goal, /** @type {number} */ goalIndex)}
+							{@const open = editingGoal?.match === index && editingGoal?.goal === goalIndex}
+							<button
+								type="button"
+								class="goaltag"
+								class:own={goal.ownGoal}
+								class:open
+								aria-expanded={open}
+								onclick={() => openGoal(index, goalIndex)}
+								title={t('day.editGoal', { name: nameById.get(goal.playerId) ?? '?' })}
+							>
+								<GoalMark
+									player={nameById.get(goal.playerId) ?? '?'}
+									assist={goal.assistId ? (nameById.get(goal.assistId) ?? '?') : null}
+									ownGoal={goal.ownGoal}
+									showAssist={trackAssists}
+								/>
+								<Icon name="chevron" class="size-3" />
+							</button>
+						{/snippet}
 						{#if teams[match.home]?.playerIds.length || teams[match.away]?.playerIds.length}
 							<div class="sides">
-								{#each [match.home, match.away] as team (team)}
+								{#each [match.home, match.away] as team, sideIndex (team)}
+									{@const side = sideIndex === 0 ? 'home' : 'away'}
 									<div class="sidecol">
 										<span class="sidehead">
 											<TeamCrest name={teamLabel(team)} color={teams[team]?.color} />
@@ -1139,34 +1162,29 @@
 												</button>
 											{/each}
 										</div>
+										{#if match.goals.some((goal) => creditedSide(match, goal) === side)}
+											<div class="sidegoals">
+												{#each match.goals as goal, goalIndex (goalIndex)}
+													{#if creditedSide(match, goal) === side}
+														{@render goalTag(goal, goalIndex)}
+													{/if}
+												{/each}
+											</div>
+										{/if}
 									</div>
 								{/each}
 							</div>
 						{/if}
-						{#if match.goals.length}
+						{#if match.goals.some((goal) => creditedSide(match, goal) === null)}
 							<div class="goallist">
 								{#each match.goals as goal, goalIndex (goalIndex)}
-									{@const open =
-										editingGoal?.match === index && editingGoal?.goal === goalIndex}
-									<button
-										type="button"
-										class="goaltag"
-										class:own={goal.ownGoal}
-										class:open
-										aria-expanded={open}
-										onclick={() => openGoal(index, goalIndex)}
-										title={t('day.editGoal', { name: nameById.get(goal.playerId) ?? '?' })}
-									>
-										<GoalMark
-											player={nameById.get(goal.playerId) ?? '?'}
-											assist={goal.assistId ? (nameById.get(goal.assistId) ?? '?') : null}
-											ownGoal={goal.ownGoal}
-											showAssist={trackAssists}
-										/>
-										<Icon name="chevron" class="size-3" />
-									</button>
+									{#if creditedSide(match, goal) === null}
+										{@render goalTag(goal, goalIndex)}
+									{/if}
 								{/each}
 							</div>
+						{/if}
+						{#if match.goals.length}
 							<p class="tiphint">{t('day.tapToEdit')}</p>
 						{/if}
 
@@ -1220,7 +1238,6 @@
 												</button>
 											{/each}
 										</div>
-										<p class="tiphint">{t('day.assistHint')}</p>
 									</div>
 								{/if}
 
@@ -1752,6 +1769,13 @@
 		font-weight: 700;
 	}
 	.goallist {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 5px;
+		padding-top: 8px;
+		border-top: 1px solid color-mix(in oklch, var(--color-base-content) 9%, transparent);
+	}
+	.sidegoals {
 		display: flex;
 		flex-wrap: wrap;
 		gap: 5px;
