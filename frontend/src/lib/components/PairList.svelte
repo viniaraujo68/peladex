@@ -1,16 +1,17 @@
 <script>
 	import { formatRate, formatRateDelta, rateClass } from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import MinDaysField from './MinDaysField.svelte';
 
 	/**
 	 * @type {{
 	 *   rows: import('$lib/types.js').PairRow[],
 	 *   title: string,
-	 *   hint: string,
 	 *   rateLabel: string,
 	 *   rateWithoutLabel: string,
 	 *   peerLabel: string,
 	 *   minDays: number,
+	 *   onMinDays: (value: number) => void,
 	 *   playerHref?: (playerId: number) => string,
 	 *   limit?: number
 	 * }}
@@ -18,11 +19,11 @@
 	let {
 		rows,
 		title,
-		hint,
 		rateLabel,
 		rateWithoutLabel,
 		peerLabel,
 		minDays,
+		onMinDays,
 		playerHref,
 		limit = 6
 	} = $props();
@@ -40,9 +41,9 @@
 </script>
 
 <section class="card flex flex-col gap-3 bg-base-100 p-5">
-	<div>
+	<div class="head">
 		<h3 class="font-semibold">{title}</h3>
-		<p class="hint">{hint}</p>
+		<MinDaysField value={minDays} onchange={onMinDays} />
 	</div>
 
 	{#if rows.length === 0}
@@ -104,6 +105,13 @@
 </section>
 
 <style>
+	.head {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
 	.hint {
 		margin-top: 3px;
 		font-size: 0.76rem;

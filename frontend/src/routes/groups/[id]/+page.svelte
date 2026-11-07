@@ -14,6 +14,7 @@
 	import { t } from '$lib/i18n.svelte.js';
 	import GroupStats from '$lib/components/GroupStats.svelte';
 	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
+	import CombosTab from '$lib/components/CombosTab.svelte';
 	import PlayersTab from '$lib/components/PlayersTab.svelte';
 	import RankingTab from '$lib/components/RankingTab.svelte';
 	import TimelineCharts from '$lib/components/TimelineCharts.svelte';
@@ -21,6 +22,8 @@
 	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
+	import OwnerGroupHeader from '$lib/components/OwnerGroupHeader.svelte';
+	import { ownerTabs } from '$lib/groupTabs.js';
 	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
 	import { dayTypeParam, dayTypeQuery, withDayType, setDayTypeContext } from '$lib/dayType.js';
 	import { createGroupView, replaceParams } from '$lib/groupView.svelte.js';
@@ -32,15 +35,13 @@
 
 	let group = $state(/** @type {import('$lib/types.js').Group|null} */ (null));
 	let matchdays = $state(/** @type {import('$lib/types.js').Matchday[]} */ ([]));
+	let players = $state(/** @type {import('$lib/types.js').Player[]} */ ([]));
 	let stats = $state(/** @type {import('$lib/types.js').Stats|null} */ (null));
 	let evolution = $state(/** @type {import('$lib/types.js').Evolution|null} */ (null));
-	let pairs = $state(/** @type {import('$lib/types.js').PairLeaderboard|null} */ (null));
-	let network = $state(/** @type {import('$lib/types.js').AssistNetwork|null} */ (null));
 	let timeline = $state(/** @type {import('$lib/types.js').Timeline|null} */ (null));
 	let loading = $state(true);
 	let error = $state('');
 	let period = $state({ from: '', to: '' });
-	let minDays = $state(3);
 
 	const dayType = $derived(dayTypeParam($page.url.searchParams));
 
@@ -54,22 +55,17 @@
 			.join('&')
 	);
 
-	const TAB_IDS = ['matchdays', 'ranking', 'players', 'stats', 'settings'];
+	const TAB_IDS = ['matchdays', 'ranking', 'players', 'combos', 'stats', 'settings'];
 	const view = createGroupView({ tabIds: TAB_IDS, defaultTab: 'matchdays' });
 
-	const tabs = $derived([
-		{ id: 'matchdays', label: t('tab.matchdays') },
-		{ id: 'ranking', label: t('tab.ranking') },
-		{ id: 'players', label: t('tab.players') },
-		{ id: 'stats', label: t('tab.stats') },
-		{ id: 'settings', label: t('tab.settings') }
-	]);
+	const tabs = $derived(ownerTabs());
 
 	const showMismatchBadge = $derived(group ? mismatchBadgeEnabled(group.id) : false);
 	const mismatchCount = $derived(matchdays.filter((m) => m.goal_mismatch).length);
 
 	/** @param {number} playerId */
 	const playerHref = (playerId) => withDayType(`/groups/${groupId}/players/${playerId}`, dayType);
+
 
 	$effect(() => {
 		if (auth.ready && !auth.user) goto(loginUrl($page.url));
@@ -83,9 +79,10 @@
 		loading = true;
 		error = '';
 		try {
-			[group, matchdays] = await Promise.all([
+			[group, matchdays, players] = await Promise.all([
 				get(`/groups/${groupId}`),
-				get(`/groups/${groupId}/matchdays`)
+				get(`/groups/${groupId}/matchdays`),
+				get(`/groups/${groupId}/players`)
 			]);
 			await loadAnalysis();
 		} catch (e) {
@@ -101,22 +98,12 @@
 		return Promise.all([
 			get(`/groups/${groupId}/stats${suffix}`),
 			get(`/groups/${groupId}/evolution${suffix}`),
-			get(`/groups/${groupId}/assist-network${suffix}`),
 			get(`/groups/${groupId}/timeline${suffix}`)
 		]);
 	}
 
-	/** @param {string} query @param {number} days */
-	function fetchPairs(query, days) {
-		return get(`/groups/${groupId}/pairs?${[`min_days=${days}`, query].filter(Boolean).join('&')}`);
-	}
-
 	async function loadAnalysis() {
-		const [[s, e, n, tl], p] = await Promise.all([
-			fetchPeriod(periodQuery),
-			fetchPairs(periodQuery, minDays)
-		]);
-		[stats, evolution, network, timeline, pairs] = [s, e, n, tl, p];
+		[stats, evolution, timeline] = await fetchPeriod(periodQuery);
 	}
 
 	/** @param {unknown} e */
@@ -130,23 +117,9 @@
 		if (!ready()) return;
 		let current = true;
 		fetchPeriod(query)
-			.then(([s, e, n, tl]) => {
-				if (!current) return;
-				[stats, evolution, network, timeline] = [s, e, n, tl];
+			.then((loaded) => {
+				if (current) [stats, evolution, timeline] = loaded;
 			})
-			.catch((e) => current && refreshFailed(e));
-		return () => {
-			current = false;
-		};
-	});
-
-	$effect(() => {
-		const query = periodQuery;
-		const days = minDays;
-		if (!ready()) return;
-		let current = true;
-		fetchPairs(query, days)
-			.then((p) => current && (pairs = p))
 			.catch((e) => current && refreshFailed(e));
 		return () => {
 			current = false;
@@ -228,21 +201,7 @@
 	<div class="alert alert-soft alert-error">{error}</div>
 	<a href="/" class="btn mt-4">{t('group.back')}</a>
 {:else if group && stats && evolution}
-	<div class="head flex items-start justify-between gap-3">
-		<div>
-			<a href="/" class="mb-2 inline-block text-sm text-base-content/80 hover:text-base-content">
-				{t('group.back')}
-			</a>
-			<h1 class="text-2xl font-semibold tracking-tight">{group.name}</h1>
-			{#if group.description}<p class="mt-1 text-base-content/80">{group.description}</p>{/if}
-		</div>
-		<div class="headbtns flex gap-2">
-			<a href={`/groups/${groupId}/matchdays/import`} class="btn">{t('group.importText')}</a>
-			<a href={`/groups/${groupId}/matchdays/new`} class="btn btn-primary">
-				{t('group.newMatchday')}
-			</a>
-		</div>
-	</div>
+	<OwnerGroupHeader {groupId} name={group.name} description={group.description} />
 
 	<TabBar
 		{tabs}
@@ -294,13 +253,18 @@
 			<PlayersTab
 				{stats}
 				{evolution}
-				{pairs}
-				{network}
-				{minDays}
-				onMinDays={(value) => (minDays = value)}
 				{view}
 				{playerHref}
-				analysisHref={withDayType(`/groups/${groupId}/analise`, dayType)}
+				before={periodBar}
+			/>
+		{:else if view.tab === 'combos'}
+			<CombosTab
+				root={`/groups/${groupId}`}
+				ranking={stats.ranking}
+				players={players.map((p) => ({ id: p.id, name: p.name }))}
+				{period}
+				{dayType}
+				{playerHref}
 				before={periodBar}
 			/>
 		{:else if view.tab === 'stats'}
@@ -320,19 +284,6 @@
 <style>
 	.panel {
 		scroll-margin-top: 80px;
-	}
-	.head {
-		margin-bottom: 20px;
-	}
-	@media (max-width: 640px) {
-		.head {
-			flex-direction: column;
-			align-items: stretch;
-			gap: 12px;
-		}
-		.headbtns :global(.btn) {
-			flex: 1;
-		}
 	}
 	.warn {
 		display: inline-flex;

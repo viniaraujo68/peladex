@@ -56,6 +56,18 @@ def get_pairs(group_id: int, min_days: int = Query(services.MIN_PAIR_DAYS, ge=1,
     )
 
 
+@router.get("/rivalries", response_model=schemas.RivalryBoard)
+def get_rivalries(group_id: int, min_days: int = Query(services.MIN_PAIR_DAYS, ge=1, le=50),
+                  limit: int = Query(10, ge=1, le=50),
+                  date_from: date | None = None, date_to: date | None = None,
+                  day_type: schemas.DayType | None = None,
+                  _: models.User = Depends(require_owner),
+                  db: DBSession = Depends(get_session)):
+    return services.compute_rivalries(
+        db, load_group(db, group_id), min_days, limit, date_from, date_to, day_type
+    )
+
+
 @router.post("/combo", response_model=schemas.ComboOut)
 def post_combo(group_id: int, body: schemas.ComboIn,
                _: models.User = Depends(require_owner),
@@ -69,14 +81,3 @@ def get_timeline(group_id: int, date_from: date | None = None, date_to: date | N
                  _: models.User = Depends(require_owner),
                  db: DBSession = Depends(get_session)):
     return services.compute_timeline(db, load_group(db, group_id), date_from, date_to, day_type)
-
-
-@router.get("/assist-network", response_model=schemas.AssistNetwork)
-def get_assist_network(group_id: int, limit: int = Query(12, ge=1, le=60),
-                       date_from: date | None = None, date_to: date | None = None,
-                       day_type: schemas.DayType | None = None,
-                       _: models.User = Depends(require_owner),
-                       db: DBSession = Depends(get_session)):
-    return services.compute_assist_network(
-        db, load_group(db, group_id), limit, date_from, date_to, day_type
-    )

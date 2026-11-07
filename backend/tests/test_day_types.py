@@ -136,9 +136,13 @@ def test_pairs_follow_the_day_type(api, season):
 def test_the_combo_follows_the_day_type(api, season):
     ana = player_ids(api, season)["ana"]
     url = f"/api/groups/{season}/combo"
-    assert api.post(url, json={"together": [ana]}).json()["days"] == 2
-    assert api.post(url, json={"together": [ana], "day_type": "single"}).json()["days"] == 1
-    assert api.post(url, json={"together": [ana], "day_type": "all"}).json()["days"] == 3
+
+    def days(**extra):
+        return api.post(url, json={"together": [ana], **extra}).json()["days"]
+
+    assert days() == 2
+    assert days(day_type="single") == 1
+    assert days(day_type="all") == 3
 
 
 def test_the_matchday_list_keeps_every_day_and_flags_the_single_game(api, season):

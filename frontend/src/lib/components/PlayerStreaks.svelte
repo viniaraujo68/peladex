@@ -47,8 +47,14 @@
 		return { rows: all.slice(0, PREVIEW_COUNT), all: () => all };
 	}
 
+	/**
+	 * @typedef {ReturnType<typeof streak> & {
+	 *   id: string, title: string, hint?: string, phrase: string
+	 * }} Board
+	 */
+
 	const boards = $derived(
-		[
+		/** @type {Board[]} */ ([
 			...(tracking.trackScorers
 				? [
 						{
@@ -73,14 +79,12 @@
 			{
 				id: 'titles',
 				title: t('streaks.titles'),
-				hint: t('streaks.titlesHint'),
 				phrase: 'streaks.inARow',
 				...streak((r) => r.title_streak)
 			},
 			{
 				id: 'presence',
 				title: t('streaks.presence'),
-				hint: t('streaks.presenceHint'),
 				phrase: 'streaks.inARow',
 				...streak((r) => r.presence_streak)
 			},
@@ -94,7 +98,7 @@
 					(r) => r.matchdays >= minMatchdays
 				)
 			}
-		]
+		])
 	);
 
 	const hasAny = $derived(boards.some((board) => board.rows.length > 0));
@@ -121,7 +125,7 @@
 		<FocusBar backLabel={t('streaks.back')} bind:query onBack={() => openFocus(null)} />
 		<div class="card streak bg-base-100 p-4">
 			<span class="stitle">{focused.title}</span>
-			<span class="hint">{focused.hint}</span>
+			{#if focused.hint}<span class="hint">{focused.hint}</span>{/if}
 			{#if full.length === 0}
 				<p class="hint mt-3">{query ? t('players.noResults', { query }) : t('streaks.nobody')}</p>
 			{:else}
@@ -141,15 +145,12 @@
 	</section>
 {:else if hasAny}
 	<section class="flex flex-col gap-3">
-		<div>
-			<h3 class="font-semibold">{t('streaks.title')}</h3>
-			<p class="hint">{t('streaks.hint')}</p>
-		</div>
+		<h3 class="font-semibold">{t('streaks.title')}</h3>
 		<div class="board">
 			{#each boards as board (board.id)}
 				<div class="card streak bg-base-100 p-4">
 					<span class="stitle">{board.title}</span>
-					<span class="hint">{board.hint}</span>
+					{#if board.hint}<span class="hint">{board.hint}</span>{/if}
 					{#if board.rows.length === 0}
 						<p class="hint">{t('streaks.nobody')}</p>
 					{:else}

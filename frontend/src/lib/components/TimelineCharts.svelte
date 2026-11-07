@@ -76,7 +76,7 @@
 							callbacks: {
 								label: (ctx) => {
 									const point = points[ctx.dataIndex];
-									const matches = t('analysis.matches', { count: point.matches });
+									const matches = t('common.matches', { count: point.matches });
 									const kind = point.single_game ? ` · ${t('day.singleGame')}` : '';
 									if (perMatch) {
 										return `${formatNumber(point.goals_per_match)} · ${matches}${kind}`;

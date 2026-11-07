@@ -2,11 +2,14 @@
 	import { publicErrorMessage } from '$lib/publicApi.js';
 	import { page } from '$app/stores';
 	import { goto } from '$app/navigation';
-	import { post } from '$lib/http.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import { setGroupTracking } from '$lib/tracking.svelte.js';
 	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
 	import PlayerProfile from '$lib/components/PlayerProfile.svelte';
+	import PlayerTitle from '$lib/components/PlayerTitle.svelte';
+	import PublicGroupHeader from '$lib/components/PublicGroupHeader.svelte';
+	import TabBar from '$lib/components/TabBar.svelte';
+	import { publicTabs } from '$lib/groupTabs.js';
 	import { dayTypeParam, dayTypeQuery, setDayTypeContext } from '$lib/dayType.js';
 	import { replaceParams } from '$lib/groupView.svelte.js';
 
@@ -38,7 +41,8 @@
 	const playerHref = (playerId) =>
 		`/g/${slug}/players/${playerId}${filterQuery ? `?${filterQuery}` : ''}`;
 
-	const backHref = $derived(`/g/${slug}${filterQuery ? `?${filterQuery}` : ''}`);
+	/** @param {string} tab */
+	const tabHref = (tab) => `/g/${slug}?${[`tab=${tab}`, filterQuery].filter(Boolean).join('&')}`;
 
 	/** @param {number} value */
 	function setMinDays(value) {
@@ -70,31 +74,29 @@
 {#if error}
 	<div class="card bg-base-100 px-5 py-12 text-center text-base-content/65">{error}</div>
 {:else if detail && group}
-	<div class="head mb-5">
-		<a href={backHref} class="mb-2 inline-block text-sm text-base-content/80 hover:text-base-content">
-			{t('player.backToGroup')}
-		</a>
-		<h1 class="text-2xl font-semibold tracking-tight">{detail.name}</h1>
-		<p class="mt-1 text-base-content/80">{group.name}</p>
+	<PublicGroupHeader name={group.name} description={group.description} />
+	<TabBar
+		tabs={publicTabs()}
+		active="players"
+		onChange={(tab) => goto(tabHref(tab))}
+		label={t('tab.sections')}
+		controls="public-panel"
+		idPrefix="ptab"
+		center
+	/>
+	<div id="public-panel" role="tabpanel" aria-labelledby="ptab-players">
+		<PlayerTitle name={detail.name} playersHref={tabHref('players')} />
+		<div class="mb-4">
+			<DayTypeFilter days={detail.days} onchange={(value) => replaceParams({ day_type: value })} />
+		</div>
+		{#key dayType}
+			<PlayerProfile
+				{detail}
+				evolution={group.evolution}
+				minDays={data.minDays}
+				onMinDays={setMinDays}
+				{playerHref}
+			/>
+		{/key}
 	</div>
-
-	<div class="mb-4">
-		<DayTypeFilter days={detail.days} onchange={(value) => replaceParams({ day_type: value })} />
-	</div>
-	{#key dayType}
-		<PlayerProfile
-			{detail}
-			evolution={group.evolution}
-			minDays={data.minDays}
-			onMinDays={setMinDays}
-			{playerHref}
-			players={group.stats.ranking.map((r) => ({ id: r.player_id, name: r.name }))}
-			compareHref={`/g/${slug}/analise?${[filterQuery, `a=${detail.player_id}`].filter(Boolean).join('&')}`}
-			runCombo={(body) =>
-				post(`/public/${encodeURIComponent(slug)}/combo${tokenQuery ? `?${tokenQuery}` : ''}`, {
-					...body,
-					day_type: dayType
-				})}
-		/>
-	{/key}
 {/if}

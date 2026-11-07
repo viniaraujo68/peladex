@@ -174,7 +174,7 @@
 								label: (ctx) => {
 									const row = goalsSeries[ctx.dataIndex];
 									const goals = t('records.goals', { count: row.goals });
-									const matches = t('analysis.matches', { count: row.played });
+									const matches = t('common.matches', { count: row.played });
 									return goalsUnit === 'match'
 										? `${formatNumber(ctx.parsed.y)} · ${goals} · ${matches}`
 										: `${goals} · ${matches}`;
@@ -220,10 +220,7 @@
 <div class="charts">
 	{#if own}
 		<section class="card flex flex-col gap-3 bg-base-100 p-5">
-			<div>
-				<h3 class="font-semibold">{t('stats.evolution')}</h3>
-				<p class="hint">{t('stats.evolutionHint')}</p>
-			</div>
+			<h3 class="font-semibold">{t('stats.evolution')}</h3>
 			<div class="chart-wrap"><canvas bind:this={rateCanvas}></canvas></div>
 			<div class="legend">
 				<span class="key"><i class="dash solid"></i>{playerName}</span>
@@ -272,11 +269,6 @@
 	}
 	.chart-wrap.short {
 		height: 190px;
-	}
-	.hint {
-		margin-top: 3px;
-		font-size: 0.76rem;
-		color: var(--ink-muted);
 	}
 	.legend {
 		display: flex;

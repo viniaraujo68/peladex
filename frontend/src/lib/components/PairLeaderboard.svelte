@@ -1,146 +1,133 @@
 <script>
 	import { formatRate, formatRateDelta, rateClass } from '$lib/format.svelte.js';
 	import { t } from '$lib/i18n.svelte.js';
+	import { getTracking } from '$lib/tracking.svelte.js';
+	import BoardCard from './BoardCard.svelte';
+	import CompareButton from './CompareButton.svelte';
+	import MinDaysField from './MinDaysField.svelte';
 
 	/**
 	 * @type {{
 	 *   board: import('$lib/types.js').PairLeaderboard,
-	 *   minDays: number,
 	 *   onMinDays: (value: number) => void,
-	 *   playerHref?: (playerId: number) => string
+	 *   playerHref: (playerId: number) => string,
+	 *   onCompare: (sides: { a: number[], b: number[] }) => void
 	 * }}
 	 */
-	let { board, minDays, onMinDays, playerHref } = $props();
+	let { board, onMinDays, playerHref, onCompare } = $props();
 
-	const empty = $derived(board.together.length === 0);
+	const tracking = getTracking();
+	const showAssists = $derived(tracking.trackScorers && tracking.trackAssists);
+
+	/** @typedef {'together'|'apart'|'assists'} ListId */
+
+	let list = $state(/** @type {ListId} */ ('together'));
+	const shown = $derived(list === 'assists' && !showAssists ? 'together' : list);
+
+	const options = $derived([
+		{ id: 'together', label: t('stats.pairsBest') },
+		{ id: 'apart', label: t('stats.pairsWorst') },
+		...(showAssists ? [{ id: 'assists', label: t('stats.pairsAssists') }] : [])
+	]);
+
+	const empty = $derived.by(() => {
+		if (shown === 'assists') return board.assists.length ? null : t('stats.assistsEmpty');
+		return board[shown].length ? null : t('stats.pairsEmpty', { count: board.min_days });
+	});
 </script>
 
-<section class="card flex flex-col gap-4 bg-base-100 p-5">
-	<div class="head">
-		<div>
-			<h3 class="font-semibold">{t('stats.pairs')}</h3>
-			<p class="hint">{t('stats.pairsHint')}</p>
-		</div>
-		<label class="mindays">
-			<span>{t('player.minDays')}</span>
-			<input
-				class="input input-sm"
-				type="number"
-				min="1"
-				max="50"
-				value={minDays}
-				onchange={(e) => onMinDays(Number(e.currentTarget.value) || 1)}
-			/>
-		</label>
-	</div>
+{#snippet player(/** @type {number} */ id, /** @type {string} */ name)}
+	<a class="link-hover" href={playerHref(id)}>{name}</a>
+{/snippet}
 
-	{#if empty}
-		<p class="empty">{t('stats.pairsEmpty', { count: minDays })}</p>
-	{:else}
-		<div class="cols">
-			{#each [{ rows: board.together, title: t('stats.pairsBest') }, { rows: board.apart, title: t('stats.pairsWorst') }] as column (column.title)}
-				<div class="col">
-					<h4 class="ctitle">{column.title}</h4>
-					<div class="scroll">
-						<table class="table table-sm">
-							<thead>
-								<tr>
-									<th>{t('player.teammate')}</th>
-									<th class="num">{t('player.days')}</th>
-									<th class="num">{t('ranking.winRate')}</th>
-									<th class="num">{t('player.delta')}</th>
-								</tr>
-							</thead>
-							<tbody>
-								{#each column.rows as row (row.player_a_id + '-' + row.player_b_id)}
-									<tr>
-										<td class="pair">
-											{#if playerHref}
-												<a class="link-hover" href={playerHref(row.player_a_id)}>{row.player_a}</a>
-												<span class="amp">+</span>
-												<a class="link-hover" href={playerHref(row.player_b_id)}>{row.player_b}</a>
-											{:else}
-												{row.player_a} <span class="amp">+</span> {row.player_b}
-											{/if}
-										</td>
-										<td class="num muted">{row.days}</td>
-										<td class="num">{formatRate(row.win_rate)}</td>
-										<td class="num {rateClass(row.delta)}">{formatRateDelta(row.delta)}</td>
-									</tr>
-								{/each}
-							</tbody>
-						</table>
-					</div>
-				</div>
+<BoardCard
+	title={t('stats.pairs')}
+	{options}
+	value={shown}
+	onchange={(id) => (list = /** @type {ListId} */ (id))}
+	{empty}
+>
+	{#snippet controls()}
+		{#if shown !== 'assists'}<MinDaysField value={board.min_days} onchange={onMinDays} />{/if}
+	{/snippet}
+	{#if shown === 'assists'}
+		<thead>
+			<tr>
+				<th>{t('stats.pairColumn')}</th>
+				<th class="text-right">{t('ranking.assists')}</th>
+				<th><span class="sr-only">{t('compare.view')}</span></th>
+			</tr>
+		</thead>
+		<tbody>
+			{#each board.assists as link (link.assist_player_id + '-' + link.scorer_player_id)}
+				<tr>
+					<td class="font-medium whitespace-nowrap">
+						{@render player(link.assist_player_id, link.assist_name)}
+						<span class="sep">&rarr;</span>
+						{@render player(link.scorer_player_id, link.scorer_name)}
+					</td>
+					<td class="text-right font-bold tabular-nums">{link.goals}</td>
+					<td class="text-right">
+						<CompareButton
+							label={t('stats.pairsCompareLabel', { a: link.assist_name, b: link.scorer_name })}
+							onclick={() => onCompare({ a: [link.assist_player_id, link.scorer_player_id], b: [] })}
+						/>
+					</td>
+				</tr>
 			{/each}
-		</div>
+		</tbody>
+	{:else}
+		<thead>
+			<tr>
+				<th>{t('stats.pairColumn')}</th>
+				<th class="text-right">{t('player.days')}</th>
+				<th class="text-right">{t('stats.pairRate')}</th>
+				<th class="text-right">{t('stats.pairExpected')}</th>
+				<th class="text-right">{t('player.delta')}</th>
+				{#if showAssists}<th class="text-right">{t('stats.pairAssists')}</th>{/if}
+				<th><span class="sr-only">{t('compare.view')}</span></th>
+			</tr>
+		</thead>
+		<tbody>
+			{#each board[shown] as row (row.player_a_id + '-' + row.player_b_id)}
+				<tr>
+					<td class="font-medium whitespace-nowrap">
+						{@render player(row.player_a_id, row.player_a)}
+						<span class="sep">+</span>
+						{@render player(row.player_b_id, row.player_b)}
+					</td>
+					<td class="text-right tabular-nums text-[var(--ink-muted)]">{row.days}</td>
+					<td class="text-right tabular-nums">{formatRate(row.win_rate)}</td>
+					<td class="text-right tabular-nums text-[var(--ink-muted)]">{formatRate(row.expected)}</td>
+					<td class="text-right tabular-nums {rateClass(row.delta)}">{formatRateDelta(row.delta)}</td>
+					{#if showAssists}
+						<td
+							class="text-right tabular-nums whitespace-nowrap"
+							title={t('stats.pairAssistsSplit', {
+								a: row.player_a,
+								b: row.player_b,
+								ab: row.assists_a_to_b,
+								ba: row.assists_b_to_a
+							})}
+						>
+							{row.assists_a_to_b}<span class="sep">⇄</span>{row.assists_b_to_a}
+						</td>
+					{/if}
+					<td class="text-right">
+						<CompareButton
+							label={t('stats.pairsCompareLabel', { a: row.player_a, b: row.player_b })}
+							onclick={() => onCompare({ a: [row.player_a_id, row.player_b_id], b: [] })}
+						/>
+					</td>
+				</tr>
+			{/each}
+		</tbody>
 	{/if}
-</section>
+</BoardCard>
 
 <style>
-	.head {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-	}
-	.hint {
-		margin-top: 3px;
-		max-width: 62ch;
-		font-size: 0.76rem;
-		color: var(--ink-muted);
-	}
-	.mindays {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 0.74rem;
-		color: var(--ink-muted);
-	}
-	.mindays input {
-		width: 4.5rem;
-	}
-	.cols {
-		display: grid;
-		grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-		gap: 16px;
-	}
-	.col {
-		display: flex;
-		flex-direction: column;
-		gap: 6px;
-		min-width: 0;
-	}
-	.ctitle {
-		font-size: 0.7rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.05em;
-		color: var(--ink-muted);
-	}
-	.scroll {
-		overflow-x: auto;
-	}
-	.pair {
-		white-space: nowrap;
-		font-weight: 500;
-	}
-	.amp {
-		margin: 0 2px;
-		color: var(--ink-muted);
-	}
-	.num {
-		text-align: right;
-		font-variant-numeric: tabular-nums;
-	}
-	.muted {
-		color: var(--ink-muted);
-	}
-	.empty {
-		padding: 20px 0;
-		text-align: center;
-		font-size: 0.86rem;
+	.sep {
+		margin: 0 4px;
 		color: var(--ink-muted);
 	}
 </style>

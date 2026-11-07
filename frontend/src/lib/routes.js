@@ -12,11 +12,9 @@ export const routes = {
 		'/groups/[id]': {},
 		'/groups/[id]/matchdays/new': {},
 		'/groups/[id]/matchdays/import': {},
-		'/groups/[id]/analise': {},
 		'/groups/[id]/players/[playerId]': {},
 		'/g/[slug]': {},
-		'/g/[slug]/players/[playerId]': {},
-		'/g/[slug]/analise': {}
+		'/g/[slug]/players/[playerId]': {}
 	},
 
 	pages: import.meta.glob('/src/routes/**/+page.svelte')

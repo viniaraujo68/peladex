@@ -1,5 +1,4 @@
 <script>
-	import { t } from '$lib/i18n.svelte.js';
 	import PlayerComparisons from './PlayerComparisons.svelte';
 	import PlayerLeaders from './PlayerLeaders.svelte';
 	import PlayerStreaks from './PlayerStreaks.svelte';
@@ -8,26 +7,16 @@
 	 * @type {{
 	 *   stats: import('$lib/types.js').Stats,
 	 *   evolution: import('$lib/types.js').Evolution,
-	 *   pairs: import('$lib/types.js').PairLeaderboard|null,
-	 *   network: import('$lib/types.js').AssistNetwork|null,
-	 *   minDays: number,
-	 *   onMinDays: (value: number) => void,
 	 *   view: ReturnType<typeof import('$lib/groupView.svelte.js').createGroupView<any>>,
 	 *   playerHref: (playerId: number) => string,
-	 *   analysisHref: string,
 	 *   before?: import('svelte').Snippet
 	 * }}
 	 */
 	let {
 		stats,
 		evolution,
-		pairs,
-		network,
-		minDays,
-		onMinDays,
 		view,
 		playerHref,
-		analysisHref,
 		before
 	} = $props();
 
@@ -60,14 +49,8 @@
 	{/if}
 	<PlayerComparisons
 		{evolution}
-		{pairs}
-		{network}
-		{minDays}
-		{onMinDays}
 		minMatchdays={stats.min_matchdays}
 		unit={view.unit}
 		onUnit={view.setUnit}
-		{playerHref}
 	/>
-	<a href={analysisHref} class="btn self-start">{t('stats.openAnalysis')}</a>
 </div>

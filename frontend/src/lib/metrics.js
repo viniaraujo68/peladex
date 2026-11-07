@@ -22,7 +22,9 @@ export const UNITS = ['total', 'match', 'day'];
 /** @type {Unit} */
 export const DEFAULT_UNIT = 'match';
 
-/** @type {Record<'goals'|'assists'|'contributions', Record<Unit, keyof PlayerRow>>} */
+/** @typedef {'goals'|'assists'|'contributions'|'goals_conceded'} UnitField */
+
+/** @type {Record<UnitField, Record<Unit, keyof PlayerRow>>} */
 const UNIT_FIELDS = {
 	goals: { total: 'goals', match: 'goals_per_match', day: 'goals_per_matchday' },
 	assists: { total: 'assists', match: 'assists_per_match', day: 'assists_per_matchday' },
@@ -30,8 +32,18 @@ const UNIT_FIELDS = {
 		total: 'contributions',
 		match: 'contributions_per_match',
 		day: 'contributions_per_matchday'
+	},
+	goals_conceded: {
+		total: 'goals_conceded',
+		match: 'goals_conceded_per_match',
+		day: 'goals_conceded_per_matchday'
 	}
 };
+
+/** @param {PlayerRow} row @param {UnitField} field @param {Unit} unit @returns {number} */
+export function unitValue(row, field, unit) {
+	return /** @type {number} */ (row[UNIT_FIELDS[field][unit]]);
+}
 
 /** @type {Metric[]} */
 export const METRICS = [
@@ -81,10 +93,7 @@ export function isAverage(metric, unit) {
 /** @param {PlayerRow} row @param {Metric} metric @param {Unit} unit @returns {number|null} */
 export function metricValue(row, metric, unit) {
 	if (metric.id === 'rating') return row.rating_provisional ? null : row.rating;
-	if (metric.perUnit) {
-		const field = UNIT_FIELDS[/** @type {'goals'|'assists'|'contributions'} */ (metric.id)][unit];
-		return /** @type {number} */ (row[field]);
-	}
+	if (metric.perUnit) return unitValue(row, /** @type {UnitField} */ (metric.id), unit);
 	return /** @type {number|null} */ (row[metric.id]);
 }
 

@@ -11,7 +11,6 @@
 
 	const tracking = getTracking();
 	import Icon from './Icon.svelte';
-	import ComboExplorer from './ComboExplorer.svelte';
 	import FormDots from './FormDots.svelte';
 	import RankMove from './RankMove.svelte';
 	import PairList from './PairList.svelte';
@@ -23,10 +22,7 @@
 	 *   evolution: import('$lib/types.js').Evolution,
 	 *   minDays: number,
 	 *   onMinDays: (value: number) => void,
-	 *   playerHref?: (playerId: number) => string,
-	 *   players?: { id: number, name: string }[],
-	 *   compareHref?: string,
-	 *   runCombo?: ((body: any) => Promise<import('$lib/types.js').ComboResult>)|null
+	 *   playerHref?: (playerId: number) => string
 	 * }}
 	 */
 	let {
@@ -34,10 +30,7 @@
 		evolution,
 		minDays,
 		onMinDays,
-		playerHref,
-		players = [],
-		compareHref = '',
-		runCombo = null
+		playerHref
 	} = $props();
 
 	const summary = $derived(detail.summary);
@@ -171,9 +164,6 @@
 		</div>
 	</section>
 
-	{#if compareHref}
-		<a class="btn btn-sm self-start" href={compareHref}>{t('player.compare')}</a>
-	{/if}
 
 	{#if rating}
 		<section class="card flex flex-col gap-4 bg-base-100 p-5">
@@ -222,60 +212,28 @@
 			history={detail.history}
 		/>
 
-		<section class="card flex flex-col gap-3 bg-base-100 p-5">
-			<div class="pairhead">
-				<p class="caveat">{t('player.pairCaveat', { count: minDays })}</p>
-				<label class="mindays">
-					<span>{t('player.minDays')}</span>
-					<input
-						class="input input-sm"
-						type="number"
-						min="1"
-						max="50"
-						value={minDays}
-						onchange={(e) => onMinDays(Number(e.currentTarget.value) || 1)}
-					/>
-				</label>
-			</div>
-		</section>
-
 		<div class="pairs">
 			<PairList
 				rows={detail.partners}
 				title={t('player.partners')}
-				hint={t('player.partnersHint2')}
 				rateLabel={t('player.rateTogether')}
 				rateWithoutLabel={t('player.rateWithout')}
 				peerLabel={t('player.teammate')}
 				{minDays}
+				{onMinDays}
 				{playerHref}
 			/>
 			<PairList
 				rows={detail.opponents}
 				title={t('player.opponents')}
-				hint={t('player.opponentsHint2')}
 				rateLabel={t('player.rateAgainst')}
 				rateWithoutLabel={t('player.rateAgainstWithout')}
 				peerLabel={t('player.opponent')}
 				{minDays}
+				{onMinDays}
 				{playerHref}
 			/>
 		</div>
-
-		{#if runCombo && players.length > 1}
-			<section class="card flex flex-col gap-3 bg-base-100 p-5">
-				<div>
-					<h3 class="font-semibold">{t('player.myCombos')}</h3>
-					<p class="hint">{t('player.myCombosHint')}</p>
-				</div>
-				<ComboExplorer
-					{players}
-					run={runCombo}
-					locked={{ id: detail.player_id, name: detail.name }}
-					compact
-				/>
-			</section>
-		{/if}
 
 		<section class="card flex flex-col gap-3 bg-base-100 p-5">
 			<h3 class="font-semibold">{t('player.history')}</h3>
@@ -327,8 +285,8 @@
 								<td class="num">{row.draws}</td>
 								<td class="num">{row.losses}</td>
 								<td class="num rate">{formatRate(row.win_rate)}</td>
-								{#if showGoals}<td class="num">{row.goals || ''}</td>{/if}
-								{#if showAssists}<td class="num">{row.assists || ''}</td>{/if}
+								{#if showGoals}<td class="num">{row.goals}</td>{/if}
+								{#if showAssists}<td class="num">{row.assists}</td>{/if}
 							</tr>
 						{/each}
 					</tbody>
@@ -441,29 +399,6 @@
 		font-size: 0.85rem;
 		font-weight: 600;
 		color: var(--color-base-content);
-	}
-	.pairhead {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: flex-start;
-		justify-content: space-between;
-		gap: 12px;
-	}
-	.caveat {
-		flex: 1 1 260px;
-		font-size: 0.78rem;
-		line-height: 1.5;
-		color: var(--ink-muted);
-	}
-	.mindays {
-		display: flex;
-		align-items: center;
-		gap: 8px;
-		font-size: 0.76rem;
-		color: var(--ink-muted);
-	}
-	.mindays input {
-		width: 4.5rem;
 	}
 	.hint {
 		margin-top: 3px;

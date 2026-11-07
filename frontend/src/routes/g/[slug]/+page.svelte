@@ -5,12 +5,14 @@
 	import { t } from '$lib/i18n.svelte.js';
 	import { setGroupTracking } from '$lib/tracking.svelte.js';
 	import GroupStats from '$lib/components/GroupStats.svelte';
+	import CombosTab from '$lib/components/CombosTab.svelte';
 	import PlayersTab from '$lib/components/PlayersTab.svelte';
 	import RankingTab from '$lib/components/RankingTab.svelte';
 	import TimelineCharts from '$lib/components/TimelineCharts.svelte';
-	import Icon from '$lib/components/Icon.svelte';
 	import MatchdaysList from '$lib/components/MatchdaysList.svelte';
 	import TabBar from '$lib/components/TabBar.svelte';
+	import PublicGroupHeader from '$lib/components/PublicGroupHeader.svelte';
+	import { publicTabs } from '$lib/groupTabs.js';
 	import DayTypeFilter from '$lib/components/DayTypeFilter.svelte';
 	import PeriodFilter from '$lib/components/PeriodFilter.svelte';
 	import { dayTypeParam, dayTypeQuery, withDayType, setDayTypeContext } from '$lib/dayType.js';
@@ -30,16 +32,11 @@
 	const error = $derived(publicErrorMessage(data.status));
 
 	const view = createGroupView({
-		tabIds: ['ranking', 'players', 'stats', 'matchdays'],
+		tabIds: ['ranking', 'players', 'combos', 'stats', 'matchdays'],
 		defaultTab: 'ranking'
 	});
 
-	const tabs = $derived([
-		{ id: 'ranking', label: t('tab.ranking') },
-		{ id: 'players', label: t('tab.players') },
-		{ id: 'stats', label: t('tab.stats') },
-		{ id: 'matchdays', label: t('tab.matchdays') }
-	]);
+	const tabs = $derived(publicTabs());
 
 	const dayType = $derived(dayTypeParam($page.url.searchParams));
 	const period = $derived(periodParam($page.url.searchParams));
@@ -52,13 +49,19 @@
 		);
 
 	const tokenQuery = $derived(token ? `t=${encodeURIComponent(token)}` : '');
+
+	const players = $derived([
+		...new Map(
+			(group?.matchdays ?? [])
+				.flatMap((matchday) => matchday.standings.flatMap((standing) => standing.members))
+				.map((member) => [member.player_id, { id: member.player_id, name: member.name }])
+		).values()
+	]);
+
 	const viewQuery = $derived([tokenQuery, dayTypeQuery(dayType)].filter(Boolean).join('&'));
 	const filterQuery = $derived([viewQuery, periodQuery(period)].filter(Boolean).join('&'));
 
-	let pairs = $state(/** @type {import('$lib/types.js').PairLeaderboard|null} */ (null));
-	let network = $state(/** @type {import('$lib/types.js').AssistNetwork|null} */ (null));
 	let timeline = $state(/** @type {import('$lib/types.js').Timeline|null} */ (null));
-	let minDays = $state(3);
 
 	const base = $derived(`/public/${encodeURIComponent(slug)}`);
 	const filterSuffix = $derived(filterQuery ? `?${filterQuery}` : '');
@@ -68,31 +71,13 @@
 		const suffix = filterSuffix;
 		if (!hasGroup) return;
 		let current = true;
-		Promise.all([get(`${root}/assist-network${suffix}`), get(`${root}/timeline${suffix}`)])
-			.then(([n, tl]) => {
-				if (!current) return;
-				network = n;
-				timeline = tl;
+		get(`${root}/timeline${suffix}`)
+			.then((tl) => {
+				if (current) timeline = tl;
 			})
 			.catch(() => {
-				if (!current) return;
-				network = null;
-				timeline = null;
+				if (current) timeline = null;
 			});
-		return () => {
-			current = false;
-		};
-	});
-
-	$effect(() => {
-		const root = base;
-		const days = minDays;
-		const query = [filterQuery, `min_days=${days}`].filter(Boolean).join('&');
-		if (!hasGroup) return;
-		let current = true;
-		get(`${root}/pairs?${query}`)
-			.then((p) => current && (pairs = p))
-			.catch(() => current && (pairs = null));
 		return () => {
 			current = false;
 		};
@@ -149,14 +134,7 @@
 {#if error}
 	<div class="card bg-base-100 px-5 py-12 text-center text-base-content/65">{error}</div>
 {:else if group}
-	<div class="head">
-		<span class="badge badge-soft badge-primary">
-			<Icon name="ball" />
-			{t('public.badge')}
-		</span>
-		<h1 class="text-[2rem] font-semibold tracking-tight">{group.name}</h1>
-		{#if group.description}<p class="text-base-content/80">{group.description}</p>{/if}
-	</div>
+	<PublicGroupHeader name={group.name} description={group.description} />
 
 	<TabBar
 		{tabs}
@@ -186,13 +164,19 @@
 			<PlayersTab
 				stats={group.stats}
 				evolution={group.evolution}
-				{pairs}
-				{network}
-				{minDays}
-				onMinDays={(value) => (minDays = value)}
 				{view}
 				{playerHref}
-				analysisHref={`/g/${slug}/analise${viewQuery ? `?${viewQuery}` : ''}`}
+				before={periodBar}
+			/>
+		{:else if view.tab === 'combos'}
+			<CombosTab
+				root={base}
+				access={tokenQuery}
+				ranking={group.stats.ranking}
+				{players}
+				{period}
+				{dayType}
+				{playerHref}
 				before={periodBar}
 			/>
 		{:else if view.tab === 'stats'}
@@ -212,13 +196,5 @@
 <style>
 	.panel {
 		scroll-margin-top: 80px;
-	}
-	.head {
-		display: flex;
-		flex-direction: column;
-		gap: 8px;
-		align-items: center;
-		text-align: center;
-		margin-bottom: 24px;
 	}
 </style>

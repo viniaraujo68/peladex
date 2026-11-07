@@ -19,16 +19,19 @@ export function replaceParams(updates) {
 }
 
 /** @param {URLSearchParams} params @param {string} key */
-export function readIdParam(params, key) {
-	const value = Number(params.get(key));
-	return Number.isInteger(value) && value > 0 ? value : null;
+export function readIdListParam(params, key) {
+	const ids = (params.get(key) ?? '')
+		.split(',')
+		.map(Number)
+		.filter((value) => Number.isInteger(value) && value > 0);
+	return [...new Set(ids)];
 }
 
-/** @param {{ a: number|null, b: number|null }} pick */
-export function pickParams(pick) {
+/** @param {{ a: number[], b: number[] }} sides */
+export function sidesParams(sides) {
 	return {
-		a: pick.a === null ? null : String(pick.a),
-		b: pick.b === null ? null : String(pick.b)
+		a: sides.a.length ? sides.a.join(',') : null,
+		b: sides.b.length ? sides.b.join(',') : null
 	};
 }
 

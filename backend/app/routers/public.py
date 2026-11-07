@@ -109,6 +109,18 @@ def get_public_pairs(request: Request, slug: str, t: str | None = None,
     )
 
 
+@router.get("/{slug}/rivalries", response_model=schemas.RivalryBoard)
+@limiter.limit(settings.rate_limit_public)
+def get_public_rivalries(request: Request, slug: str, t: str | None = None,
+                         min_days: int = Query(services.MIN_PAIR_DAYS, ge=1, le=50),
+                         limit: int = Query(10, ge=1, le=50),
+                         date_from: date | None = None, date_to: date | None = None,
+                         day_type: schemas.DayType | None = None,
+                         db: DBSession = Depends(get_session)):
+    group = visible_group(db, slug, t)
+    return services.compute_rivalries(db, group, min_days, limit, date_from, date_to, day_type)
+
+
 @router.get("/{slug}/timeline", response_model=schemas.TimelineOut)
 @limiter.limit(settings.rate_limit_public)
 def get_public_timeline(request: Request, slug: str, t: str | None = None,
@@ -117,17 +129,6 @@ def get_public_timeline(request: Request, slug: str, t: str | None = None,
                         db: DBSession = Depends(get_session)):
     group = visible_group(db, slug, t)
     return services.compute_timeline(db, group, date_from, date_to, day_type)
-
-
-@router.get("/{slug}/assist-network", response_model=schemas.AssistNetwork)
-@limiter.limit(settings.rate_limit_public)
-def get_public_assist_network(request: Request, slug: str, t: str | None = None,
-                              limit: int = Query(12, ge=1, le=60),
-                              date_from: date | None = None, date_to: date | None = None,
-                              day_type: schemas.DayType | None = None,
-                              db: DBSession = Depends(get_session)):
-    group = visible_group(db, slug, t)
-    return services.compute_assist_network(db, group, limit, date_from, date_to, day_type)
 
 
 @router.post("/{slug}/combo", response_model=schemas.ComboOut)

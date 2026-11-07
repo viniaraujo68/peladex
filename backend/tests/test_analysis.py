@@ -34,6 +34,12 @@ def players_of(api, group):
     return {p["name"]: p["id"] for p in api.get(f"/api/groups/{group}/players").json()}
 
 
+def combo(api, group, **sides):
+    response = api.post(f"/api/groups/{group}/combo", json=sides)
+    assert response.status_code == 200
+    return response.json()
+
+
 def test_the_period_filter_narrows_every_number(api):
     group = seeded(api)
     everything = api.get(f"/api/groups/{group}/stats").json()
@@ -71,6 +77,16 @@ def test_presence_and_streaks_are_reported(api):
     assert by_name["ana"]["recent_win_rate"] is not None
 
 
+def test_the_ranking_counts_the_goals_each_players_team_conceded(api):
+    group = seeded(api)
+    by_name = {r["name"]: r for r in api.get(f"/api/groups/{group}/stats").json()["ranking"]}
+    ana = by_name["ana"]
+    assert ana["goals_conceded"] == 2
+    assert ana["goals_conceded_per_match"] == 2 / 8
+    assert ana["goals_conceded_per_matchday"] == 2 / 4
+    assert by_name["caio"]["goals_conceded"] == 8
+
+
 def test_assists_reach_the_ranking(api):
     group = seeded(api)
     stats = api.get(f"/api/groups/{group}/stats").json()
@@ -82,11 +98,11 @@ def test_assists_reach_the_ranking(api):
     assert by_name["ana"]["matchdays"] == 4
 
 
-def test_the_assist_network_ranks_the_pairs(api):
+def test_the_pair_board_ranks_who_assists_whom(api):
     group = seeded(api)
-    network = api.get(f"/api/groups/{group}/assist-network").json()
-    assert network["total_assisted_goals"] == 7
-    top = network["links"][0]
+    board = api.get(f"/api/groups/{group}/pairs").json()
+    assert sum(link["goals"] for link in board["assists"]) == 7
+    top = board["assists"][0]
     assert (top["assist_name"], top["scorer_name"], top["goals"]) == ("bia", "ana", 5)
 
 
@@ -97,51 +113,154 @@ def test_the_pair_leaderboard_respects_the_minimum(api):
     assert [(r["player_a"], r["player_b"]) for r in strict["together"]] == [("ana", "bia")]
     assert strict["together"][0]["days"] == 4
 
+    ana_bia = strict["together"][0]
+    assert (ana_bia["assists_a_to_b"], ana_bia["assists_b_to_a"]) == (1, 5)
+
     loose = api.get(f"/api/groups/{group}/pairs?min_days=1&limit=50").json()
     assert len(loose["together"]) > 1
     assert loose["together"][0]["delta"] >= loose["together"][-1]["delta"]
 
 
+def test_a_pair_shows_the_same_win_rate_as_its_combo(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    row = api.get(f"/api/groups/{group}/pairs?min_days=4").json()["together"][0]
+    assert row["win_rate"] == combo(api, group, together=[ids["ana"], ids["bia"]])["win_rate"]
+    assert abs(row["delta"] - (row["win_rate"] - row["expected"])) < 1e-9
+
+
+def test_rivalries_put_the_player_who_wins_more_first(api):
+    group = seeded(api)
+    board = api.get(f"/api/groups/{group}/rivalries?min_days=3").json()
+    assert board["min_days"] == 3
+    rows = {frozenset((r["leader"], r["trailer"])): r for r in board["lopsided"]}
+    ana_caio = rows[frozenset(("ana", "caio"))]
+    assert (ana_caio["leader"], ana_caio["trailer"]) == ("ana", "caio")
+    assert (ana_caio["wins"], ana_caio["draws"], ana_caio["losses"]) == (5, 0, 1)
+    assert (ana_caio["days"], ana_caio["matches"]) == (3, 6)
+    assert ana_caio["win_rate"] == 15 / 18
+    rates = [r["win_rate"] for r in board["lopsided"]]
+    assert rates == sorted(rates, reverse=True)
+
+
+def test_rivalries_match_the_head_to_head_combo(api):
+    group = seeded(api)
+    board = api.get(f"/api/groups/{group}/rivalries?min_days=1&limit=50").json()
+    for row in board["lopsided"]:
+        result = combo(api, group, together=[row["leader_id"]], against=[row["trailer_id"]])
+        assert (result["wins"], result["draws"], result["losses"]) == (
+            row["wins"], row["draws"], row["losses"])
+        assert result["days"] == row["days"]
+
+
+def test_classics_are_the_pairs_that_faced_each_other_most(api):
+    group = seeded(api)
+    board = api.get(f"/api/groups/{group}/rivalries?min_days=1&limit=50").json()
+    matches = [r["matches"] for r in board["classics"]]
+    assert matches == sorted(matches, reverse=True)
+    assert len(board["classics"]) == len(board["lopsided"])
+
+
+def test_the_closest_rivalries_have_the_smallest_gap_between_wins_and_losses(api):
+    group = seeded(api)
+    board = api.get(f"/api/groups/{group}/rivalries?min_days=1&limit=50").json()
+    gaps = [abs(r["wins"] - r["losses"]) / r["matches"] for r in board["balanced"]]
+    assert gaps == sorted(gaps)
+    assert len(board["balanced"]) == len(board["lopsided"])
+
+
 def test_combo_measures_players_on_the_same_team(api):
     group = seeded(api)
     ids = players_of(api, group)
-    combo = api.post(f"/api/groups/{group}/combo",
-                     json={"together": [ids["ana"], ids["bia"]]}).json()
-    assert combo["days"] == 4
-    assert combo["matches"] == 8
-    assert combo["together_names"] == ["ana", "bia"]
-    assert combo["wins"] + combo["draws"] + combo["losses"] == 8
-    assert combo["dates"] == ["2026-09-03", "2026-09-10", "2026-09-17", "2026-09-24"]
+    result = combo(api, group, together=[ids["ana"], ids["bia"]])
+    assert result["days"] == 4
+    assert result["matches"] == 8
+    assert result["wins"] + result["draws"] + result["losses"] == 8
+    assert result["dates"] == ["2026-09-03", "2026-09-10", "2026-09-17", "2026-09-24"]
 
 
 def test_combo_skips_days_where_they_were_split(api):
     group = seeded(api)
     ids = players_of(api, group)
-    combo = api.post(f"/api/groups/{group}/combo",
-                     json={"together": [ids["ana"], ids["caio"]]}).json()
-    assert combo["days"] == 1
-    assert combo["dates"] == ["2026-09-03"]
+    result = combo(api, group, together=[ids["ana"], ids["caio"]])
+    assert result["days"] == 1
+    assert result["dates"] == ["2026-09-03"]
 
 
 def test_combo_can_pit_one_side_against_another(api):
     group = seeded(api)
     ids = players_of(api, group)
-    combo = api.post(f"/api/groups/{group}/combo", json={
-        "together": [ids["ana"], ids["bia"]], "against": [ids["caio"]],
-    }).json()
-    assert combo["days"] == 3
-    assert combo["against_names"] == ["caio"]
-    assert combo["matches"] == 6
+    result = combo(api, group, together=[ids["ana"], ids["bia"]], against=[ids["caio"]])
+    assert result["days"] == 3
+    assert result["matches"] == 6
 
 
-def test_combo_honours_the_period(api):
+def test_combo_counts_each_players_goals_and_assists_in_those_matches(api):
     group = seeded(api)
     ids = players_of(api, group)
-    combo = api.post(f"/api/groups/{group}/combo", json={
-        "together": [ids["ana"], ids["bia"]], "date_from": "2026-09-17",
-    }).json()
-    assert combo["days"] == 2
-    assert combo["matches"] == 4
+    result = combo(api, group, together=[ids["ana"]], against=[ids["caio"]])
+    scoring = {p["name"]: (p["goals"], p["assists"]) for p in result["players"]}
+    assert scoring == {"ana": (5, 1), "caio": (2, 0)}
+    reverse = combo(api, group, together=[ids["caio"]], against=[ids["ana"]])
+    caio = next(p for p in result["players"] if p["name"] == "caio")
+    assert caio["win_rate"] == reverse["win_rate"]
+    assert result["goals_for"] > scoring["ana"][0]
+
+
+def test_combo_players_carry_ranking_rows_from_their_own_side(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    result = combo(api, group, together=[ids["ana"], ids["bia"]], against=[ids["caio"]])
+    rows = {p["name"]: p for p in result["players"]}
+    for name in ("ana", "bia"):
+        row = rows[name]
+        assert (row["matchdays"], row["matches"]) == (3, 6)
+        assert (row["wins"], row["draws"], row["losses"]) == (
+            result["wins"], result["draws"], result["losses"]
+        )
+        assert row["goals_conceded"] == result["goals_against"]
+        assert row["win_rate"] == result["win_rate"]
+    caio = rows["caio"]
+    assert (caio["wins"], caio["losses"]) == (result["losses"], result["wins"])
+    assert caio["goals_conceded"] == result["goals_for"]
+
+
+def test_combo_players_carry_the_day_level_numbers_of_those_days(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    overall = {r["name"]: r for r in api.get(f"/api/groups/{group}/stats").json()["ranking"]}
+    result = combo(api, group, together=[ids["ana"], ids["bia"]])
+    ana = next(p for p in result["players"] if p["name"] == "ana")
+    for key in ("titles", "top_scorer_days", "mvp_count", "matchdays", "win_rate"):
+        assert ana[key] == overall["ana"][key]
+    assert len(ana["recent_form"]) == 4
+    assert ana["presence"] == 1.0
+    split = combo(api, group, together=[ids["ana"], ids["caio"]])
+    assert next(p for p in split["players"] if p["name"] == "ana")["presence"] == 0.25
+
+
+def test_combo_lists_the_assists_between_the_chosen_players(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    result = combo(api, group, together=[ids["ana"], ids["bia"]], against=[ids["caio"]])
+    links = [
+        (link["assist_name"], link["scorer_name"], link["goals"]) for link in result["assist_links"]
+    ]
+    assert links == [("bia", "ana", 3), ("ana", "bia", 1)]
+    assert combo(api, group, together=[ids["ana"]], against=[ids["caio"]])["assist_links"] == []
+
+
+def test_the_combo_follows_the_period(api):
+    group = seeded(api)
+    ids = players_of(api, group)
+    result = combo(api, group, together=[ids["ana"], ids["bia"]], date_from="2026-09-17")
+    assert (result["days"], result["matches"]) == (2, 4)
+
+
+def test_a_combo_side_takes_at_most_eight_players(api):
+    group = seeded(api)
+    url = f"/api/groups/{group}/combo"
+    assert api.post(url, json={"together": list(range(1, 10))}).status_code == 422
 
 
 def test_the_public_surface_exposes_the_new_views(api, client):
@@ -151,11 +270,12 @@ def test_the_public_surface_exposes_the_new_views(api, client):
     ids = players_of(api, group)
 
     assert client.get(f"/api/public/{slug}/pairs?min_days=1").status_code == 200
-    assert client.get(f"/api/public/{slug}/assist-network").status_code == 200
-    combo = client.post(f"/api/public/{slug}/combo",
-                        json={"together": [ids["ana"], ids["bia"]]})
-    assert combo.status_code == 200
-    assert combo.json()["days"] == 4
+    assert client.get(f"/api/public/{slug}/rivalries?min_days=1").status_code == 200
+    url = f"/api/public/{slug}/combo"
+    together = client.post(url, json={"together": [ids["ana"], ids["bia"]]})
+    assert together.status_code == 200
+    assert together.json()["days"] == 4
+    assert client.post(url, json={"together": [ids["ana"]], "against": [ids["bia"]]}).json()["days"] == 0
 
     body = client.get(f"/api/public/{slug}?date_from=2026-09-17").json()
     assert body["stats"]["total_matchdays"] == 2

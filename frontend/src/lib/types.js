@@ -171,6 +171,9 @@
  * @property {number} assists_per_match
  * @property {number} contributions_per_match
  * @property {number} team_goals
+ * @property {number} goals_conceded
+ * @property {number} goals_conceded_per_match
+ * @property {number} goals_conceded_per_matchday
  * @property {number|null} goal_share
  * @property {number|null} assist_share
  * @property {number|null} contribution_share
@@ -236,14 +239,48 @@
  * @property {string} player_b
  * @property {number} days
  * @property {number} win_rate
+ * @property {number} expected
  * @property {number} delta
+ * @property {number} assists_a_to_b
+ * @property {number} assists_b_to_a
  */
 
 /**
  * @typedef {object} PairLeaderboard
  * @property {PairLeaderRow[]} together
  * @property {PairLeaderRow[]} apart
+ * @property {AssistLink[]} assists
  * @property {number} min_days
+ */
+
+/**
+ * @typedef {object} RivalryRow
+ * @property {number} leader_id
+ * @property {string} leader
+ * @property {number} trailer_id
+ * @property {string} trailer
+ * @property {number} days
+ * @property {number} matches
+ * @property {number} wins
+ * @property {number} draws
+ * @property {number} losses
+ * @property {number} win_rate
+ */
+
+/**
+ * @typedef {object} RivalryBoard
+ * @property {RivalryRow[]} lopsided
+ * @property {RivalryRow[]} classics
+ * @property {RivalryRow[]} balanced
+ * @property {number} min_days
+ */
+
+/**
+ * @typedef {object} ComboRequest
+ * @property {number[]} together
+ * @property {number[]} against
+ * @property {string|null} date_from
+ * @property {string|null} date_to
  */
 
 /**
@@ -257,11 +294,9 @@
  * @property {number} goals_for
  * @property {number} goals_against
  * @property {number} win_rate
- * @property {number} baseline
- * @property {number} delta
  * @property {string[]} dates
- * @property {string[]} together_names
- * @property {string[]} against_names
+ * @property {PlayerRow[]} players
+ * @property {AssistLink[]} assist_links
  */
 
 /**
@@ -271,12 +306,6 @@
  * @property {number} scorer_player_id
  * @property {string} scorer_name
  * @property {number} goals
- */
-
-/**
- * @typedef {object} AssistNetwork
- * @property {AssistLink[]} links
- * @property {number} total_assisted_goals
  */
 
 /**

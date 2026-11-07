@@ -266,6 +266,9 @@ class PlayerRow(BaseModel):
     assists_per_match: float
     contributions_per_match: float
     team_goals: int
+    goals_conceded: int
+    goals_conceded_per_match: float
+    goals_conceded_per_matchday: float
     goal_share: float | None
     assist_share: float | None
     contribution_share: float | None
@@ -330,6 +333,14 @@ class TimelineOut(BaseModel):
     assists_per_matchday: float
 
 
+class AssistLink(BaseModel):
+    assist_player_id: int
+    assist_name: str
+    scorer_player_id: int
+    scorer_name: str
+    goals: int
+
+
 class PairLeaderRow(BaseModel):
     player_a_id: int
     player_a: str
@@ -337,12 +348,36 @@ class PairLeaderRow(BaseModel):
     player_b: str
     days: int
     win_rate: float
+    expected: float
     delta: float
+    assists_a_to_b: int
+    assists_b_to_a: int
 
 
 class PairLeaderboard(BaseModel):
     together: list[PairLeaderRow]
     apart: list[PairLeaderRow]
+    assists: list[AssistLink]
+    min_days: int
+
+
+class RivalryRow(BaseModel):
+    leader_id: int
+    leader: str
+    trailer_id: int
+    trailer: str
+    days: int
+    matches: int
+    wins: int
+    draws: int
+    losses: int
+    win_rate: float
+
+
+class RivalryBoard(BaseModel):
+    lopsided: list[RivalryRow]
+    classics: list[RivalryRow]
+    balanced: list[RivalryRow]
     min_days: int
 
 
@@ -364,24 +399,9 @@ class ComboOut(BaseModel):
     goals_for: int
     goals_against: int
     win_rate: float
-    baseline: float
-    delta: float
     dates: list[date]
-    together_names: list[str]
-    against_names: list[str]
-
-
-class AssistLink(BaseModel):
-    assist_player_id: int
-    assist_name: str
-    scorer_player_id: int
-    scorer_name: str
-    goals: int
-
-
-class AssistNetwork(BaseModel):
-    links: list[AssistLink]
-    total_assisted_goals: int
+    players: list[PlayerRow]
+    assist_links: list[AssistLink]
 
 
 class EvolutionPoint(BaseModel):

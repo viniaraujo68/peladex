@@ -2,7 +2,7 @@
 	import { SINGLE_GAME_UNITS, getDayTypeView, visibleUnit } from '$lib/dayType.js';
 	import { SegmentedControl } from '@viniaraujo68/plinth/components';
 	import { DataTable, competitionRanks, sortRows, sortValue } from '@viniaraujo68/plinth/table';
-	import { formatRate } from '$lib/format.svelte.js';
+	import { formatAverage, formatRate } from '$lib/format.svelte.js';
 	import { localeTag, t } from '$lib/i18n.svelte.js';
 	import {
 		formScore,
@@ -11,13 +11,14 @@
 		metricById,
 		metricValue,
 		rankValue,
-		unitCaption,
-		unitOptions
+		unitOptions,
+		unitValue
 	} from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
 	import FormDots from './FormDots.svelte';
 	import Icon from './Icon.svelte';
 	import RankMove from './RankMove.svelte';
+	import SideDot from './SideDot.svelte';
 
 	const tracking = getTracking();
 
@@ -29,16 +30,29 @@
 	 *   unit: import('$lib/metrics.js').Unit,
 	 *   onUnit: (unit: import('$lib/metrics.js').Unit) => void,
 	 *   sort: import('@viniaraujo68/plinth/table').SortState,
-	 *   onSort: (sort: import('@viniaraujo68/plinth/table').SortState) => void
+	 *   onSort: (sort: import('@viniaraujo68/plinth/table').SortState) => void,
+	 *   only?: number[]|null,
+	 *   sideOf?: (playerId: number) => 'a'|'b'|null,
+	 *   storageKey?: string
 	 * }}
 	 */
-	let { ranking, previousRanking, playerHref, unit: requestedUnit, onUnit, sort, onSort } = $props();
+	let {
+		ranking,
+		previousRanking,
+		playerHref,
+		unit: requestedUnit,
+		onUnit,
+		sort,
+		onSort,
+		only = null,
+		sideOf = () => null,
+		storageKey = 'peladex:ranking-columns'
+	} = $props();
 
 	/** @typedef {import('$lib/types.js').PlayerRow} Row */
 	/** @typedef {import('$lib/metrics.js').MetricId} MetricId */
 
 	const PODIUM = 3;
-	const COLUMNS_STORAGE_KEY = 'peladex:ranking-columns';
 	const METRIC_COLUMNS = /** @type {MetricId[]} */ ([
 		'win_rate',
 		'goals',
@@ -70,8 +84,12 @@
 	/** @param {Row} r @param {number|null} value */
 	const gated = (r, value) => (r.qualified ? value : null);
 
+	/** @param {Row} r */
+	const conceded = (r) => unitValue(r, 'goals_conceded', unit);
+
 	/** @type {Record<string, (r: Row) => string>} */
 	const text = $derived({
+		goals_conceded: (r) => (unit === 'total' ? String(r.goals_conceded) : formatAverage(conceded(r))),
 		title_rate: (r) => formatRate(r.title_rate),
 		presence: (r) => formatRate(r.presence),
 		matches: (r) => String(r.matches),
@@ -179,6 +197,17 @@
 					}
 				]
 			: []),
+		{
+			key: 'goals_conceded',
+			label:
+				unit === 'total'
+					? t('ranking.goals_conceded')
+					: `${t('ranking.goals_conceded')}/${t(`unit.short.${unit}`)}`,
+			numeric: true,
+			defaultSortDirection: 'asc',
+			sortBy: (/** @type {Row} */ r) => conceded(r),
+			cell: concededCell
+		},
 		...(showGoals
 			? [
 					{
@@ -228,6 +257,7 @@
 		return new Map(ordered.map((r, i) => [r.player_id, positions[i]]));
 	}
 
+	const rows = $derived(only ? ranking.filter((r) => only.includes(r.player_id)) : ranking);
 	const ranks = $derived(positionsOf(ranking));
 	const previousRanks = $derived(positionsOf(previousRanking));
 	const showMovement = $derived(previousRanking.length > 0);
@@ -260,6 +290,7 @@
 
 {#snippet nameCell(/** @type {Row} */ r)}
 	<span class="namecell">
+		<SideDot side={sideOf(r.player_id)} />
 		{#if playerHref}
 			<a class="pname link-hover" class:dim={!r.qualified} href={playerHref(r.player_id)}>{r.name}</a>
 		{:else}
@@ -303,6 +334,10 @@
 	{@render valueCell('goal_share', r)}
 {/snippet}
 
+{#snippet concededCell(/** @type {Row} */ r)}
+	{display('goals_conceded', r)}
+{/snippet}
+
 {#snippet titleRateCell(/** @type {Row} */ r)}
 	{@render valueCell('title_rate', r)}
 {/snippet}
@@ -312,6 +347,7 @@
 		<span class="rank rc-rank" data-tier={tier(r)}>{ranks.get(r.player_id) ?? '—'}</span>
 		<div class="rc-mid">
 			<span class="rc-name" class:dim={!r.qualified}>
+				<SideDot side={sideOf(r.player_id)} />
 				{#if playerHref}
 					<a class="link-hover" href={playerHref(r.player_id)}>{r.name}</a>
 				{:else}
@@ -355,17 +391,16 @@
 		options={unitChoices}
 		value={unit}
 		label={t('unit.label')}
-		caption={unitCaption(tracking)}
 		onchange={(id) => onUnit(/** @type {import('$lib/metrics.js').Unit} */ (id))}
 	/>
 {/snippet}
 
-{#if ranking.length === 0}
+{#if rows.length === 0}
 	<div class="px-5 py-12 text-center text-base-content/65">{t('ranking.empty')}</div>
 {:else}
 	<div class="ranking">
 		<DataTable
-			rows={ranking}
+			{rows}
 			{columns}
 			rowKey={(r) => r.player_id}
 			bind:sort={() => sort, (value) => value && onSort(value)}
@@ -374,7 +409,7 @@
 			sortLabel={(column) => t('ranking.sortByColumn', { column: column.label })}
 			card={playerCard}
 			toolbar={showGoals ? unitBar : undefined}
-			storageKey={COLUMNS_STORAGE_KEY}
+			{storageKey}
 			resizable
 			columnsLabel={t('columns.menu')}
 			resetColumnsLabel={t('columns.reset')}
@@ -420,6 +455,9 @@
 		box-shadow: none;
 	}
 	.namecell {
+		display: inline-flex;
+		align-items: center;
+		gap: 6px;
 		white-space: nowrap;
 	}
 	.pname {

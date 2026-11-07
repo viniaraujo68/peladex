@@ -4,25 +4,17 @@
 	import { t } from '$lib/i18n.svelte.js';
 	import { unitLabel, unitOptions } from '$lib/metrics.js';
 	import { getTracking } from '$lib/tracking.svelte.js';
-	import AssistNetwork from './AssistNetwork.svelte';
 	import EvolutionChart from './EvolutionChart.svelte';
-	import PairLeaderboard from './PairLeaderboard.svelte';
 
 	/**
 	 * @type {{
 	 *   evolution: import('$lib/types.js').Evolution,
-	 *   pairs: import('$lib/types.js').PairLeaderboard|null,
-	 *   network: import('$lib/types.js').AssistNetwork|null,
-	 *   minDays: number,
-	 *   onMinDays: (value: number) => void,
 	 *   minMatchdays: number,
 	 *   unit: import('$lib/metrics.js').Unit,
-	 *   onUnit: (unit: import('$lib/metrics.js').Unit) => void,
-	 *   playerHref: (playerId: number) => string
+	 *   onUnit: (unit: import('$lib/metrics.js').Unit) => void
 	 * }}
 	 */
-	let { evolution, pairs, network, minDays, onMinDays, minMatchdays, unit: requestedUnit, onUnit, playerHref } =
-		$props();
+	let { evolution, minMatchdays, unit: requestedUnit, onUnit } = $props();
 
 	const tracking = getTracking();
 
@@ -56,14 +48,7 @@
 <div class="flex flex-col gap-4">
 	<div class="card flex flex-col gap-4 bg-base-100 p-5">
 		<div class="charthead">
-			<div>
-				<h3 class="font-semibold">{title}</h3>
-				{#if metric === 'win_rate' || unit !== 'total'}
-					<p class="mt-1 text-xs text-base-content/65">
-						{metric === 'win_rate' ? t('stats.evolutionHint') : t('chart.runningAverageHint')}
-					</p>
-				{/if}
-			</div>
+			<h3 class="font-semibold">{title}</h3>
 			<div class="controls">
 				<SegmentedControl
 					options={metrics}
@@ -83,14 +68,6 @@
 		</div>
 		<EvolutionChart {evolution} {metric} {unit} {minMatchdays} />
 	</div>
-
-	{#if pairs}
-		<PairLeaderboard board={pairs} {minDays} {onMinDays} {playerHref} />
-	{/if}
-
-	{#if network && tracking.trackScorers && tracking.trackAssists}
-		<AssistNetwork {network} {playerHref} />
-	{/if}
 </div>
 
 <style>
