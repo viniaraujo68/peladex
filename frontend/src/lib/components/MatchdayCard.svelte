@@ -135,8 +135,10 @@
 			{#if topScorers.length}
 				<span class="hl-value">
 					<Icon name="ball" class="size-4" />
-					{topScorers.map((s) => s.name).join(', ')}
-					<span class="muted">({topScorer?.goals})</span>
+					<span>
+						{topScorers.map((s) => s.name).join(', ')}
+						<span class="muted nowrap">({topScorer?.goals})</span>
+					</span>
 				</span>
 			{:else}
 				<span class="hl-value muted">—</span>
@@ -148,8 +150,10 @@
 				<span class="hl-label">{t('day.topAssister')}</span>
 				<span class="hl-value">
 					<Icon name="players" class="size-4" />
-					{topAssisters.map((s) => s.name).join(', ')}
-					<span class="muted">({topAssister?.assists})</span>
+					<span>
+						{topAssisters.map((s) => s.name).join(', ')}
+						<span class="muted nowrap">({topAssister?.assists})</span>
+					</span>
 				</span>
 			</div>
 		{/if}
@@ -266,6 +270,9 @@
 	.muted {
 		color: var(--ink-muted);
 		font-weight: 400;
+	}
+	.nowrap {
+		white-space: nowrap;
 	}
 	.expander {
 		display: flex;
