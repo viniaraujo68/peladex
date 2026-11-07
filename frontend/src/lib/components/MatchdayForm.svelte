@@ -640,19 +640,22 @@
 		clearDraft();
 	}
 
+	/** @param {string} json */
+	function saveDraft(json) {
+		try {
+			localStorage.setItem(
+				draftKey,
+				JSON.stringify({ savedAt: new Date().toISOString(), state: JSON.parse(json) })
+			);
+		} catch {
+			// storage blocked
+		}
+	}
+
 	$effect(() => {
 		const json = stateJson;
 		if (!dirty || draftPrompt || submitting) return;
-		const timer = setTimeout(() => {
-			try {
-				localStorage.setItem(
-					draftKey,
-					JSON.stringify({ savedAt: new Date().toISOString(), state: JSON.parse(json) })
-				);
-			} catch {
-				// storage blocked
-			}
-		}, 500);
+		const timer = setTimeout(() => saveDraft(json), 500);
 		return () => clearTimeout(timer);
 	});
 
@@ -690,11 +693,8 @@
 		void confirmLeave(nav);
 	});
 
-	/** @param {BeforeUnloadEvent} ev */
-	function onBeforeUnload(ev) {
-		if (!dirty || submitting) return;
-		ev.preventDefault();
-		ev.returnValue = '';
+	function onPageHide() {
+		if (dirty && !draftPrompt && !submitting) saveDraft(stateJson);
 	}
 
 	function onVisibilityChange() {
@@ -742,7 +742,7 @@
 	}
 </script>
 
-<svelte:window onbeforeunload={onBeforeUnload} onfocus={refreshNow} />
+<svelte:window onpagehide={onPageHide} onfocus={refreshNow} />
 <svelte:document onvisibilitychange={onVisibilityChange} />
 
 <form class="sheet" onsubmit={submit}>
