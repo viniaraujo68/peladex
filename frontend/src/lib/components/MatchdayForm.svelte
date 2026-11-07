@@ -7,6 +7,7 @@
 	import { toast } from '@viniaraujo68/plinth/toast';
 	import { post, errorMessage } from '$lib/http.js';
 	import { i18n, localeTag, t, teamName } from '$lib/i18n.svelte.js';
+	import { fold } from '$lib/fold.js';
 	import { nextMatch } from '$lib/rotation.js';
 	import { explicitTeamColor } from '$lib/teamColor.js';
 	import GoalMark from './GoalMark.svelte';
@@ -51,16 +52,6 @@
 	/** @param {string} color */
 	function colorName(color) {
 		return t(`teamColor.${color}`);
-	}
-
-	/** @param {string} value */
-	function fold(value) {
-		return value
-			.normalize('NFKD')
-			.replace(/[̀-ͯ]/g, '')
-			.replace(/\s+/g, ' ')
-			.trim()
-			.toLowerCase();
 	}
 
 	/** @param {string} value */

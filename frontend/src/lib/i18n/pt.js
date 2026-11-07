@@ -208,6 +208,7 @@ export default {
 	'filters.to': 'Até',
 	'filters.showMore': 'Mostrar mais ({count})',
 	'filters.count': '{shown} de {total}',
+	'filters.playerSearch': 'Buscar jogador…',
 	'filters.invalidRange': 'A data inicial é depois da final',
 
 	'standings.team': 'Time',

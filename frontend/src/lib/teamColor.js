@@ -1,3 +1,5 @@
+import { fold } from './fold.js';
+
 /** @type {Record<string, string>} */
 const PALETTE = {
 	branco: '#f2f3f5',
@@ -41,15 +43,6 @@ const FALLBACK = ['#2f6fe0', '#e0453f', '#2f9e51', '#efc033', '#8a5cf0', '#ee7f2
 
 const HEX_COLOR = /^#[0-9a-f]{6}$/i;
 
-/** @param {string} value */
-function strip(value) {
-	return value
-		.normalize('NFKD')
-		.replace(/[̀-ͯ]/g, '')
-		.toLowerCase()
-		.trim();
-}
-
 /**
  * @param {string | null | undefined} value
  * @returns {string}
@@ -65,7 +58,7 @@ export function explicitTeamColor(value) {
  */
 export function teamColor(name, explicit = '') {
 	if (explicitTeamColor(explicit)) return explicit;
-	const key = strip(name ?? '');
+	const key = fold(name ?? '');
 	if (PALETTE[key]) return PALETTE[key];
 	for (const word of key.split(/\s+/)) {
 		if (PALETTE[word]) return PALETTE[word];

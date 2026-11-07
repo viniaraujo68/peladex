@@ -208,6 +208,7 @@ export default {
 	'filters.to': 'To',
 	'filters.showMore': 'Show more ({count})',
 	'filters.count': '{shown} of {total}',
+	'filters.playerSearch': 'Search player…',
 	'filters.invalidRange': 'Start date is after end date',
 
 	'standings.team': 'Team',

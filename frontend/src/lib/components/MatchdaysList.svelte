@@ -1,5 +1,6 @@
 <script>
 	import { Combobox } from '@viniaraujo68/plinth/components';
+	import { fold } from '$lib/fold.js';
 	import { t } from '$lib/i18n.svelte.js';
 	import Icon from './Icon.svelte';
 	import MatchdayCard from './MatchdayCard.svelte';
@@ -32,6 +33,7 @@
 	let dateTo = $state('');
 	/** @type {Set<number>} */
 	let selectedPlayers = $state(new Set());
+	let query = $state('');
 	let filtersOpen = $state(false);
 
 	const venues = $derived.by(() => {
@@ -61,6 +63,30 @@
 			.map(([id, name]) => ({ id, name }))
 			.sort((a, b) => a.name.localeCompare(b.name));
 	});
+
+	const foldedQuery = $derived(fold(query));
+	const shownPlayers = $derived(
+		foldedQuery ? players.filter((p) => fold(p.name).includes(foldedQuery)) : players
+	);
+	const pickTarget = $derived(foldedQuery ? (shownPlayers[0] ?? null) : null);
+
+	/** @param {number} id */
+	function pickPlayer(id) {
+		togglePlayer(id);
+		query = '';
+	}
+
+	/** @param {KeyboardEvent} ev */
+	function onSearchKeydown(ev) {
+		if (ev.key === 'Escape' && query) {
+			ev.preventDefault();
+			query = '';
+			return;
+		}
+		if (ev.key !== 'Enter') return;
+		ev.preventDefault();
+		if (pickTarget) pickPlayer(pickTarget.id);
+	}
 
 	const rangeInvalid = $derived(!!(dateFrom && dateTo && dateFrom > dateTo));
 
@@ -114,6 +140,7 @@
 		dateFrom = '';
 		dateTo = '';
 		selectedPlayers = new Set();
+		query = '';
 	}
 </script>
 
@@ -191,20 +218,39 @@
 
 				{#if players.length}
 					<div class="fplayers">
-						<span class="flabel">{t('settings.players')}</span>
-						<div class="pchips">
-							{#each players as player (player.id)}
-								<button
-									type="button"
-									class="badge badge-soft pchip"
-									class:sel={selectedPlayers.has(player.id)}
-									aria-pressed={selectedPlayers.has(player.id)}
-									onclick={() => togglePlayer(player.id)}
-								>
-									{player.name}
-								</button>
-							{/each}
-						</div>
+						<label class="flabel" for="player-filter">{t('settings.players')}</label>
+						<label class="input min-h-11 w-full">
+							<Icon name="search" class="size-4 opacity-60" />
+							<input
+								id="player-filter"
+								type="search"
+								class="grow"
+								placeholder={t('filters.playerSearch')}
+								bind:value={query}
+								onkeydown={onSearchKeydown}
+								autocapitalize="none"
+								autocomplete="off"
+								enterkeyhint="done"
+							/>
+						</label>
+						{#if shownPlayers.length}
+							<div class="pchips">
+								{#each shownPlayers as player (player.id)}
+									<button
+										type="button"
+										class="pchip"
+										class:sel={selectedPlayers.has(player.id)}
+										class:target={pickTarget?.id === player.id}
+										aria-pressed={selectedPlayers.has(player.id)}
+										onclick={() => pickPlayer(player.id)}
+									>
+										{player.name}
+									</button>
+								{/each}
+							</div>
+						{:else}
+							<p class="text-xs text-base-content/65">{t('day.playerNoMatch')}</p>
+						{/if}
 					</div>
 				{/if}
 
@@ -308,16 +354,29 @@
 	.pchips {
 		display: flex;
 		flex-wrap: wrap;
-		gap: 5px;
+		gap: 6px;
 	}
 	.pchip {
+		display: inline-flex;
+		align-items: center;
+		min-height: 36px;
+		padding: 5px 11px;
+		border: 1px solid color-mix(in oklch, var(--color-base-content) 15%, transparent);
+		border-radius: var(--radius-field);
+		background: var(--color-base-100);
+		color: var(--color-base-content);
+		font-size: 0.82rem;
 		cursor: pointer;
-		min-height: 28px;
 	}
 	.pchip.sel {
-		background: color-mix(in oklch, var(--color-primary) 18%, transparent);
+		border-color: var(--color-primary);
+		background: color-mix(in oklch, var(--color-primary) 16%, transparent);
 		color: var(--ink-primary);
 		font-weight: 600;
+	}
+	.pchip.target {
+		outline: 2px solid var(--color-primary);
+		outline-offset: 1px;
 	}
 	.fbottom {
 		display: flex;

@@ -1,5 +1,6 @@
 import pt from './i18n/pt.js';
 import en from './i18n/en.js';
+import { fold } from './fold.js';
 
 /** @typedef {'pt'|'en'} Locale */
 /** @typedef {string | { one: string, other: string }} Phrase */
@@ -68,21 +69,11 @@ export function t(key, params) {
 	return interpolate(value, params);
 }
 
-/** @param {string} value */
-function foldWord(value) {
-	return value
-		.normalize('NFKD')
-		.replace(/[\u0300-\u036f]/g, '')
-		.toLowerCase()
-		.replace(/\s+/g, ' ')
-		.trim();
-}
-
 const TEAM_COLOR_WORDS = new Map(
 	Object.values(dicts).flatMap((dict) =>
 		Object.entries(dict)
 			.filter(([key, value]) => key.startsWith('teamColor.') && typeof value === 'string')
-			.map(([key, value]) => [foldWord(/** @type {string} */ (value)), key])
+			.map(([key, value]) => [fold(/** @type {string} */ (value)), key])
 	)
 );
 
@@ -91,6 +82,6 @@ const TEAM_COLOR_WORDS = new Map(
  * @returns {string}
  */
 export function teamName(name) {
-	const key = TEAM_COLOR_WORDS.get(foldWord(name ?? ''));
+	const key = TEAM_COLOR_WORDS.get(fold(name ?? ''));
 	return key ? t(key) : name;
 }
