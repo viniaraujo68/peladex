@@ -582,7 +582,7 @@ export default {
 	'players.noResults': 'Nenhum jogador encontrado para “{query}”.',
 	'players.sortBy': 'Ordenar por',
 
-	'apiError.registration_closed': 'O cadastro está fechado nesta pelada. Peça um convite ao dono.',
+	'apiError.registration_closed': 'No momento não estamos aceitando novas contas.',
 
 	'metric.win_rate': 'Aproveitamento',
 	'metric.goals': 'Artilharia',

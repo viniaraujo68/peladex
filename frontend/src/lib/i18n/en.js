@@ -581,7 +581,7 @@ export default {
 	'players.noResults': 'No player found for “{query}”.',
 	'players.sortBy': 'Sort by',
 
-	'apiError.registration_closed': 'Registration is closed on this install. Ask the owner for access.',
+	'apiError.registration_closed': 'We are not accepting new accounts right now.',
 
 	'metric.win_rate': 'Win rate',
 	'metric.goals': 'Top scorers',
