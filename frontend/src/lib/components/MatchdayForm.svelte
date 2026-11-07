@@ -349,9 +349,15 @@
 
 	/** @param {number} matchIndex @param {'home'|'away'} side @param {number} delta */
 	function bumpScore(matchIndex, side, delta) {
-		const key = side === 'home' ? 'homeScore' : 'awayScore';
-		const next = Math.max(0, Math.min(99, matches[matchIndex][key] + delta));
-		matches[matchIndex][key] = next;
+		const match = matches[matchIndex];
+		if (delta < 0 && goalTally(match)[side] >= scoreOf(match, side)) {
+			const last = match.goals.findLastIndex((goal) => creditedSide(match, goal) === side);
+			if (last !== -1) {
+				removeGoal(matchIndex, last);
+				return;
+			}
+		}
+		shiftScore(match, side, delta);
 	}
 
 	/** @param {MatchDraft} match @param {GoalDraft} goal */
@@ -368,6 +374,18 @@
 		else if (side === 'away') match.awayScore = Math.max(0, Math.min(99, match.awayScore + delta));
 	}
 
+	/** @param {MatchDraft} match @param {'home'|'away'} side */
+	function scoreOf(match, side) {
+		return side === 'home' ? match.homeScore : match.awayScore;
+	}
+
+	/** @param {MatchDraft} match @param {'home'|'away'|null} from @param {'home'|'away'|null} to */
+	function moveGoalCredit(match, from, to) {
+		const tally = goalTally(match);
+		if (from && tally[from] === scoreOf(match, from)) shiftScore(match, from, -1);
+		if (to && tally[to] >= scoreOf(match, to)) shiftScore(match, to, 1);
+	}
+
 	/** @param {number} matchIndex @param {number} playerId */
 	function addGoal(matchIndex, playerId) {
 		const match = matches[matchIndex];
@@ -375,14 +393,14 @@
 		const goal = { playerId, ownGoal: false, assistId: null };
 		const side = creditedSide(match, goal);
 		if (side === null) return;
+		moveGoalCredit(match, null, side);
 		match.goals = [...match.goals, goal];
-		shiftScore(match, side, 1);
 	}
 
 	/** @param {number} matchIndex @param {number} goalIndex */
 	function removeGoal(matchIndex, goalIndex) {
 		const match = matches[matchIndex];
-		shiftScore(match, creditedSide(match, match.goals[goalIndex]), -1);
+		moveGoalCredit(match, creditedSide(match, match.goals[goalIndex]), null);
 		match.goals = match.goals.filter((_, i) => i !== goalIndex);
 		editingGoal = null;
 	}
@@ -391,10 +409,10 @@
 	function toggleOwnGoal(matchIndex, goalIndex) {
 		const match = matches[matchIndex];
 		const goal = match.goals[goalIndex];
-		shiftScore(match, creditedSide(match, goal), -1);
+		const from = creditedSide(match, goal);
+		if (from) moveGoalCredit(match, from, from === 'home' ? 'away' : 'home');
 		goal.ownGoal = !goal.ownGoal;
 		if (goal.ownGoal) goal.assistId = null;
-		shiftScore(match, creditedSide(match, goal), 1);
 	}
 
 	/** @param {number} matchIndex @param {number} goalIndex @param {number|null} assistId */
